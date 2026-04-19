@@ -1,1 +1,1 @@
-{"name": "@nixway/api", "private": true, "scripts": {"build": "go build -o bin/api .", "dev": "go run .", "test": "go test ./...", "lint": "golangci-lint run"}}
+{"name": "@nixway/api", "private": true, "scripts": {"build": "go build -o bin/api .", "dev": "set -a && [ -f ../../.env ] && . ../../.env; set +a && go run .", "test": "go test ./...", "lint": "golangci-lint run"}}
