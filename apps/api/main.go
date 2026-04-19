@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"net"
@@ -74,19 +73,16 @@ func main() {
 	// Audit
 	auditWriter := audit.NewWriter(queries)
 
-	// Master key
+	// Master key (required)
 	var masterKey [32]byte
-	if cfg.Crypto.MasterKey != "" {
-		masterKey, err = crypto.MasterKeyFromHex(cfg.Crypto.MasterKey)
-		if err != nil {
-			logger.Error("invalid master key", "error", err)
-			os.Exit(1)
-		}
-	} else {
-		masterKey = crypto.GenerateMasterKey()
-		logger.Warn("no master key configured, generated a random one for dev",
-			"master_key_hex", hex.EncodeToString(masterKey[:]),
-		)
+	if cfg.Crypto.MasterKey == "" {
+		logger.Error("NIXWAY_CRYPTO_MASTER_KEY is required. Generate one with: python3 -c \"import secrets; print(secrets.token_hex(32))\" and add it to .env")
+		os.Exit(1)
+	}
+	masterKey, err = crypto.MasterKeyFromHex(cfg.Crypto.MasterKey)
+	if err != nil {
+		logger.Error("invalid master key", "error", err)
+		os.Exit(1)
 	}
 
 	// Agent connection manager (shared with gRPC server when co-located)

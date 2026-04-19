@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 )
 
@@ -58,6 +59,11 @@ type CryptoConfig struct {
 }
 
 func Load() (*Config, error) {
+	// Load .env file if it exists (searches current dir and parent dirs)
+	for _, path := range []string{".env", "../../.env", "../.env"} {
+		_ = godotenv.Load(path)
+	}
+
 	v := viper.New()
 	v.SetConfigName("config")
 	v.SetConfigType("yaml")
