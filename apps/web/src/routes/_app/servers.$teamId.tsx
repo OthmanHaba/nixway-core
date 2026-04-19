@@ -43,6 +43,7 @@ function ServersPage() {
   // Step 1 fields
   const [name, setName] = useState('')
   const [hostname, setHostname] = useState('')
+  const [publicIp, setPublicIp] = useState('')
   const [sshPort, setSshPort] = useState('22')
   const [sshUser, setSshUser] = useState('root')
   // Step 2 fields
@@ -60,7 +61,7 @@ function ServersPage() {
 
   const addServer = useMutation({
     mutationFn: (data: {
-      name: string; hostname: string; ssh_port: number; ssh_user: string; ssh_key_id: string
+      name: string; hostname: string; public_ip: string; ssh_port: number; ssh_user: string; ssh_key_id: string
     }) => api.post<Server>(`/teams/${teamId}/servers`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'servers'] })
@@ -76,6 +77,7 @@ function ServersPage() {
     setStep(1)
     setName('')
     setHostname('')
+    setPublicIp('')
     setSshPort('22')
     setSshUser('root')
     setSshKeyId('')
@@ -94,6 +96,7 @@ function ServersPage() {
     addServer.mutate({
       name,
       hostname,
+      public_ip: publicIp,
       ssh_port: parseInt(sshPort, 10),
       ssh_user: sshUser,
       ssh_key_id: sshKeyId,
@@ -181,12 +184,22 @@ function ServersPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="server-hostname">Hostname / IP</Label>
+                    <Label htmlFor="server-hostname">Hostname</Label>
                     <Input
                       id="server-hostname"
                       value={hostname}
                       onChange={(e) => setHostname(e.target.value)}
-                      placeholder="e.g., 192.168.1.100"
+                      placeholder="e.g., server-1.example.com"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="server-ip">Public IP</Label>
+                    <Input
+                      id="server-ip"
+                      value={publicIp}
+                      onChange={(e) => setPublicIp(e.target.value)}
+                      placeholder="e.g., 203.0.113.10"
                       required
                     />
                   </div>
