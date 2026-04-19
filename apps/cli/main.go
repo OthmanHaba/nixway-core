@@ -1,5 +1,7 @@
 package main
 
-import "fmt"
+import "github.com/othmanhaba/nixway-core/apps/cli/cmd"
 
-func main() { fmt.Println("nixway cli") }
+func main() {
+	cmd.Execute()
+}
