@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/select'
 import { Loader2, Plus } from 'lucide-react'
 
-export const Route = createFileRoute('/_app/teams/$teamId/servers/')({
+export const Route = createFileRoute('/_app/servers/$teamId')({
   component: ServersPage,
 })
 
@@ -286,7 +286,7 @@ function ServersPage() {
                   className="cursor-pointer"
                   onClick={() =>
                     navigate({
-                      to: '/teams/$teamId/servers/$serverId',
+                      to: '/servers/$teamId/$serverId',
                       params: { teamId, serverId: row.original.id },
                     })
                   }

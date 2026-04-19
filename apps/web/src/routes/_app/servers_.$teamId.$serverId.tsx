@@ -17,7 +17,7 @@ import { useToast } from '@/hooks/use-toast'
 import { useSSE } from '@/hooks/use-sse'
 import { Loader2, Trash2, Plus } from 'lucide-react'
 
-export const Route = createFileRoute('/_app/teams/$teamId/servers/$serverId')({
+export const Route = createFileRoute('/_app/servers_/$teamId/$serverId')({
   component: ServerDetailPage,
 })
 
@@ -101,7 +101,7 @@ function ServerDetailPage() {
     mutationFn: () => api.delete(`/teams/${teamId}/servers/${serverId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'servers'] })
-      navigate({ to: '/teams/$teamId/servers', params: { teamId } })
+      navigate({ to: '/servers/$teamId', params: { teamId } })
       toast({ title: 'Server deleted' })
     },
     onError: (err) => {

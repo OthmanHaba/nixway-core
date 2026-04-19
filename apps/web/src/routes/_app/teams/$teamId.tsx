@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Outlet } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useReactTable, getCoreRowModel, flexRender, createColumnHelper } from '@tanstack/react-table'
 import { api } from '@/lib/api'
@@ -144,7 +144,6 @@ function TeamDetailPage() {
         </CardContent>
       </Card>
 
-      <Outlet />
     </div>
   )
 }

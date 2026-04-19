@@ -18,7 +18,7 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { Plus, Loader2, Trash2 } from 'lucide-react'
 
-export const Route = createFileRoute('/_app/teams/$teamId/ssh-keys')({
+export const Route = createFileRoute('/_app/ssh-keys/$teamId')({
   component: SSHKeysPage,
 })
 

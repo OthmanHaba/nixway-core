@@ -63,7 +63,7 @@ function AppLayout() {
               {currentTeam && (
                 <>
                   <Link
-                    to="/teams/$teamId/servers"
+                    to="/servers/$teamId"
                     params={{ teamId: currentTeam.id }}
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                     activeProps={{ className: 'text-sm text-foreground font-medium' }}
@@ -71,7 +71,7 @@ function AppLayout() {
                     Servers
                   </Link>
                   <Link
-                    to="/teams/$teamId/ssh-keys"
+                    to="/ssh-keys/$teamId"
                     params={{ teamId: currentTeam.id }}
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                     activeProps={{ className: 'text-sm text-foreground font-medium' }}
