@@ -36,6 +36,12 @@ func (w *StatusWatcher) Run(ctx context.Context) {
 	}
 }
 
+// Check runs a single pass of the status watcher, updating any servers
+// whose status has drifted based on last_seen_at. Exported for testing.
+func (w *StatusWatcher) Check(ctx context.Context) {
+	w.check(ctx)
+}
+
 func (w *StatusWatcher) check(ctx context.Context) {
 	servers, err := w.queries.ListServersNeedingStatusUpdate(ctx)
 	if err != nil {

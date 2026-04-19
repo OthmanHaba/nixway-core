@@ -23,7 +23,7 @@ func startGRPCServer(t *testing.T) (string, *agent.ConnManager) {
 	t.Helper()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	connMgr := agent.NewConnManager(logger)
-	srv := agent.NewServer(connMgr, logger)
+	srv := agent.NewServer(connMgr, nil, nil, logger)
 
 	grpcServer := grpc.NewServer()
 	agentv1.RegisterAgentServiceServer(grpcServer, srv)

@@ -3,6 +3,7 @@ package integration
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -22,6 +23,8 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/db"
 	"github.com/othmanhaba/nixway-core/internal/email"
 	internalredis "github.com/othmanhaba/nixway-core/internal/redis"
+	"github.com/othmanhaba/nixway-core/internal/server"
+	"github.com/redis/go-redis/v9"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 	"github.com/riverqueue/river/rivermigrate"
 	"github.com/stretchr/testify/require"
@@ -33,15 +36,16 @@ import (
 
 // TestEnv holds all dependencies for integration tests.
 type TestEnv struct {
-	T         *testing.T
-	Ctx       context.Context
-	Pool      *pgxpool.Pool
-	Queries   *db.Queries
-	Server    *httptest.Server
-	Client    *http.Client
-	Logger    *slog.Logger
-	Config    *config.Config
-	transport http.RoundTripper // TLS transport that trusts the test server cert
+	T           *testing.T
+	Ctx         context.Context
+	Pool        *pgxpool.Pool
+	Queries     *db.Queries
+	RedisClient *redis.Client
+	Server      *httptest.Server
+	Client      *http.Client
+	Logger      *slog.Logger
+	Config      *config.Config
+	transport   http.RoundTripper // TLS transport that trusts the test server cert
 }
 
 // SetupTestEnv creates a full test environment with Postgres, Redis,
@@ -97,10 +101,14 @@ func SetupTestEnv(t *testing.T) *TestEnv {
 	// --- Run migrations ---
 	migrationSQL, err := os.ReadFile("../../sql/migrations/00001_initial_schema.sql")
 	require.NoError(t, err)
-
-	// Extract only the Up section (before "-- +goose Down")
 	upSQL := extractGooseUp(string(migrationSQL))
 	_, err = pool.Exec(ctx, upSQL)
+	require.NoError(t, err)
+
+	migration2SQL, err := os.ReadFile("../../sql/migrations/00002_server_management.sql")
+	require.NoError(t, err)
+	upSQL2 := extractGooseUp(string(migration2SQL))
+	_, err = pool.Exec(ctx, upSQL2)
 	require.NoError(t, err)
 
 	// --- Run River migrations ---
@@ -142,9 +150,16 @@ func SetupTestEnv(t *testing.T) *TestEnv {
 		},
 	}
 
+	// --- Generate master key for SSH key encryption ---
+	var masterKey [32]byte
+	_, err = rand.Read(masterKey[:])
+	require.NoError(t, err)
+
+	onboardingSvc := server.NewOnboardingService(queries, logger, masterKey, "http://localhost:8080")
+
 	// --- Create API router and test server ---
 	// Use TLS server so that Secure cookies are preserved by the cookie jar.
-	router := api.NewRouter(queries, sessionMgr, emailSender, auditWriter, cfg, logger)
+	router := api.NewRouter(queries, sessionMgr, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc)
 	ts := httptest.NewTLSServer(router)
 	t.Cleanup(func() {
 		ts.Close()
@@ -164,15 +179,16 @@ func SetupTestEnv(t *testing.T) *TestEnv {
 	}
 
 	return &TestEnv{
-		T:       t,
-		Ctx:     ctx,
-		Pool:    pool,
-		Queries: queries,
-		Server:  ts,
-		Client:  client,
-		Logger:    logger,
-		Config:    cfg,
-		transport: transport,
+		T:           t,
+		Ctx:         ctx,
+		Pool:        pool,
+		Queries:     queries,
+		RedisClient: redisClient,
+		Server:      ts,
+		Client:      client,
+		Logger:      logger,
+		Config:      cfg,
+		transport:   transport,
 	}
 }
 
