@@ -26,9 +26,12 @@ function SSHKeysPage() {
   const { teamId } = Route.useParams()
   const queryClient = useQueryClient()
   const { toast } = useToast()
-  const [open, setOpen] = useState(false)
+  const [generateOpen, setGenerateOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [keyName, setKeyName] = useState('')
   const [keyType, setKeyType] = useState('ed25519')
+  const [publicKey, setPublicKey] = useState('')
+  const [privateKey, setPrivateKey] = useState('')
   const [error, setError] = useState('')
   const [deleteId, setDeleteId] = useState<string | null>(null)
 
@@ -42,7 +45,7 @@ function SSHKeysPage() {
       api.post<SSHKey>(`/teams/${teamId}/ssh-keys`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'ssh-keys'] })
-      setOpen(false)
+      setGenerateOpen(false)
       setKeyName('')
       setKeyType('ed25519')
       setError('')
@@ -50,6 +53,23 @@ function SSHKeysPage() {
     },
     onError: (err) => {
       setError(err instanceof ApiError ? err.message : 'Failed to generate key')
+    },
+  })
+
+  const importKey = useMutation({
+    mutationFn: (data: { name: string; public_key: string; private_key: string }) =>
+      api.post<SSHKey>(`/teams/${teamId}/ssh-keys`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'ssh-keys'] })
+      setImportOpen(false)
+      setKeyName('')
+      setPublicKey('')
+      setPrivateKey('')
+      setError('')
+      toast({ title: 'SSH key imported', description: 'The existing key has been added.' })
+    },
+    onError: (err) => {
+      setError(err instanceof ApiError ? err.message : 'Failed to import key')
     },
   })
 
@@ -110,6 +130,12 @@ function SSHKeysPage() {
     generateKey.mutate({ name: keyName, key_type: keyType })
   }
 
+  const handleImport = (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    importKey.mutate({ name: keyName, public_key: publicKey, private_key: privateKey })
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -117,54 +143,114 @@ function SSHKeysPage() {
           <h2 className="text-2xl font-bold tracking-tight">SSH Keys</h2>
           <p className="text-muted-foreground">Manage SSH keys for server access</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Generate Key
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <form onSubmit={handleGenerate}>
-              <DialogHeader>
-                <DialogTitle>Generate SSH Key</DialogTitle>
-                <DialogDescription>Generate a new SSH key pair for server access.</DialogDescription>
-              </DialogHeader>
-              <div className="py-4 space-y-4">
-                {error && (
-                  <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
-                )}
-                <div className="space-y-2">
-                  <Label htmlFor="key-name">Key name</Label>
-                  <Input
-                    id="key-name"
-                    value={keyName}
-                    onChange={(e) => setKeyName(e.target.value)}
-                    placeholder="e.g., production-key"
-                    required
-                  />
+        <div className="flex gap-2">
+          <Dialog open={generateOpen} onOpenChange={setGenerateOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Generate Key
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <form onSubmit={handleGenerate}>
+                <DialogHeader>
+                  <DialogTitle>Generate SSH Key</DialogTitle>
+                  <DialogDescription>Generate a new SSH key pair for server access.</DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                  {error && (
+                    <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
+                  )}
+                  <div className="space-y-2">
+                    <Label htmlFor="gen-key-name">Key name</Label>
+                    <Input
+                      id="gen-key-name"
+                      value={keyName}
+                      onChange={(e) => setKeyName(e.target.value)}
+                      placeholder="e.g., production-key"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="key-type">Key type</Label>
+                    <Select value={keyType} onValueChange={setKeyType}>
+                      <SelectTrigger id="key-type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ed25519">ed25519</SelectItem>
+                        <SelectItem value="rsa">rsa</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="key-type">Key type</Label>
-                  <Select value={keyType} onValueChange={setKeyType}>
-                    <SelectTrigger id="key-type">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ed25519">ed25519</SelectItem>
-                      <SelectItem value="rsa">rsa</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <DialogFooter>
+                  <Button type="submit" disabled={generateKey.isPending}>
+                    {generateKey.isPending ? 'Generating...' : 'Generate'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={importOpen} onOpenChange={(v) => { setImportOpen(v); if (!v) { setError(''); setKeyName(''); setPublicKey(''); setPrivateKey('') } }}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                Import Existing Key
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <form onSubmit={handleImport}>
+                <DialogHeader>
+                  <DialogTitle>Import SSH Key</DialogTitle>
+                  <DialogDescription>Add an existing SSH key pair. Paste your public and private key contents.</DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                  {error && (
+                    <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
+                  )}
+                  <div className="space-y-2">
+                    <Label htmlFor="import-key-name">Key name</Label>
+                    <Input
+                      id="import-key-name"
+                      value={keyName}
+                      onChange={(e) => setKeyName(e.target.value)}
+                      placeholder="e.g., my-server-key"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="public-key">Public key</Label>
+                    <textarea
+                      id="public-key"
+                      className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      value={publicKey}
+                      onChange={(e) => setPublicKey(e.target.value)}
+                      placeholder="ssh-ed25519 AAAA..."
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="private-key">Private key</Label>
+                    <textarea
+                      id="private-key"
+                      className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      value={privateKey}
+                      onChange={(e) => setPrivateKey(e.target.value)}
+                      placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+                      required
+                    />
+                  </div>
                 </div>
-              </div>
-              <DialogFooter>
-                <Button type="submit" disabled={generateKey.isPending}>
-                  {generateKey.isPending ? 'Generating...' : 'Generate'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <DialogFooter>
+                  <Button type="submit" disabled={importKey.isPending}>
+                    {importKey.isPending ? 'Importing...' : 'Import Key'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Delete confirmation dialog */}
