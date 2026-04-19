@@ -2,6 +2,8 @@ import { createFileRoute, Outlet, redirect, Link, useRouter } from '@tanstack/re
 import { queryClient } from '@/lib/query'
 import { api } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
+import { useTeamContext } from '@/hooks/use-team-context'
+import { TeamSwitcher } from '@/components/team-switcher'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -30,6 +32,7 @@ export const Route = createFileRoute('/_app')({
 function AppLayout() {
   const { user, logout } = useAuth()
   const router = useRouter()
+  const { currentTeam, teams, setCurrentTeam } = useTeamContext()
 
   const handleLogout = async () => {
     await logout.mutateAsync()
@@ -40,11 +43,43 @@ function AppLayout() {
     <div className="min-h-screen bg-background">
       <header className="border-b">
         <div className="container mx-auto flex h-14 items-center justify-between px-4">
-          <div className="flex items-center gap-6">
-            <Link to="/dashboard" className="text-lg font-bold">
+          <div className="flex items-center gap-4">
+            <Link to="/dashboard" className="text-lg font-bold shrink-0">
               Nixway
             </Link>
+            <TeamSwitcher
+              currentTeam={currentTeam}
+              teams={teams}
+              onSelect={setCurrentTeam}
+            />
             <nav className="flex items-center gap-4">
+              <Link
+                to="/dashboard"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                activeProps={{ className: 'text-sm text-foreground font-medium' }}
+              >
+                Dashboard
+              </Link>
+              {currentTeam && (
+                <>
+                  <Link
+                    to="/teams/$teamId/servers"
+                    params={{ teamId: currentTeam.id }}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    activeProps={{ className: 'text-sm text-foreground font-medium' }}
+                  >
+                    Servers
+                  </Link>
+                  <Link
+                    to="/teams/$teamId/ssh-keys"
+                    params={{ teamId: currentTeam.id }}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    activeProps={{ className: 'text-sm text-foreground font-medium' }}
+                  >
+                    SSH Keys
+                  </Link>
+                </>
+              )}
               <Link
                 to="/teams"
                 className="text-sm text-muted-foreground hover:text-foreground transition-colors"

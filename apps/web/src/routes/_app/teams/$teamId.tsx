@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // Tabs available for future use
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Settings, Key, ScrollText, Loader2, Server, KeyRound } from 'lucide-react'
+import { Settings, Key, ScrollText, Loader2 } from 'lucide-react'
 
 export const Route = createFileRoute('/_app/teams/$teamId')({
   component: TeamDetailPage,
@@ -90,18 +90,6 @@ function TeamDetailPage() {
             <Button variant="outline" size="sm">
               <ScrollText className="mr-2 h-4 w-4" />
               Audit Log
-            </Button>
-          </Link>
-          <Link to="/teams/$teamId/servers" params={{ teamId }}>
-            <Button variant="outline" size="sm">
-              <Server className="mr-2 h-4 w-4" />
-              Servers
-            </Button>
-          </Link>
-          <Link to="/teams/$teamId/ssh-keys" params={{ teamId }}>
-            <Button variant="outline" size="sm">
-              <KeyRound className="mr-2 h-4 w-4" />
-              SSH Keys
             </Button>
           </Link>
         </div>
