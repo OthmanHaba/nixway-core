@@ -237,6 +237,7 @@ DELETE /api/v1/teams/:id/servers/:serverId/tags/:key    — delete tag
 - Control plane pushes scripts to agent via gRPC (using existing FileTransfer mechanism)
 - Agent executes scripts and streams stdout/stderr back as ProvisionOutput messages
 - Control plane appends output to `provisioning_jobs.logs` in real-time
+- Logs streamed to web UI via Server-Sent Events (SSE) — no polling
 
 ### Components (v1)
 
@@ -277,11 +278,21 @@ DELETE /api/v1/teams/:id/servers/:serverId/tags/:key    — delete tag
 6. On failure: job status → `failed`, error message stored, server remains functional
 7. Retry: re-runs the failed component scripts
 
+### Log Streaming via SSE
+- Endpoint: `GET /api/v1/teams/:id/servers/:serverId/provision/logs/stream`
+- Content-Type: `text/event-stream`
+- Agent streams ProvisionOutput → control plane fans out via Redis pub/sub → SSE handler pushes to connected clients
+- Redis channel: `provision:<job_id>`
+- Events: `data: {"component":"docker","output":"Installing...","finished":false}\n\n`
+- On job completion: sends final event with `finished: true` and closes stream
+- Web UI connects via `EventSource` API, appends log lines in real-time
+
 ### API Endpoints
 ```
-POST /api/v1/teams/:id/servers/:serverId/provision       — start provisioning {components: [...]}
-GET  /api/v1/teams/:id/servers/:serverId/provision       — get latest provisioning status + logs
-POST /api/v1/teams/:id/servers/:serverId/provision/retry  — retry failed provisioning
+POST /api/v1/teams/:id/servers/:serverId/provision              — start provisioning {components: [...]}
+GET  /api/v1/teams/:id/servers/:serverId/provision              — get latest provisioning status + logs
+GET  /api/v1/teams/:id/servers/:serverId/provision/logs/stream  — SSE stream of provisioning logs
+POST /api/v1/teams/:id/servers/:serverId/provision/retry        — retry failed provisioning
 ```
 
 ---
