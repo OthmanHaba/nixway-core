@@ -63,7 +63,7 @@ nixway-core/
 │   ├── api/                  # HTTP handlers, middleware, routes
 │   │   ├── handler/          # Grouped by domain (auth, team, token, audit)
 │   │   └── middleware/       # Auth, logging, rate limiting, RBAC
-│   ├── auth/                 # JWT, sessions, password hashing, RBAC
+│   ├── auth/                 # Token auth, sessions, password hashing, RBAC
 │   ├── config/               # App config (Viper)
 │   ├── db/                   # DB connection, sqlc generated code
 │   ├── email/                # Email sender interface + console/SMTP impls
@@ -210,7 +210,7 @@ All Go apps share `internal/` via Go workspaces — each app has its own `go.mod
 | team_id | UUID | FK → teams |
 | user_id | UUID | FK → users (creator) |
 | name | TEXT | NOT NULL |
-| token_hash | TEXT | NOT NULL (SHA-256 of JWT) |
+| token_hash | TEXT | NOT NULL (SHA-256 of opaque token) |
 | scopes | TEXT[] | e.g. {'read','write','admin'} |
 | last_used_at | TIMESTAMPTZ | nullable |
 | expires_at | TIMESTAMPTZ | nullable |
@@ -241,7 +241,6 @@ All Go apps share `internal/` via Go workspaces — each app has its own `go.mod
 - Driver: `go-redis/v9`
 - Used for:
   - **Web sessions**: key = `session:<session_id>`, value = JSON user data, TTL = 24h
-  - **JWT blocklist**: key = `blocklist:<token_hash>`, TTL = remaining token lifetime
   - **Rate limit counters**: key = `ratelimit:<ip>:<endpoint>`, INCR with TTL
 
 ---
@@ -287,12 +286,13 @@ All Go apps share `internal/` via Go workspaces — each app has its own `go.mod
 4. On reset: validate token + expiry, hash new password, update user, invalidate all sessions for user
 5. Write audit log
 
-### API Token Auth
-1. Token sent via `Authorization: Bearer <jwt>`
-2. Verify JWT signature (HMAC-SHA256)
-3. Check token hash against `api_tokens` table — reject if revoked or expired
-4. Extract scopes, attach to request context
-5. Update `last_used_at`
+### API Token Auth (Sanctum-style)
+1. On creation: generate 40-byte random token (crypto/rand), SHA-256 hash it, store hash in `api_tokens`, return plain token once (format: `nxw_<base64url>`)
+2. On request: token sent via `Authorization: Bearer nxw_<token>`
+3. SHA-256 hash the received token, look up hash in `api_tokens` table
+4. Reject if not found, revoked, or expired
+5. Extract scopes, attach to request context
+6. Update `last_used_at`
 
 ### Web Session Auth
 1. Session cookie sent with request
