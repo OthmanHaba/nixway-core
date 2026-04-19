@@ -15,37 +15,92 @@ Every component is fully implemented, tested, and verified against the exit crit
 
 ---
 
-## Project Structure
+## Project Structure (Turborepo Monorepo)
 
 ```
 nixway-core/
-├── cmd/
-│   ├── api/              # Control plane API server
-│   ├── worker/           # Job queue worker
-│   ├── agent/            # Agent binary
-│   └── cli/              # CLI tool (nxw)
-├── internal/
-│   ├── api/              # HTTP handlers, middleware, routes
-│   │   ├── handler/      # Grouped by domain (auth, team, token, audit)
-│   │   └── middleware/   # Auth, logging, rate limiting, RBAC
-│   ├── auth/             # JWT, sessions, password hashing, RBAC
-│   ├── config/           # App config (Viper)
-│   ├── db/               # DB connection, sqlc generated code
-│   ├── email/            # Email sender interface + console/SMTP impls
-│   ├── job/              # River job definitions + handlers
-│   ├── model/            # Domain types shared across layers
-│   ├── agent/            # Agent protocol, mTLS, connection manager
-│   └── audit/            # Audit log writer
+├── turbo.json                # Turborepo pipeline config
+├── package.json              # Root workspace + turbo scripts
+├── pnpm-workspace.yaml       # pnpm workspace definition
+├── docker-compose.yml        # Postgres + Redis + step-ca for local dev
+├── Makefile                  # Top-level convenience targets
+│
+├── apps/
+│   ├── api/                  # Control plane API server (Go)
+│   │   ├── main.go
+│   │   ├── go.mod
+│   │   ├── go.sum
+│   │   └── package.json      # turbo scripts: build, test, lint, dev
+│   ├── worker/               # Job queue worker (Go)
+│   │   ├── main.go
+│   │   ├── go.mod
+│   │   └── package.json
+│   ├── agent/                # Agent binary (Go)
+│   │   ├── main.go
+│   │   ├── go.mod
+│   │   └── package.json
+│   ├── cli/                  # CLI tool — nxw (Go)
+│   │   ├── main.go
+│   │   ├── go.mod
+│   │   └── package.json
+│   └── web/                  # Vite + React 19 frontend
+│       ├── src/
+│       ├── package.json
+│       ├── vite.config.ts
+│       ├── tsconfig.json
+│       └── tailwind.config.ts
+│
+├── packages/
+│   ├── ui/                   # Shared UI components (shadcn/ui base)
+│   │   ├── src/
+│   │   └── package.json
+│   ├── typescript-config/    # Shared TS configs
+│   │   └── package.json
+│   └── eslint-config/        # Shared ESLint configs
+│       └── package.json
+│
+├── internal/                 # Shared Go packages (Go workspace)
+│   ├── api/                  # HTTP handlers, middleware, routes
+│   │   ├── handler/          # Grouped by domain (auth, team, token, audit)
+│   │   └── middleware/       # Auth, logging, rate limiting, RBAC
+│   ├── auth/                 # JWT, sessions, password hashing, RBAC
+│   ├── config/               # App config (Viper)
+│   ├── db/                   # DB connection, sqlc generated code
+│   ├── email/                # Email sender interface + console/SMTP impls
+│   ├── job/                  # River job definitions + handlers
+│   ├── model/                # Domain types shared across layers
+│   ├── agent/                # Agent protocol, mTLS, connection manager
+│   └── audit/                # Audit log writer
+│
 ├── sql/
-│   ├── migrations/       # Goose migration files
-│   └── queries/          # sqlc query files
-├── proto/                # Protobuf definitions for agent protocol
-├── web/                  # Vite + React 19 frontend
-├── docker-compose.yml    # Postgres + Redis for local dev
-├── Makefile
-├── go.mod
-└── go.sum
+│   ├── migrations/           # Goose migration files
+│   └── queries/              # sqlc query files
+│
+├── proto/                    # Protobuf definitions for agent protocol
+│
+└── go.work                   # Go workspace linking apps/* + internal/
 ```
+
+### Turborepo Pipeline (`turbo.json`)
+```json
+{
+  "pipeline": {
+    "build": { "dependsOn": ["^build"], "outputs": ["dist/**", "bin/**"] },
+    "dev": { "cache": false, "persistent": true },
+    "test": { "dependsOn": ["build"] },
+    "test:integration": { "dependsOn": ["build"], "cache": false },
+    "lint": {},
+    "generate": { "outputs": ["internal/db/**", "internal/api/gen/**"] }
+  }
+}
+```
+
+### Go Workspace (`go.work`)
+All Go apps share `internal/` via Go workspaces — each app has its own `go.mod` but imports `internal/` packages directly.
+
+### Package Manager
+- **pnpm** for TypeScript packages (web, ui, configs)
+- **Go workspaces** for Go packages (apps/api, apps/worker, apps/agent, apps/cli, internal/)
 
 ---
 
@@ -492,15 +547,26 @@ type EmailSender interface {
 - Redis 7 on port 6379
 - step-ca on port 9000 (agent CA)
 
-### Makefile Targets
-- `make dev` — start docker-compose, run API + worker
+### Turborepo Scripts (via `pnpm turbo`)
+- `pnpm turbo dev` — start all apps (API, worker, web dev server) in parallel
+- `pnpm turbo build` — build all apps (Go binaries + Vite bundle)
+- `pnpm turbo test` — run all unit tests (Go + TS)
+- `pnpm turbo test:integration` — run integration tests with testcontainers
+- `pnpm turbo lint` — run golangci-lint (Go) + ESLint/Biome (TS)
+- `pnpm turbo generate` — run sqlc + oapi-codegen + protoc
+
+### Per-App package.json Scripts (Go apps)
+Each Go app (`apps/api`, `apps/worker`, `apps/agent`, `apps/cli`) has a `package.json` with:
+- `"build"` → `go build -o bin/ ./...`
+- `"dev"` → `go run .` (with air for hot-reload where applicable)
+- `"test"` → `go test ./...`
+- `"lint"` → `golangci-lint run`
+
+### Makefile (convenience)
+- `make up` — start docker-compose services
+- `make down` — stop docker-compose services
 - `make migrate` — run goose migrations
-- `make generate` — run sqlc + oapi-codegen + protoc
-- `make test` — run all Go tests
-- `make test-integration` — run integration tests with testcontainers
-- `make build-agent` — cross-compile agent binary
-- `make lint` — run golangci-lint
-- `make web` — start Vite dev server
+- `make build-agent` — cross-compile agent for linux/amd64 + linux/arm64
 
 ---
 
@@ -535,6 +601,7 @@ Specific tests validating each "Done When" item from the spec:
 
 | Layer | Technology |
 |-------|-----------|
+| Monorepo | Turborepo + pnpm workspaces + Go workspaces |
 | Language (backend) | Go |
 | Language (frontend) | TypeScript |
 | API framework | Go net/http + OpenAPI + oapi-codegen |
@@ -545,7 +612,7 @@ Specific tests validating each "Done When" item from the spec:
 | mTLS CA | smallstep/step-ca |
 | CLI | Cobra + Viper + go-keyring |
 | Frontend | Vite + React 19 + TanStack (Router, Query, Table) + Tailwind + shadcn/ui |
-| Testing | testify + testcontainers-go |
+| Testing | testify + testcontainers-go + Playwright |
 | Logging | slog |
 | Tracing | OpenTelemetry |
 | Linting | golangci-lint, ESLint + Biome |
