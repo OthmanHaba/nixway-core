@@ -12,6 +12,7 @@ type Config struct {
 	Redis    RedisConfig
 	Auth     AuthConfig
 	Email    EmailConfig
+	Crypto   CryptoConfig
 }
 
 type ServerConfig struct {
@@ -46,6 +47,10 @@ type EmailConfig struct {
 	BaseURL  string
 }
 
+type CryptoConfig struct {
+	MasterKey string
+}
+
 func Load() (*Config, error) {
 	v := viper.New()
 	v.SetConfigName("config")
@@ -60,7 +65,7 @@ func Load() (*Config, error) {
 	v.SetDefault("server.port", 8080)
 
 	// Database defaults
-	v.SetDefault("database.url", "postgres://nixway:nixway@localhost:5432/nixway?sslmode=disable")
+	v.SetDefault("database.url", "postgres://postgres@localhost:5432/nixway_core?sslmode=disable")
 
 	// Redis defaults
 	v.SetDefault("redis.url", "redis://localhost:6379/0")
@@ -72,6 +77,9 @@ func Load() (*Config, error) {
 	v.SetDefault("auth.verify_email_ttl", "24h")
 	v.SetDefault("auth.password_reset_ttl", "1h")
 	v.SetDefault("auth.invite_ttl", "168h")
+
+	// Crypto defaults
+	v.SetDefault("crypto.master_key", "")
 
 	// Email defaults
 	v.SetDefault("email.driver", "console")
@@ -98,6 +106,7 @@ func Load() (*Config, error) {
 	cfg.Email.SMTPUser = v.GetString("email.smtp_user")
 	cfg.Email.SMTPPass = v.GetString("email.smtp_pass")
 	cfg.Email.BaseURL = v.GetString("email.base_url")
+	cfg.Crypto.MasterKey = v.GetString("crypto.master_key")
 
 	return cfg, nil
 }
