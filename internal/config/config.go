@@ -1,6 +1,9 @@
 package config
 
 import (
+	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/viper"
@@ -16,8 +19,10 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Host string
-	Port int
+	Host      string
+	Port      int
+	PublicURL string // Public URL for agent connections (e.g. cloudflare tunnel URL)
+	GRPCPort  int
 }
 
 type DatabaseConfig struct {
@@ -63,6 +68,8 @@ func Load() (*Config, error) {
 	// Server defaults
 	v.SetDefault("server.host", "0.0.0.0")
 	v.SetDefault("server.port", 8080)
+	v.SetDefault("server.public_url", "")  // Set via NIXWAY_SERVER_PUBLIC_URL or .tunnel-url file
+	v.SetDefault("server.grpc_port", 9090)
 
 	// Database defaults
 	v.SetDefault("database.url", "postgres://postgres@localhost:5432/nixway_core?sslmode=disable")
@@ -91,6 +98,19 @@ func Load() (*Config, error) {
 	cfg := &Config{}
 	cfg.Server.Host = v.GetString("server.host")
 	cfg.Server.Port = v.GetInt("server.port")
+	cfg.Server.GRPCPort = v.GetInt("server.grpc_port")
+	cfg.Server.PublicURL = v.GetString("server.public_url")
+
+	// If no public URL set, try reading from .tunnel-url file (written by cloudflared tunnel)
+	if cfg.Server.PublicURL == "" {
+		if data, err := os.ReadFile(".tunnel-url"); err == nil {
+			cfg.Server.PublicURL = strings.TrimSpace(string(data))
+		}
+	}
+	// Final fallback to localhost
+	if cfg.Server.PublicURL == "" {
+		cfg.Server.PublicURL = fmt.Sprintf("http://localhost:%d", cfg.Server.Port)
+	}
 	cfg.Database.URL = v.GetString("database.url")
 	cfg.Redis.URL = v.GetString("redis.url")
 	cfg.Auth.SessionTTL = v.GetDuration("auth.session_ttl")

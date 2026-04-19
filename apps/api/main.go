@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/othmanhaba/nixway-core/internal/agent"
 	"github.com/othmanhaba/nixway-core/internal/api"
 	"github.com/othmanhaba/nixway-core/internal/audit"
 	"github.com/othmanhaba/nixway-core/internal/auth"
@@ -83,15 +84,18 @@ func main() {
 	}
 
 	// Onboarding service
-	apiURL := cfg.Email.BaseURL // reuse base URL as API URL for now
-	onboardingSvc := server.NewOnboardingService(queries, logger, masterKey, apiURL)
+	logger.Info("public URL for agent connections", "url", cfg.Server.PublicURL)
+	onboardingSvc := server.NewOnboardingService(queries, logger, masterKey, cfg.Server.PublicURL)
+
+	// Agent connection manager (shared with gRPC server when co-located)
+	connMgr := agent.NewConnManager(logger)
 
 	// Status watcher
 	statusWatcher := server.NewStatusWatcher(queries, logger)
 	go statusWatcher.Run(ctx)
 
 	// Router & Server
-	router := api.NewRouter(queries, sessions, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc)
+	router := api.NewRouter(queries, sessions, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc, connMgr)
 	srv := api.NewServer(router, cfg.Server.Host, cfg.Server.Port, logger)
 
 	if err := srv.Start(); err != nil {

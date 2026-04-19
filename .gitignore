@@ -35,3 +35,4 @@ docker-compose.override.yml
 bin/
 apps/*/bin/
 apps/agent/agent
+.tunnel-url

@@ -1,0 +1,7 @@
+{
+  "name": "@nixway/tunnel",
+  "private": true,
+  "scripts": {
+    "dev": "bash tunnel.sh"
+  }
+}
