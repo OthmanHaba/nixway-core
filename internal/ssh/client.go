@@ -1,9 +1,11 @@
 package ssh
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"time"
@@ -108,6 +110,45 @@ func (c *Client) PushFile(ctx context.Context, content []byte, remotePath string
 	cmd := fmt.Sprintf("cat > %s && chmod %s %s", remotePath, mode, remotePath)
 	session.Stdin = bytes.NewReader(content)
 	return session.Run(cmd)
+}
+
+// RunCommandStreaming executes a command on the remote server and calls
+// onOutput for each line of combined stdout/stderr output.
+func (c *Client) RunCommandStreaming(ctx context.Context, command string, onOutput func(line string)) error {
+	conn, err := gossh.Dial("tcp", c.addr, c.config)
+	if err != nil {
+		return fmt.Errorf("dial: %w", err)
+	}
+	defer conn.Close()
+
+	session, err := conn.NewSession()
+	if err != nil {
+		return fmt.Errorf("new session: %w", err)
+	}
+	defer session.Close()
+
+	// Use an io.Pipe to merge stdout and stderr into a single reader.
+	pr, pw := io.Pipe()
+	session.Stdout = pw
+	session.Stderr = pw
+
+	if err := session.Start(command); err != nil {
+		return fmt.Errorf("start %q: %w", command, err)
+	}
+
+	// Read lines in a goroutine; close the pipe writer when the session exits.
+	done := make(chan error, 1)
+	go func() {
+		done <- session.Wait()
+		pw.Close()
+	}()
+
+	scanner := bufio.NewScanner(pr)
+	for scanner.Scan() {
+		onOutput(scanner.Text())
+	}
+
+	return <-done
 }
 
 func parseOSRelease(content string) (string, string) {

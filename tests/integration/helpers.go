@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/othmanhaba/nixway-core/internal/agent"
 	"github.com/othmanhaba/nixway-core/internal/api"
 	"github.com/othmanhaba/nixway-core/internal/audit"
 	"github.com/othmanhaba/nixway-core/internal/auth"
@@ -157,9 +158,12 @@ func SetupTestEnv(t *testing.T) *TestEnv {
 
 	onboardingSvc := server.NewOnboardingService(queries, logger, masterKey, "http://localhost:8080")
 
+	// --- Agent connection manager ---
+	connMgr := agent.NewConnManager(logger)
+
 	// --- Create API router and test server ---
 	// Use TLS server so that Secure cookies are preserved by the cookie jar.
-	router := api.NewRouter(queries, sessionMgr, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc)
+	router := api.NewRouter(queries, sessionMgr, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc, connMgr)
 	ts := httptest.NewTLSServer(router)
 	t.Cleanup(func() {
 		ts.Close()

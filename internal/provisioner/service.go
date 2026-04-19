@@ -1,0 +1,166 @@
+package provisioner
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/redis/go-redis/v9"
+
+	"github.com/othmanhaba/nixway-core/internal/crypto"
+	"github.com/othmanhaba/nixway-core/internal/db"
+	"github.com/othmanhaba/nixway-core/internal/ssh"
+)
+
+// Service executes provisioning scripts on servers over SSH.
+type Service struct {
+	queries   *db.Queries
+	redis     *redis.Client
+	logger    *slog.Logger
+	masterKey [32]byte
+	apiURL    string
+	grpcAddr  string
+}
+
+// NewService creates a new provisioning service.
+func NewService(queries *db.Queries, redisClient *redis.Client, logger *slog.Logger, masterKey [32]byte, apiURL string, grpcAddr string) *Service {
+	return &Service{
+		queries:   queries,
+		redis:     redisClient,
+		logger:    logger,
+		masterKey: masterKey,
+		apiURL:    apiURL,
+		grpcAddr:  grpcAddr,
+	}
+}
+
+// RunProvisioning SSHes into the server and executes each component script,
+// streaming output to Redis pub/sub and persisting logs in the database.
+func (s *Service) RunProvisioning(ctx context.Context, jobID, serverID, teamID uuid.UUID, components []string) {
+	// 1. Get server details.
+	srv, err := s.queries.GetServerByID(ctx, db.GetServerByIDParams{
+		ID:     serverID,
+		TeamID: teamID,
+	})
+	if err != nil {
+		s.logger.Error("failed to get server", "server_id", serverID, "error", err)
+		s.failJob(ctx, jobID, fmt.Sprintf("get server: %v", err))
+		return
+	}
+
+	// 2. Get SSH key for this server and decrypt it.
+	sshKey, err := s.queries.GetSSHKeyForServer(ctx, serverID)
+	if err != nil {
+		s.logger.Error("failed to get ssh key for server", "server_id", serverID, "error", err)
+		s.failJob(ctx, jobID, fmt.Sprintf("get ssh key: %v", err))
+		return
+	}
+
+	privateKey, err := crypto.Decrypt(sshKey.PrivateKeyEncrypted, s.masterKey, "ssh-private-key")
+	if err != nil {
+		s.logger.Error("failed to decrypt ssh key", "server_id", serverID, "error", err)
+		s.failJob(ctx, jobID, fmt.Sprintf("decrypt ssh key: %v", err))
+		return
+	}
+
+	// 3. Create SSH client.
+	client, err := ssh.NewClient(srv.Hostname, int(srv.SshPort), srv.SshUser, privateKey)
+	if err != nil {
+		s.logger.Error("failed to create ssh client", "server_id", serverID, "error", err)
+		s.failJob(ctx, jobID, fmt.Sprintf("ssh client: %v", err))
+		return
+	}
+
+	// 4. Update job status to running.
+	now := time.Now()
+	if err := s.queries.UpdateProvisioningJobStatus(ctx, db.UpdateProvisioningJobStatusParams{
+		ID:        jobID,
+		Status:    "running",
+		StartedAt: pgtype.Timestamptz{Time: now, Valid: true},
+	}); err != nil {
+		s.logger.Error("failed to update job status", "job_id", jobID, "error", err)
+		return
+	}
+
+	channel := "provision:" + jobID.String()
+
+	// 5. Always install agent as the last step.
+	hasAgent := false
+	for _, c := range components {
+		if c == "agent" {
+			hasAgent = true
+			break
+		}
+	}
+	if !hasAgent {
+		components = append(components, "agent")
+	}
+
+	// 6. Execute each component script.
+	for _, component := range components {
+		var script []byte
+		if component == "agent" {
+			script, err = GetAgentScript(s.apiURL, s.grpcAddr, serverID.String())
+		} else {
+			script, err = GetScript(component)
+		}
+		if err != nil {
+			s.logger.Error("failed to get script", "component", component, "error", err)
+			s.failJob(ctx, jobID, fmt.Sprintf("script not found for %s: %v", component, err))
+			return
+		}
+
+		remotePath := fmt.Sprintf("/tmp/nixway-provision-%s.sh", component)
+		if err := client.PushFile(ctx, script, remotePath, "0755"); err != nil {
+			s.logger.Error("failed to push script", "component", component, "error", err)
+			s.failJob(ctx, jobID, fmt.Sprintf("push script for %s: %v", component, err))
+			return
+		}
+
+		s.publishLine(ctx, channel, fmt.Sprintf(">>> Starting component: %s", component))
+
+		execErr := client.RunCommandStreaming(ctx, "sudo bash "+remotePath, func(line string) {
+			s.publishLine(ctx, channel, line)
+			// Append to job logs in DB (best-effort).
+			_ = s.queries.AppendProvisioningLog(ctx, db.AppendProvisioningLogParams{
+				ID:   jobID,
+				Logs: line + "\n",
+			})
+		})
+		if execErr != nil {
+			errMsg := fmt.Sprintf("component %s failed: %v", component, execErr)
+			s.publishLine(ctx, channel, "ERROR: "+errMsg)
+			s.failJob(ctx, jobID, errMsg)
+			return
+		}
+
+		s.publishLine(ctx, channel, fmt.Sprintf(">>> Completed component: %s", component))
+		s.logger.Info("component provisioned", "job_id", jobID, "component", component)
+	}
+
+	// 6. Mark job as completed.
+	s.publishLine(ctx, channel, ">>> Provisioning completed successfully")
+	_ = s.queries.UpdateProvisioningJobStatus(ctx, db.UpdateProvisioningJobStatusParams{
+		ID:          jobID,
+		Status:      "completed",
+		CompletedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+	})
+}
+
+func (s *Service) publishLine(ctx context.Context, channel, line string) {
+	if err := s.redis.Publish(ctx, channel, line).Err(); err != nil {
+		s.logger.Warn("failed to publish provision log line", "channel", channel, "error", err)
+	}
+}
+
+func (s *Service) failJob(ctx context.Context, jobID uuid.UUID, errMsg string) {
+	_ = s.queries.UpdateProvisioningJobStatus(ctx, db.UpdateProvisioningJobStatusParams{
+		ID:          jobID,
+		Status:      "failed",
+		CompletedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		Error:       &errMsg,
+	})
+}

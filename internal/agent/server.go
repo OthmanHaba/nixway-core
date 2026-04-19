@@ -79,6 +79,13 @@ func (s *Server) Connect(stream agentv1.AgentService_ConnectServer) error {
 				if s.conn.GetState(agentID) == nil {
 					s.conn.Register(agentID)
 				}
+				// Store the stream so the control plane can push commands to this agent.
+				s.conn.SetStream(agentID, stream)
+
+				// Link agent to server: the installer sets --id to the server UUID,
+				// so the agent sends heartbeats with the server ID. On first heartbeat,
+				// update the server record's agent_id to complete the link.
+				s.linkAgentToServer(stream.Context(), agentID)
 			}
 			s.conn.Heartbeat(hb.AgentId)
 			s.logger.Debug("heartbeat received", "agent_id", hb.AgentId)
@@ -116,6 +123,10 @@ func (s *Server) Connect(stream agentv1.AgentService_ConnectServer) error {
 			rr := p.ResourceReport
 			if agentID == "" {
 				agentID = rr.AgentId
+				if s.conn.GetState(agentID) == nil {
+					s.conn.Register(agentID)
+				}
+				s.conn.SetStream(agentID, stream)
 			}
 			s.conn.Heartbeat(agentID)
 			s.conn.UpdateResources(agentID, rr)
@@ -151,6 +162,31 @@ func (s *Server) Connect(stream agentv1.AgentService_ConnectServer) error {
 			s.logger.Warn("unknown agent message payload type")
 		}
 	}
+}
+
+// linkAgentToServer attempts to link an agent to its server record.
+// The agent's ID is the server UUID (set by the installer's --id flag).
+// We update the server's agent_id field so future lookups by agent_id work.
+func (s *Server) linkAgentToServer(ctx context.Context, agentID string) {
+	if s.queries == nil {
+		return
+	}
+
+	serverUUID, err := uuid.Parse(agentID)
+	if err != nil {
+		s.logger.Debug("agent ID is not a valid server UUID, skipping link", "agent_id", agentID)
+		return
+	}
+
+	if err := s.queries.UpdateServerAgentID(ctx, db.UpdateServerAgentIDParams{
+		ID:      serverUUID,
+		AgentID: &agentID,
+	}); err != nil {
+		s.logger.Debug("failed to link agent to server", "agent_id", agentID, "error", err)
+		return
+	}
+
+	s.logger.Info("linked agent to server", "agent_id", agentID, "server_id", serverUUID)
 }
 
 func (s *Server) handleResourceReport(ctx context.Context, agentID string, rr *agentv1.ResourceReport) {

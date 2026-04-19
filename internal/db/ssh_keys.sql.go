@@ -119,6 +119,30 @@ func (q *Queries) GetSSHKeyByID(ctx context.Context, arg GetSSHKeyByIDParams) (S
 	return i, err
 }
 
+const getSSHKeyForServer = `-- name: GetSSHKeyForServer :one
+SELECT sk.id, sk.team_id, sk.name, sk.public_key, sk.private_key_encrypted, sk.key_type, sk.fingerprint, sk.created_at, sk.updated_at FROM ssh_keys sk
+JOIN server_ssh_keys ssk ON ssk.ssh_key_id = sk.id
+WHERE ssk.server_id = $1
+LIMIT 1
+`
+
+func (q *Queries) GetSSHKeyForServer(ctx context.Context, serverID uuid.UUID) (SshKey, error) {
+	row := q.db.QueryRow(ctx, getSSHKeyForServer, serverID)
+	var i SshKey
+	err := row.Scan(
+		&i.ID,
+		&i.TeamID,
+		&i.Name,
+		&i.PublicKey,
+		&i.PrivateKeyEncrypted,
+		&i.KeyType,
+		&i.Fingerprint,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listSSHKeysByTeam = `-- name: ListSSHKeysByTeam :many
 SELECT id, team_id, name, public_key, key_type, fingerprint, created_at, updated_at
 FROM ssh_keys WHERE team_id = $1 ORDER BY created_at DESC

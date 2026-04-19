@@ -18,3 +18,9 @@ ON CONFLICT DO NOTHING;
 
 -- name: DetachSSHKeyFromServer :exec
 DELETE FROM server_ssh_keys WHERE server_id = $1 AND ssh_key_id = $2;
+
+-- name: GetSSHKeyForServer :one
+SELECT sk.* FROM ssh_keys sk
+JOIN server_ssh_keys ssk ON ssk.ssh_key_id = sk.id
+WHERE ssk.server_id = $1
+LIMIT 1;

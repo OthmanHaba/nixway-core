@@ -19,10 +19,11 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Host      string
-	Port      int
-	PublicURL string // Public URL for agent connections (e.g. cloudflare tunnel URL)
-	GRPCPort  int
+	Host           string
+	Port           int
+	PublicURL      string // Public URL for agent connections (e.g. cloudflare tunnel URL)
+	GRPCPort       int
+	AgentBinaryDir string // Directory containing pre-built agent binaries
 }
 
 type DatabaseConfig struct {
@@ -70,6 +71,7 @@ func Load() (*Config, error) {
 	v.SetDefault("server.port", 8080)
 	v.SetDefault("server.public_url", "")  // Set via NIXWAY_SERVER_PUBLIC_URL or .tunnel-url file
 	v.SetDefault("server.grpc_port", 9090)
+	v.SetDefault("server.agent_binary_dir", "apps/agent/bin")
 
 	// Database defaults
 	v.SetDefault("database.url", "postgres://postgres@localhost:5432/nixway_core?sslmode=disable")
@@ -100,6 +102,7 @@ func Load() (*Config, error) {
 	cfg.Server.Port = v.GetInt("server.port")
 	cfg.Server.GRPCPort = v.GetInt("server.grpc_port")
 	cfg.Server.PublicURL = v.GetString("server.public_url")
+	cfg.Server.AgentBinaryDir = v.GetString("server.agent_binary_dir")
 
 	// If no public URL set, try reading from .tunnel-url file (written by cloudflared tunnel)
 	if cfg.Server.PublicURL == "" {

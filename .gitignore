@@ -34,5 +34,16 @@ Thumbs.db
 docker-compose.override.yml
 bin/
 apps/*/bin/
-apps/agent/agent
 .tunnel-url
+
+# Built binaries (root level)
+/agent
+/api
+/worker
+/cli
+
+# Built binaries (app level)
+apps/agent/agent
+apps/api/api
+apps/worker/worker
+apps/cli/nxw

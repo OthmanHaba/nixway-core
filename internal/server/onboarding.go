@@ -10,9 +10,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/othmanhaba/nixway-core/internal/crypto"
 	"github.com/othmanhaba/nixway-core/internal/db"
-	"github.com/othmanhaba/nixway-core/internal/provisioner"
 	"github.com/othmanhaba/nixway-core/internal/ssh"
 )
+
+// NOTE: apiURL and grpcAddr are kept in OnboardingService for future use but
+// are no longer used during onboarding itself. Agent installation is now
+// handled as a provisioning component.
 
 // OnboardRequest contains the parameters for onboarding a new server.
 type OnboardRequest struct {
@@ -36,14 +39,16 @@ type OnboardingService struct {
 	logger    *slog.Logger
 	masterKey [32]byte
 	apiURL    string
+	grpcAddr  string // host:port for agent gRPC connections
 }
 
-func NewOnboardingService(queries *db.Queries, logger *slog.Logger, masterKey [32]byte, apiURL string) *OnboardingService {
+func NewOnboardingService(queries *db.Queries, logger *slog.Logger, masterKey [32]byte, apiURL string, grpcAddr string) *OnboardingService {
 	return &OnboardingService{
 		queries:   queries,
 		logger:    logger,
 		masterKey: masterKey,
 		apiURL:    apiURL,
+		grpcAddr:  grpcAddr,
 	}
 }
 
@@ -135,32 +140,6 @@ func (s *OnboardingService) Onboard(ctx context.Context, req OnboardRequest) (*O
 	})
 	if err != nil {
 		return nil, fmt.Errorf("attach ssh key: %w", err)
-	}
-
-	// 6. Generate + push installer script
-	installerScript, err := provisioner.GetScript("docker")
-	if err != nil {
-		s.logger.Warn("installer script not found, skipping push", "error", err)
-	} else {
-		if pushErr := client.PushFile(ctx, installerScript, "/tmp/nixway-install.sh", "0755"); pushErr != nil {
-			s.logger.Warn("failed to push installer script", "error", pushErr)
-		} else {
-			// 7. Execute installer (best-effort, non-blocking for onboarding response)
-			go func() {
-				output, execErr := client.RunCommand(context.Background(), "sudo /tmp/nixway-install.sh")
-				if execErr != nil {
-					s.logger.Error("installer execution failed",
-						"server_id", server.ID,
-						"error", execErr,
-					)
-				} else {
-					s.logger.Info("installer executed successfully",
-						"server_id", server.ID,
-						"output_length", len(output),
-					)
-				}
-			}()
-		}
 	}
 
 	return &OnboardResult{Server: server}, nil

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -24,6 +25,7 @@ type ConnState struct {
 	LastSeen  time.Time
 	Status    string // "online", "degraded", "offline"
 	Resources *ResourceData
+	stream    agentv1.AgentService_ConnectServer // unexported, managed internally
 }
 
 type ConnManager struct {
@@ -96,4 +98,27 @@ func (m *ConnManager) UpdateResources(agentID string, report *agentv1.ResourceRe
 		Disks:             report.GetDisks(),
 		NetworkInterfaces: report.GetNetworkInterfaces(),
 	}
+}
+
+// SetStream stores the bidirectional gRPC stream for a connected agent.
+func (m *ConnManager) SetStream(agentID string, stream agentv1.AgentService_ConnectServer) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if state, ok := m.agents[agentID]; ok {
+		state.stream = stream
+	}
+}
+
+// SendToAgent sends a control message to a specific connected agent.
+func (m *ConnManager) SendToAgent(agentID string, msg *agentv1.ControlMessage) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	state, ok := m.agents[agentID]
+	if !ok {
+		return fmt.Errorf("agent %s not connected", agentID)
+	}
+	if state.stream == nil {
+		return fmt.Errorf("agent %s has no active stream", agentID)
+	}
+	return state.stream.Send(msg)
 }

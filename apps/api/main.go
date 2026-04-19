@@ -3,10 +3,15 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"log/slog"
+	"net"
 	"os"
 
+	"google.golang.org/grpc"
+
 	"github.com/othmanhaba/nixway-core/internal/agent"
+	agentv1 "github.com/othmanhaba/nixway-core/internal/agent/proto/agent/v1"
 	"github.com/othmanhaba/nixway-core/internal/api"
 	"github.com/othmanhaba/nixway-core/internal/audit"
 	"github.com/othmanhaba/nixway-core/internal/auth"
@@ -14,6 +19,7 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/crypto"
 	"github.com/othmanhaba/nixway-core/internal/db"
 	"github.com/othmanhaba/nixway-core/internal/email"
+	"github.com/othmanhaba/nixway-core/internal/provisioner"
 	nixredis "github.com/othmanhaba/nixway-core/internal/redis"
 	"github.com/othmanhaba/nixway-core/internal/server"
 )
@@ -83,23 +89,64 @@ func main() {
 		)
 	}
 
-	// Onboarding service
-	logger.Info("public URL for agent connections", "url", cfg.Server.PublicURL)
-	onboardingSvc := server.NewOnboardingService(queries, logger, masterKey, cfg.Server.PublicURL)
-
 	// Agent connection manager (shared with gRPC server when co-located)
 	connMgr := agent.NewConnManager(logger)
+
+	// Agent gRPC server
+	agentSrv := agent.NewServer(connMgr, queries, redisClient, logger)
+	grpcServer := grpc.NewServer()
+	agentv1.RegisterAgentServiceServer(grpcServer, agentSrv)
+
+	grpcAddr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.GRPCPort)
+	lis, err := net.Listen("tcp", grpcAddr)
+	if err != nil {
+		logger.Error("failed to listen for gRPC", "addr", grpcAddr, "error", err)
+		os.Exit(1)
+	}
+
+	go func() {
+		logger.Info("gRPC server starting", "addr", grpcAddr)
+		if err := grpcServer.Serve(lis); err != nil {
+			logger.Error("gRPC server error", "error", err)
+		}
+	}()
+
+	// Onboarding service
+	// Build the public gRPC address that remote agents will connect to.
+	// Use PublicURL's host (strip scheme) + gRPC port.
+	publicGRPCAddr := fmt.Sprintf("%s:%d", stripScheme(cfg.Server.PublicURL), cfg.Server.GRPCPort)
+	logger.Info("public URL for agent connections", "url", cfg.Server.PublicURL, "grpc_addr", publicGRPCAddr)
+	onboardingSvc := server.NewOnboardingService(queries, logger, masterKey, cfg.Server.PublicURL, publicGRPCAddr)
+
+	// Provisioning service (SSH-based)
+	provisionSvc := provisioner.NewService(queries, redisClient, logger, masterKey, cfg.Server.PublicURL, publicGRPCAddr)
 
 	// Status watcher
 	statusWatcher := server.NewStatusWatcher(queries, logger)
 	go statusWatcher.Run(ctx)
 
 	// Router & Server
-	router := api.NewRouter(queries, sessions, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc, connMgr)
+	router := api.NewRouter(queries, sessions, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc, provisionSvc)
 	srv := api.NewServer(router, cfg.Server.Host, cfg.Server.Port, logger)
 
 	if err := srv.Start(); err != nil {
+		grpcServer.GracefulStop()
 		logger.Error("server error", "error", err)
 		os.Exit(1)
 	}
+
+	grpcServer.GracefulStop()
+	logger.Info("gRPC server stopped")
+}
+
+// stripScheme removes the http:// or https:// prefix from a URL,
+// returning just the host (and port if present in the URL).
+func stripScheme(rawURL string) string {
+	u := rawURL
+	for _, prefix := range []string{"https://", "http://"} {
+		if len(u) > len(prefix) && u[:len(prefix)] == prefix {
+			return u[len(prefix):]
+		}
+	}
+	return u
 }

@@ -4,7 +4,7 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: nixway
+      POSTGRES_DB: nixway_core
       POSTGRES_USER: nixway
       POSTGRES_PASSWORD: nixway
     volumes:
