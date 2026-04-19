@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -35,6 +37,21 @@ func NewService(queries *db.Queries, redisClient *redis.Client, logger *slog.Log
 		apiURL:    apiURL,
 		grpcAddr:  grpcAddr,
 	}
+}
+
+// resolvePublicURL returns the current public URL, re-reading .tunnel-url if needed.
+func (s *Service) resolvePublicURL() string {
+	if s.apiURL != "" && !strings.Contains(s.apiURL, "localhost") {
+		return s.apiURL
+	}
+	if data, err := os.ReadFile(".tunnel-url"); err == nil {
+		url := strings.TrimSpace(string(data))
+		if url != "" {
+			s.apiURL = url
+			return url
+		}
+	}
+	return s.apiURL
 }
 
 // RunProvisioning SSHes into the server and executes each component script,
@@ -103,7 +120,7 @@ func (s *Service) RunProvisioning(ctx context.Context, jobID, serverID, teamID u
 	for _, component := range components {
 		var script []byte
 		if component == "agent" {
-			script, err = GetAgentScript(s.apiURL, s.grpcAddr, serverID.String())
+			script, err = GetAgentScript(s.resolvePublicURL(), s.grpcAddr, serverID.String())
 		} else {
 			script, err = GetScript(component)
 		}
