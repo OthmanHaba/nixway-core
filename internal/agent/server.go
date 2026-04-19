@@ -2,11 +2,17 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/redis/go-redis/v9"
+
 	agentv1 "github.com/othmanhaba/nixway-core/internal/agent/proto/agent/v1"
+	"github.com/othmanhaba/nixway-core/internal/db"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -14,12 +20,14 @@ import (
 // Server implements agentv1.AgentServiceServer.
 type Server struct {
 	agentv1.UnimplementedAgentServiceServer
-	conn   *ConnManager
-	logger *slog.Logger
+	conn    *ConnManager
+	queries *db.Queries
+	redis   *redis.Client
+	logger  *slog.Logger
 }
 
-func NewServer(conn *ConnManager, logger *slog.Logger) *Server {
-	return &Server{conn: conn, logger: logger}
+func NewServer(conn *ConnManager, queries *db.Queries, redisClient *redis.Client, logger *slog.Logger) *Server {
+	return &Server{conn: conn, queries: queries, redis: redisClient, logger: logger}
 }
 
 // Register handles agent registration, issuing an agent ID.
@@ -104,8 +112,130 @@ func (s *Server) Connect(stream agentv1.AgentService_ConnectServer) error {
 				"last", fc.Last,
 			)
 
+		case *agentv1.AgentMessage_ResourceReport:
+			rr := p.ResourceReport
+			if agentID == "" {
+				agentID = rr.AgentId
+			}
+			s.conn.Heartbeat(agentID)
+			s.conn.UpdateResources(agentID, rr)
+			s.logger.Info("resource report",
+				"agent_id", agentID,
+				"cpu_model", rr.CpuModel,
+				"cpu_cores", rr.CpuCores,
+				"mem_total", rr.MemoryTotal,
+			)
+			// Persist to DB
+			s.handleResourceReport(stream.Context(), agentID, rr)
+
+		case *agentv1.AgentMessage_ProvisionOutput:
+			po := p.ProvisionOutput
+			s.logger.Info("provision output",
+				"agent_id", agentID,
+				"job_id", po.JobId,
+				"component", po.Component,
+				"finished", po.Finished,
+				"success", po.Success,
+			)
+			s.handleProvisionOutput(stream.Context(), po)
+
+		case *agentv1.AgentMessage_SshKeyResult:
+			kr := p.SshKeyResult
+			s.logger.Info("ssh key install result",
+				"agent_id", agentID,
+				"success", kr.Success,
+				"error", kr.Error,
+			)
+
 		default:
 			s.logger.Warn("unknown agent message payload type")
+		}
+	}
+}
+
+func (s *Server) handleResourceReport(ctx context.Context, agentID string, rr *agentv1.ResourceReport) {
+	if s.queries == nil {
+		return
+	}
+
+	srv, err := s.queries.GetServerByAgentID(ctx, &agentID)
+	if err != nil {
+		s.logger.Debug("server not found for agent", "agent_id", agentID, "error", err)
+		return
+	}
+
+	// Update last_seen_at
+	_ = s.queries.UpdateServerStatus(ctx, db.UpdateServerStatusParams{
+		ID:         srv.ID,
+		Status:     "online",
+		LastSeenAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+	})
+
+	// Marshal disks and network interfaces to JSON
+	disksJSON, _ := json.Marshal(rr.GetDisks())
+	nicsJSON, _ := json.Marshal(rr.GetNetworkInterfaces())
+
+	cpuModel := rr.GetCpuModel()
+	cpuCores := rr.GetCpuCores()
+	memTotal := int64(rr.GetMemoryTotal())
+	memAvail := int64(rr.GetMemoryAvailable())
+	kernelVer := rr.GetKernelVersion()
+	dockerVer := rr.GetDockerVersion()
+
+	_ = s.queries.UpsertServerResources(ctx, db.UpsertServerResourcesParams{
+		ServerID:          srv.ID,
+		CpuModel:          &cpuModel,
+		CpuCores:          &cpuCores,
+		MemoryTotal:       &memTotal,
+		MemoryAvailable:   &memAvail,
+		KernelVersion:     &kernelVer,
+		DockerVersion:     &dockerVer,
+		Disks:             disksJSON,
+		NetworkInterfaces: nicsJSON,
+	})
+}
+
+func (s *Server) handleProvisionOutput(ctx context.Context, po *agentv1.ProvisionOutput) {
+	jobID, err := uuid.Parse(po.JobId)
+	if err != nil {
+		s.logger.Warn("invalid job_id in provision output", "job_id", po.JobId)
+		return
+	}
+
+	// Publish to Redis for SSE consumers
+	if s.redis != nil {
+		payload, _ := json.Marshal(map[string]any{
+			"component": po.Component,
+			"output":    string(po.Output),
+			"finished":  po.Finished,
+			"success":   po.Success,
+			"error":     po.Error,
+		})
+		s.redis.Publish(ctx, "provision:"+jobID.String(), string(payload))
+	}
+
+	// Append to provisioning_jobs.logs
+	if s.queries != nil {
+		_ = s.queries.AppendProvisioningLog(ctx, db.AppendProvisioningLogParams{
+			ID:   jobID,
+			Logs: string(po.Output),
+		})
+
+		// If finished, update job status
+		if po.Finished {
+			jobStatus := "completed"
+			var jobErr *string
+			if !po.Success {
+				jobStatus = "failed"
+				errMsg := po.Error
+				jobErr = &errMsg
+			}
+			_ = s.queries.UpdateProvisioningJobStatus(ctx, db.UpdateProvisioningJobStatusParams{
+				ID:          jobID,
+				Status:      jobStatus,
+				CompletedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+				Error:       jobErr,
+			})
 		}
 	}
 }

@@ -4,12 +4,26 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+
+	agentv1 "github.com/othmanhaba/nixway-core/internal/agent/proto/agent/v1"
 )
 
+type ResourceData struct {
+	CpuModel          string
+	CpuCores          int32
+	MemoryTotal       uint64
+	MemoryAvailable   uint64
+	KernelVersion     string
+	DockerVersion     string
+	Disks             []*agentv1.DiskInfo
+	NetworkInterfaces []*agentv1.NetworkInterface
+}
+
 type ConnState struct {
-	AgentID  string
-	LastSeen time.Time
-	Status   string // "online", "degraded", "offline"
+	AgentID   string
+	LastSeen  time.Time
+	Status    string // "online", "degraded", "offline"
+	Resources *ResourceData
 }
 
 type ConnManager struct {
@@ -63,4 +77,23 @@ func (m *ConnManager) ListOnline() []ConnState {
 		result = append(result, *s)
 	}
 	return result
+}
+
+func (m *ConnManager) UpdateResources(agentID string, report *agentv1.ResourceReport) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	state, ok := m.agents[agentID]
+	if !ok {
+		return
+	}
+	state.Resources = &ResourceData{
+		CpuModel:          report.GetCpuModel(),
+		CpuCores:          report.GetCpuCores(),
+		MemoryTotal:       report.GetMemoryTotal(),
+		MemoryAvailable:   report.GetMemoryAvailable(),
+		KernelVersion:     report.GetKernelVersion(),
+		DockerVersion:     report.GetDockerVersion(),
+		Disks:             report.GetDisks(),
+		NetworkInterfaces: report.GetNetworkInterfaces(),
+	}
 }
