@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/redis/go-redis/v9"
+
 	"github.com/othmanhaba/nixway-core/internal/api/handler"
 	"github.com/othmanhaba/nixway-core/internal/api/middleware"
 	"github.com/othmanhaba/nixway-core/internal/api/respond"
@@ -12,6 +14,7 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/config"
 	"github.com/othmanhaba/nixway-core/internal/db"
 	"github.com/othmanhaba/nixway-core/internal/email"
+	"github.com/othmanhaba/nixway-core/internal/server"
 )
 
 func NewRouter(
@@ -21,11 +24,19 @@ func NewRouter(
 	auditWriter *audit.Writer,
 	cfg *config.Config,
 	logger *slog.Logger,
+	redisClient *redis.Client,
+	masterKey [32]byte,
+	onboardingSvc *server.OnboardingService,
 ) http.Handler {
 	authH := handler.NewAuthHandler(queries, sessions, emailSender, auditWriter, cfg, logger)
 	teamH := handler.NewTeamHandler(queries, emailSender, auditWriter, cfg, logger)
 	tokenH := handler.NewTokenHandler(queries, auditWriter, cfg, logger)
 	auditH := handler.NewAuditLogHandler(queries, logger)
+	sshKeyH := handler.NewSSHKeyHandler(queries, auditWriter, logger, masterKey)
+	serverH := handler.NewServerHandler(queries, auditWriter, onboardingSvc, logger)
+	tagH := handler.NewTagHandler(queries, logger)
+	provisionH := handler.NewProvisionHandler(queries, redisClient, auditWriter, logger)
+	discoverH := handler.NewDiscoveryHandler(logger)
 
 	mux := http.NewServeMux()
 
@@ -71,6 +82,33 @@ func NewRouter(
 	// Audit logs
 	protected.HandleFunc("GET /api/v1/teams/{id}/audit-logs", auditH.List)
 
+	// SSH keys
+	protected.HandleFunc("POST /api/v1/teams/{id}/ssh-keys", sshKeyH.Create)
+	protected.HandleFunc("GET /api/v1/teams/{id}/ssh-keys", sshKeyH.List)
+	protected.HandleFunc("GET /api/v1/teams/{id}/ssh-keys/{keyID}", sshKeyH.Get)
+	protected.HandleFunc("DELETE /api/v1/teams/{id}/ssh-keys/{keyID}", sshKeyH.Delete)
+
+	// Servers
+	protected.HandleFunc("POST /api/v1/teams/{id}/servers", serverH.Create)
+	protected.HandleFunc("GET /api/v1/teams/{id}/servers", serverH.List)
+	protected.HandleFunc("GET /api/v1/teams/{id}/servers/{serverId}", serverH.Get)
+	protected.HandleFunc("PUT /api/v1/teams/{id}/servers/{serverId}", serverH.Update)
+	protected.HandleFunc("DELETE /api/v1/teams/{id}/servers/{serverId}", serverH.Delete)
+
+	// Server tags
+	protected.HandleFunc("GET /api/v1/teams/{id}/servers/{serverId}/tags", tagH.List)
+	protected.HandleFunc("POST /api/v1/teams/{id}/servers/{serverId}/tags", tagH.Set)
+	protected.HandleFunc("DELETE /api/v1/teams/{id}/servers/{serverId}/tags/{key}", tagH.Delete)
+
+	// Provisioning
+	protected.HandleFunc("POST /api/v1/teams/{id}/servers/{serverId}/provision", provisionH.Start)
+	protected.HandleFunc("GET /api/v1/teams/{id}/servers/{serverId}/provision", provisionH.Status)
+	protected.HandleFunc("GET /api/v1/teams/{id}/servers/{serverId}/provision/logs", provisionH.StreamLogs)
+	protected.HandleFunc("POST /api/v1/teams/{id}/servers/{serverId}/provision/retry", provisionH.Retry)
+
+	// Discovery
+	protected.HandleFunc("POST /api/v1/discover", discoverH.Discover)
+
 	// Mount protected routes behind auth middleware
 	authMW := middleware.Auth(queries, sessions)
 	mux.Handle("/api/v1/auth/logout", authMW(protected))
@@ -78,6 +116,7 @@ func NewRouter(
 	mux.Handle("/api/v1/teams", authMW(protected))
 	mux.Handle("/api/v1/teams/", authMW(protected))
 	mux.Handle("/api/v1/invites/", authMW(protected))
+	mux.Handle("/api/v1/discover", authMW(protected))
 
 	// Health check
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {

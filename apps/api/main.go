@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"log/slog"
 	"os"
 
@@ -9,9 +10,11 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/audit"
 	"github.com/othmanhaba/nixway-core/internal/auth"
 	"github.com/othmanhaba/nixway-core/internal/config"
+	"github.com/othmanhaba/nixway-core/internal/crypto"
 	"github.com/othmanhaba/nixway-core/internal/db"
 	"github.com/othmanhaba/nixway-core/internal/email"
 	nixredis "github.com/othmanhaba/nixway-core/internal/redis"
+	"github.com/othmanhaba/nixway-core/internal/server"
 )
 
 func main() {
@@ -64,11 +67,34 @@ func main() {
 	// Audit
 	auditWriter := audit.NewWriter(queries)
 
-	// Router & Server
-	router := api.NewRouter(queries, sessions, emailSender, auditWriter, cfg, logger)
-	server := api.NewServer(router, cfg.Server.Host, cfg.Server.Port, logger)
+	// Master key
+	var masterKey [32]byte
+	if cfg.Crypto.MasterKey != "" {
+		masterKey, err = crypto.MasterKeyFromHex(cfg.Crypto.MasterKey)
+		if err != nil {
+			logger.Error("invalid master key", "error", err)
+			os.Exit(1)
+		}
+	} else {
+		masterKey = crypto.GenerateMasterKey()
+		logger.Warn("no master key configured, generated a random one for dev",
+			"master_key_hex", hex.EncodeToString(masterKey[:]),
+		)
+	}
 
-	if err := server.Start(); err != nil {
+	// Onboarding service
+	apiURL := cfg.Email.BaseURL // reuse base URL as API URL for now
+	onboardingSvc := server.NewOnboardingService(queries, logger, masterKey, apiURL)
+
+	// Status watcher
+	statusWatcher := server.NewStatusWatcher(queries, logger)
+	go statusWatcher.Run(ctx)
+
+	// Router & Server
+	router := api.NewRouter(queries, sessions, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc)
+	srv := api.NewServer(router, cfg.Server.Host, cfg.Server.Port, logger)
+
+	if err := srv.Start(); err != nil {
 		logger.Error("server error", "error", err)
 		os.Exit(1)
 	}
