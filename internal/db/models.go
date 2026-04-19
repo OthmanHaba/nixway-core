@@ -39,6 +39,73 @@ type AuditLog struct {
 	CreatedAt    time.Time       `json:"created_at"`
 }
 
+type ProvisioningJob struct {
+	ID          uuid.UUID          `json:"id"`
+	ServerID    uuid.UUID          `json:"server_id"`
+	Components  []string           `json:"components"`
+	Status      string             `json:"status"`
+	Logs        string             `json:"logs"`
+	StartedAt   pgtype.Timestamptz `json:"started_at"`
+	CompletedAt pgtype.Timestamptz `json:"completed_at"`
+	Error       *string            `json:"error"`
+	CreatedAt   time.Time          `json:"created_at"`
+}
+
+type Server struct {
+	ID         uuid.UUID          `json:"id"`
+	TeamID     uuid.UUID          `json:"team_id"`
+	AgentID    *string            `json:"agent_id"`
+	Name       string             `json:"name"`
+	Hostname   string             `json:"hostname"`
+	PublicIp   netip.Addr         `json:"public_ip"`
+	SshPort    int32              `json:"ssh_port"`
+	SshUser    string             `json:"ssh_user"`
+	Os         *string            `json:"os"`
+	OsVersion  *string            `json:"os_version"`
+	Arch       *string            `json:"arch"`
+	Status     string             `json:"status"`
+	LastSeenAt pgtype.Timestamptz `json:"last_seen_at"`
+	CreatedAt  time.Time          `json:"created_at"`
+	UpdatedAt  time.Time          `json:"updated_at"`
+}
+
+type ServerResource struct {
+	ServerID          uuid.UUID       `json:"server_id"`
+	CpuModel          *string         `json:"cpu_model"`
+	CpuCores          *int32          `json:"cpu_cores"`
+	MemoryTotal       *int64          `json:"memory_total"`
+	MemoryAvailable   *int64          `json:"memory_available"`
+	KernelVersion     *string         `json:"kernel_version"`
+	DockerVersion     *string         `json:"docker_version"`
+	Disks             json.RawMessage `json:"disks"`
+	NetworkInterfaces json.RawMessage `json:"network_interfaces"`
+	UpdatedAt         time.Time       `json:"updated_at"`
+}
+
+type ServerSshKey struct {
+	ServerID uuid.UUID `json:"server_id"`
+	SshKeyID uuid.UUID `json:"ssh_key_id"`
+}
+
+type ServerTag struct {
+	ID       uuid.UUID `json:"id"`
+	ServerID uuid.UUID `json:"server_id"`
+	Key      string    `json:"key"`
+	Value    string    `json:"value"`
+}
+
+type SshKey struct {
+	ID                  uuid.UUID `json:"id"`
+	TeamID              uuid.UUID `json:"team_id"`
+	Name                string    `json:"name"`
+	PublicKey           string    `json:"public_key"`
+	PrivateKeyEncrypted []byte    `json:"private_key_encrypted"`
+	KeyType             string    `json:"key_type"`
+	Fingerprint         string    `json:"fingerprint"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
+}
+
 type Team struct {
 	ID        uuid.UUID `json:"id"`
 	Name      string    `json:"name"`
