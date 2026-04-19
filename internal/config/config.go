@@ -1,0 +1,103 @@
+package config
+
+import (
+	"time"
+
+	"github.com/spf13/viper"
+)
+
+type Config struct {
+	Server   ServerConfig
+	Database DatabaseConfig
+	Redis    RedisConfig
+	Auth     AuthConfig
+	Email    EmailConfig
+}
+
+type ServerConfig struct {
+	Host string
+	Port int
+}
+
+type DatabaseConfig struct {
+	URL string
+}
+
+type RedisConfig struct {
+	URL string
+}
+
+type AuthConfig struct {
+	SessionTTL       time.Duration
+	BcryptCost       int
+	TokenLength      int
+	VerifyEmailTTL   time.Duration
+	PasswordResetTTL time.Duration
+	InviteTTL        time.Duration
+}
+
+type EmailConfig struct {
+	Driver   string
+	From     string
+	SMTPHost string
+	SMTPPort int
+	SMTPUser string
+	SMTPPass string
+	BaseURL  string
+}
+
+func Load() (*Config, error) {
+	v := viper.New()
+	v.SetConfigName("config")
+	v.SetConfigType("yaml")
+	v.AddConfigPath(".")
+	v.AddConfigPath("/etc/nixway")
+	v.SetEnvPrefix("NIXWAY")
+	v.AutomaticEnv()
+
+	// Server defaults
+	v.SetDefault("server.host", "0.0.0.0")
+	v.SetDefault("server.port", 8080)
+
+	// Database defaults
+	v.SetDefault("database.url", "postgres://nixway:nixway@localhost:5432/nixway?sslmode=disable")
+
+	// Redis defaults
+	v.SetDefault("redis.url", "redis://localhost:6379/0")
+
+	// Auth defaults
+	v.SetDefault("auth.session_ttl", "24h")
+	v.SetDefault("auth.bcrypt_cost", 12)
+	v.SetDefault("auth.token_length", 40)
+	v.SetDefault("auth.verify_email_ttl", "24h")
+	v.SetDefault("auth.password_reset_ttl", "1h")
+	v.SetDefault("auth.invite_ttl", "168h")
+
+	// Email defaults
+	v.SetDefault("email.driver", "console")
+	v.SetDefault("email.from", "noreply@nixway.dev")
+	v.SetDefault("email.base_url", "http://localhost:5173")
+
+	_ = v.ReadInConfig()
+
+	cfg := &Config{}
+	cfg.Server.Host = v.GetString("server.host")
+	cfg.Server.Port = v.GetInt("server.port")
+	cfg.Database.URL = v.GetString("database.url")
+	cfg.Redis.URL = v.GetString("redis.url")
+	cfg.Auth.SessionTTL = v.GetDuration("auth.session_ttl")
+	cfg.Auth.BcryptCost = v.GetInt("auth.bcrypt_cost")
+	cfg.Auth.TokenLength = v.GetInt("auth.token_length")
+	cfg.Auth.VerifyEmailTTL = v.GetDuration("auth.verify_email_ttl")
+	cfg.Auth.PasswordResetTTL = v.GetDuration("auth.password_reset_ttl")
+	cfg.Auth.InviteTTL = v.GetDuration("auth.invite_ttl")
+	cfg.Email.Driver = v.GetString("email.driver")
+	cfg.Email.From = v.GetString("email.from")
+	cfg.Email.SMTPHost = v.GetString("email.smtp_host")
+	cfg.Email.SMTPPort = v.GetInt("email.smtp_port")
+	cfg.Email.SMTPUser = v.GetString("email.smtp_user")
+	cfg.Email.SMTPPass = v.GetString("email.smtp_pass")
+	cfg.Email.BaseURL = v.GetString("email.base_url")
+
+	return cfg, nil
+}
