@@ -1,1 +1,1 @@
-{"name": "@nixway/worker", "private": true, "scripts": {"build": "go build -o bin/worker .", "dev": "set -a && [ -f ../../.env ] && . ../../.env; set +a && go run .", "test": "go test ./...", "lint": "golangci-lint run"}}
+{"name": "@nixway/worker", "private": true, "scripts": {"build": "go build -o bin/worker .", "dev": "cd ../.. && set -a && . .env && set +a && cd apps/worker && go run .", "test": "go test ./...", "lint": "golangci-lint run"}}

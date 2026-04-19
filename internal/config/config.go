@@ -59,9 +59,20 @@ type CryptoConfig struct {
 }
 
 func Load() (*Config, error) {
-	// Load .env file if it exists (searches current dir and parent dirs)
-	for _, path := range []string{".env", "../../.env", "../.env"} {
-		_ = godotenv.Load(path)
+	// Load .env file if it exists.
+	// Try multiple paths since the working directory varies depending on
+	// how the binary is launched (project root, apps/api/, etc.)
+	envPaths := []string{".env", "../../.env", "../.env"}
+
+	// Also check NIXWAY_ROOT if set, for reliable .env discovery
+	if root := os.Getenv("NIXWAY_ROOT"); root != "" {
+		envPaths = append([]string{root + "/.env"}, envPaths...)
+	}
+
+	for _, path := range envPaths {
+		if err := godotenv.Load(path); err == nil {
+			break
+		}
 	}
 
 	v := viper.New()
