@@ -1,0 +1,83 @@
+import { createFileRoute, Outlet, redirect, Link, useRouter } from '@tanstack/react-router'
+import { queryClient } from '@/lib/query'
+import { api } from '@/lib/api'
+import { useAuth } from '@/hooks/use-auth'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { LogOut, User, ChevronDown } from 'lucide-react'
+import type { User as UserType } from '@/lib/types'
+
+export const Route = createFileRoute('/_app')({
+  beforeLoad: async () => {
+    try {
+      await queryClient.fetchQuery({
+        queryKey: ['auth', 'me'],
+        queryFn: () => api.get<UserType>('/auth/me'),
+      })
+    } catch {
+      throw redirect({ to: '/login' })
+    }
+  },
+  component: AppLayout,
+})
+
+function AppLayout() {
+  const { user, logout } = useAuth()
+  const router = useRouter()
+
+  const handleLogout = async () => {
+    await logout.mutateAsync()
+    router.navigate({ to: '/login' })
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <header className="border-b">
+        <div className="container mx-auto flex h-14 items-center justify-between px-4">
+          <div className="flex items-center gap-6">
+            <Link to="/dashboard" className="text-lg font-bold">
+              Nixway
+            </Link>
+            <nav className="flex items-center gap-4">
+              <Link
+                to="/teams"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                activeProps={{ className: 'text-sm text-foreground font-medium' }}
+              >
+                Teams
+              </Link>
+            </nav>
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="gap-2">
+                <User className="h-4 w-4" />
+                <span className="text-sm">{user?.name || user?.email}</span>
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem disabled>
+                <span className="text-xs text-muted-foreground">{user?.email}</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </header>
+      <main className="container mx-auto px-4 py-6">
+        <Outlet />
+      </main>
+    </div>
+  )
+}
