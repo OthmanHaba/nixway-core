@@ -137,11 +137,7 @@ func (h *ProvisionHandler) Status(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProvisionHandler) StreamLogs(w http.ResponseWriter, r *http.Request) {
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		respond.Error(w, http.StatusInternalServerError, "streaming not supported")
-		return
-	}
+	rc := http.NewResponseController(w)
 
 	jobID, err := uuid.Parse(r.PathValue("jobId"))
 	if err != nil {
@@ -168,7 +164,7 @@ func (h *ProvisionHandler) StreamLogs(w http.ResponseWriter, r *http.Request) {
 
 	// Send initial connected event
 	fmt.Fprintf(w, "data: {\"type\":\"connected\",\"job_id\":\"%s\"}\n\n", jobID.String())
-	flusher.Flush()
+	_ = rc.Flush()
 
 	for {
 		select {
@@ -176,7 +172,7 @@ func (h *ProvisionHandler) StreamLogs(w http.ResponseWriter, r *http.Request) {
 			return
 		case msg := <-ch:
 			fmt.Fprintf(w, "data: %s\n\n", msg.Payload)
-			flusher.Flush()
+			_ = rc.Flush()
 		}
 	}
 }
