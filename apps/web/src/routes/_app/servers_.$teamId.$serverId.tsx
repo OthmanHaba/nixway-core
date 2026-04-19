@@ -97,6 +97,13 @@ function ServerDetailPage() {
     queryFn: () => api.get<ProvisioningJob | null>(`/teams/${teamId}/servers/${serverId}/provision`),
   })
 
+  // Auto-reconnect SSE if job is running when page loads
+  useEffect(() => {
+    if (latestJob && latestJob.status === 'running' && !sseUrl) {
+      setSseUrl(`/api/v1/teams/${teamId}/servers/${serverId}/provision/${latestJob.id}/logs`)
+    }
+  }, [latestJob, sseUrl, teamId, serverId])
+
   const deleteServer = useMutation({
     mutationFn: () => api.delete(`/teams/${teamId}/servers/${serverId}`),
     onSuccess: () => {
@@ -364,12 +371,12 @@ function ServerDetailPage() {
             </Card>
           )}
 
-          {(logMessages.length > 0 || sseConnected) && (
+          {latestJob && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   Logs
-                  {sseConnected && (
+                  {sseConnected && latestJob.status === 'running' && (
                     <span className="flex items-center gap-1 text-xs font-normal text-green-600">
                       <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
                       Live
@@ -382,7 +389,12 @@ function ServerDetailPage() {
                   ref={logRef}
                   className="bg-muted rounded-md p-4 text-xs font-mono overflow-auto max-h-96 whitespace-pre-wrap"
                 >
-                  {logMessages.join('\n') || 'Waiting for logs...'}
+                  {(() => {
+                    const dbLogs = latestJob.logs || ''
+                    const liveLogs = logMessages.join('\n')
+                    const allLogs = liveLogs ? (dbLogs ? dbLogs + '\n' + liveLogs : liveLogs) : dbLogs
+                    return allLogs || 'Waiting for logs...'
+                  })()}
                 </pre>
               </CardContent>
             </Card>
