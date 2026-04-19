@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package agent.v1;
+
+option go_package = "github.com/othmanhaba/nixway-core/internal/agent/proto/agent/v1;agentv1";
+
+import "google/protobuf/timestamp.proto";
+
+service AgentService {
+  rpc Connect(stream AgentMessage) returns (stream ControlMessage);
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+}
+
+message RegisterRequest {
+  string hostname = 1;
+  string os = 2;
+  string arch = 3;
+  bytes csr = 4;
+}
+
+message RegisterResponse {
+  string agent_id = 1;
+  bytes certificate = 2;
+  bytes ca_certificate = 3;
+}
+
+message AgentMessage {
+  oneof payload {
+    Heartbeat heartbeat = 1;
+    ExecOutput exec_output = 2;
+    HealthReport health_report = 3;
+    FileChunk file_chunk = 4;
+  }
+}
+
+message ControlMessage {
+  oneof payload {
+    ExecCommand exec_command = 1;
+    FileTransferRequest file_transfer = 2;
+    CertRotation cert_rotation = 3;
+  }
+}
+
+message Heartbeat {
+  string agent_id = 1;
+  google.protobuf.Timestamp timestamp = 2;
+}
+
+message ExecCommand {
+  string command_id = 1;
+  string command = 2;
+  repeated string args = 3;
+  map<string, string> env = 4;
+  string working_dir = 5;
+}
+
+message ExecOutput {
+  string command_id = 1;
+  bytes stdout = 2;
+  bytes stderr = 3;
+  bool finished = 4;
+  int32 exit_code = 5;
+}
+
+message HealthReport {
+  string agent_id = 1;
+  double cpu_percent = 2;
+  uint64 memory_total = 3;
+  uint64 memory_used = 4;
+  repeated DiskInfo disks = 5;
+}
+
+message DiskInfo {
+  string mount_point = 1;
+  uint64 total_bytes = 2;
+  uint64 used_bytes = 3;
+}
+
+message FileChunk {
+  string transfer_id = 1;
+  bytes data = 2;
+  int64 offset = 3;
+  bool last = 4;
+}
+
+message FileTransferRequest {
+  string transfer_id = 1;
+  string path = 2;
+  enum Direction {
+    UPLOAD = 0;
+    DOWNLOAD = 1;
+  }
+  Direction direction = 3;
+}
+
+message CertRotation {
+  bytes new_certificate = 1;
+}
