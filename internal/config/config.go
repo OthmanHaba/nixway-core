@@ -146,7 +146,11 @@ func Load() (*Config, error) {
 	cfg.Email.SMTPUser = v.GetString("email.smtp_user")
 	cfg.Email.SMTPPass = v.GetString("email.smtp_pass")
 	cfg.Email.BaseURL = v.GetString("email.base_url")
-	cfg.Crypto.MasterKey = v.GetString("crypto.master_key")
+	// Read master key directly from env — viper has issues with nested underscore keys
+	cfg.Crypto.MasterKey = os.Getenv("NIXWAY_CRYPTO_MASTER_KEY")
+	if cfg.Crypto.MasterKey == "" {
+		cfg.Crypto.MasterKey = v.GetString("crypto.master_key")
+	}
 
 	return cfg, nil
 }
