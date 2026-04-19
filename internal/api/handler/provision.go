@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -16,18 +17,20 @@ import (
 )
 
 type ProvisionHandler struct {
-	queries *db.Queries
-	redis   *redis.Client
-	audit   *audit.Writer
-	logger  *slog.Logger
+	queries      *db.Queries
+	redis        *redis.Client
+	audit        *audit.Writer
+	logger       *slog.Logger
+	provisionSvc *provisioner.Service
 }
 
-func NewProvisionHandler(queries *db.Queries, redisClient *redis.Client, auditWriter *audit.Writer, logger *slog.Logger) *ProvisionHandler {
+func NewProvisionHandler(queries *db.Queries, redisClient *redis.Client, auditWriter *audit.Writer, provisionSvc *provisioner.Service, logger *slog.Logger) *ProvisionHandler {
 	return &ProvisionHandler{
-		queries: queries,
-		redis:   redisClient,
-		audit:   auditWriter,
-		logger:  logger,
+		queries:      queries,
+		redis:        redisClient,
+		audit:        auditWriter,
+		logger:       logger,
+		provisionSvc: provisionSvc,
 	}
 }
 
@@ -72,7 +75,7 @@ func (h *ProvisionHandler) Start(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Verify server belongs to team
+	// Verify server belongs to team.
 	_, err = h.queries.GetServerByID(r.Context(), db.GetServerByIDParams{
 		ID:     serverID,
 		TeamID: teamID,
@@ -91,6 +94,11 @@ func (h *ProvisionHandler) Start(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusInternalServerError, "failed to create provisioning job")
 		return
 	}
+
+	// Run provisioning over SSH asynchronously.
+	go func() {
+		h.provisionSvc.RunProvisioning(context.Background(), job.ID, serverID, teamID, req.Components)
+	}()
 
 	ip := parseIP(r)
 	_ = h.audit.Log(r.Context(), audit.Entry{
@@ -135,25 +143,32 @@ func (h *ProvisionHandler) StreamLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	serverID, err := uuid.Parse(r.PathValue("serverId"))
+	jobID, err := uuid.Parse(r.PathValue("jobId"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "invalid server ID")
+		respond.Error(w, http.StatusBadRequest, "invalid job ID")
 		return
 	}
 
-	job, err := h.queries.GetLatestProvisioningJob(r.Context(), serverID)
+	// Verify the job exists
+	_, err = h.queries.GetProvisioningJob(r.Context(), jobID)
 	if err != nil {
-		respond.Error(w, http.StatusNotFound, "no provisioning job found")
+		respond.Error(w, http.StatusNotFound, "provisioning job not found")
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
 
-	sub := h.redis.Subscribe(r.Context(), "provision:"+job.ID.String())
+	sub := h.redis.Subscribe(r.Context(), "provision:"+jobID.String())
 	defer sub.Close()
 	ch := sub.Channel()
+
+	// Send initial connected event
+	fmt.Fprintf(w, "data: {\"type\":\"connected\",\"job_id\":\"%s\"}\n\n", jobID.String())
+	flusher.Flush()
 
 	for {
 		select {
@@ -185,7 +200,17 @@ func (h *ProvisionHandler) Retry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get latest job to copy components
+	// Verify server belongs to team.
+	_, err = h.queries.GetServerByID(r.Context(), db.GetServerByIDParams{
+		ID:     serverID,
+		TeamID: teamID,
+	})
+	if err != nil {
+		respond.Error(w, http.StatusNotFound, "server not found")
+		return
+	}
+
+	// Get latest job to copy components.
 	existingJob, err := h.queries.GetLatestProvisioningJob(r.Context(), serverID)
 	if err != nil {
 		respond.Error(w, http.StatusNotFound, "no previous provisioning job found")
@@ -201,6 +226,11 @@ func (h *ProvisionHandler) Retry(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusInternalServerError, "failed to create provisioning job")
 		return
 	}
+
+	// Run provisioning over SSH asynchronously.
+	go func() {
+		h.provisionSvc.RunProvisioning(context.Background(), job.ID, serverID, teamID, existingJob.Components)
+	}()
 
 	ip := parseIP(r)
 	_ = h.audit.Log(r.Context(), audit.Entry{

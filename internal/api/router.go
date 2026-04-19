@@ -14,6 +14,7 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/config"
 	"github.com/othmanhaba/nixway-core/internal/db"
 	"github.com/othmanhaba/nixway-core/internal/email"
+	"github.com/othmanhaba/nixway-core/internal/provisioner"
 	"github.com/othmanhaba/nixway-core/internal/server"
 )
 
@@ -27,6 +28,7 @@ func NewRouter(
 	redisClient *redis.Client,
 	masterKey [32]byte,
 	onboardingSvc *server.OnboardingService,
+	provisionSvc *provisioner.Service,
 ) http.Handler {
 	authH := handler.NewAuthHandler(queries, sessions, emailSender, auditWriter, cfg, logger)
 	teamH := handler.NewTeamHandler(queries, emailSender, auditWriter, cfg, logger)
@@ -35,12 +37,14 @@ func NewRouter(
 	sshKeyH := handler.NewSSHKeyHandler(queries, auditWriter, logger, masterKey)
 	serverH := handler.NewServerHandler(queries, auditWriter, onboardingSvc, logger)
 	tagH := handler.NewTagHandler(queries, logger)
-	provisionH := handler.NewProvisionHandler(queries, redisClient, auditWriter, logger)
+	provisionH := handler.NewProvisionHandler(queries, redisClient, auditWriter, provisionSvc, logger)
 	discoverH := handler.NewDiscoveryHandler(logger)
+	agentDlH := handler.NewAgentDownloadHandler(cfg.Server.AgentBinaryDir, logger)
 
 	mux := http.NewServeMux()
 
 	// Public routes
+	mux.HandleFunc("GET /agent/download/{arch}", agentDlH.Download)
 	mux.HandleFunc("POST /api/v1/auth/signup", authH.Signup)
 	mux.HandleFunc("POST /api/v1/auth/login", authH.Login)
 	mux.HandleFunc("POST /api/v1/auth/verify-email", authH.VerifyEmail)
@@ -103,7 +107,7 @@ func NewRouter(
 	// Provisioning
 	protected.HandleFunc("POST /api/v1/teams/{id}/servers/{serverId}/provision", provisionH.Start)
 	protected.HandleFunc("GET /api/v1/teams/{id}/servers/{serverId}/provision", provisionH.Status)
-	protected.HandleFunc("GET /api/v1/teams/{id}/servers/{serverId}/provision/logs", provisionH.StreamLogs)
+	protected.HandleFunc("GET /api/v1/teams/{id}/servers/{serverId}/provision/{jobId}/logs", provisionH.StreamLogs)
 	protected.HandleFunc("POST /api/v1/teams/{id}/servers/{serverId}/provision/retry", provisionH.Retry)
 
 	// Discovery
