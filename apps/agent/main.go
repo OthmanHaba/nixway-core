@@ -94,6 +94,19 @@ func receiveLoop(
 		case *agentv1.ControlMessage_CertRotation:
 			logger.Info("cert rotation received")
 
+		case *agentv1.ControlMessage_ProvisionCommand:
+			logger.Info("provision command received",
+				"job_id", p.ProvisionCommand.JobId,
+				"component", p.ProvisionCommand.Component,
+			)
+			go HandleProvisionCommand(ctx, p.ProvisionCommand, stream)
+
+		case *agentv1.ControlMessage_SshKeyInstall:
+			logger.Info("ssh key install command received",
+				"action", p.SshKeyInstall.Action,
+			)
+			go HandleSSHKeyInstall(ctx, p.SshKeyInstall, stream, logger)
+
 		default:
 			logger.Warn("unknown control message payload")
 		}

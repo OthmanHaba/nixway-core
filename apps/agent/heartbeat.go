@@ -10,11 +10,14 @@ import (
 
 const heartbeatInterval = 10 * time.Second
 
-// RunHeartbeat sends a heartbeat over stream every heartbeatInterval until
-// the stream context is cancelled or a send error occurs.
+// RunHeartbeat sends a heartbeat and a ResourceReport over stream every
+// heartbeatInterval until the stream context is cancelled or a send error occurs.
 func RunHeartbeat(agentID string, stream agentv1.AgentService_ConnectClient, logger *slog.Logger) {
 	ticker := time.NewTicker(heartbeatInterval)
 	defer ticker.Stop()
+
+	// Send an initial resource report immediately on connect.
+	sendResourceReport(agentID, stream, logger)
 
 	for {
 		select {
@@ -22,7 +25,8 @@ func RunHeartbeat(agentID string, stream agentv1.AgentService_ConnectClient, log
 			logger.Info("heartbeat stopped: stream context done")
 			return
 		case t := <-ticker.C:
-			msg := &agentv1.AgentMessage{
+			// Heartbeat — keeps ConnManager session alive.
+			hb := &agentv1.AgentMessage{
 				Payload: &agentv1.AgentMessage_Heartbeat{
 					Heartbeat: &agentv1.Heartbeat{
 						AgentId:   agentID,
@@ -30,11 +34,29 @@ func RunHeartbeat(agentID string, stream agentv1.AgentService_ConnectClient, log
 					},
 				},
 			}
-			if err := stream.Send(msg); err != nil {
+			if err := stream.Send(hb); err != nil {
 				logger.Warn("heartbeat send failed", "err", err)
 				return
 			}
 			logger.Debug("heartbeat sent", "agent_id", agentID)
+
+			// ResourceReport — periodically refresh resource data.
+			sendResourceReport(agentID, stream, logger)
 		}
+	}
+}
+
+func sendResourceReport(agentID string, stream agentv1.AgentService_ConnectClient, logger *slog.Logger) {
+	report := collectResources()
+	report.AgentId = agentID
+	msg := &agentv1.AgentMessage{
+		Payload: &agentv1.AgentMessage_ResourceReport{
+			ResourceReport: report,
+		},
+	}
+	if err := stream.Send(msg); err != nil {
+		logger.Warn("resource report send failed", "err", err)
+	} else {
+		logger.Debug("resource report sent", "agent_id", agentID)
 	}
 }
