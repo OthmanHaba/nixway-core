@@ -204,6 +204,9 @@ type AgentMessage struct {
 	//	*AgentMessage_ExecOutput
 	//	*AgentMessage_HealthReport
 	//	*AgentMessage_FileChunk
+	//	*AgentMessage_ResourceReport
+	//	*AgentMessage_ProvisionOutput
+	//	*AgentMessage_SshKeyResult
 	Payload       isAgentMessage_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -282,6 +285,33 @@ func (x *AgentMessage) GetFileChunk() *FileChunk {
 	return nil
 }
 
+func (x *AgentMessage) GetResourceReport() *ResourceReport {
+	if x != nil {
+		if x, ok := x.Payload.(*AgentMessage_ResourceReport); ok {
+			return x.ResourceReport
+		}
+	}
+	return nil
+}
+
+func (x *AgentMessage) GetProvisionOutput() *ProvisionOutput {
+	if x != nil {
+		if x, ok := x.Payload.(*AgentMessage_ProvisionOutput); ok {
+			return x.ProvisionOutput
+		}
+	}
+	return nil
+}
+
+func (x *AgentMessage) GetSshKeyResult() *SSHKeyInstallResult {
+	if x != nil {
+		if x, ok := x.Payload.(*AgentMessage_SshKeyResult); ok {
+			return x.SshKeyResult
+		}
+	}
+	return nil
+}
+
 type isAgentMessage_Payload interface {
 	isAgentMessage_Payload()
 }
@@ -302,6 +332,18 @@ type AgentMessage_FileChunk struct {
 	FileChunk *FileChunk `protobuf:"bytes,4,opt,name=file_chunk,json=fileChunk,proto3,oneof"`
 }
 
+type AgentMessage_ResourceReport struct {
+	ResourceReport *ResourceReport `protobuf:"bytes,5,opt,name=resource_report,json=resourceReport,proto3,oneof"`
+}
+
+type AgentMessage_ProvisionOutput struct {
+	ProvisionOutput *ProvisionOutput `protobuf:"bytes,6,opt,name=provision_output,json=provisionOutput,proto3,oneof"`
+}
+
+type AgentMessage_SshKeyResult struct {
+	SshKeyResult *SSHKeyInstallResult `protobuf:"bytes,7,opt,name=ssh_key_result,json=sshKeyResult,proto3,oneof"`
+}
+
 func (*AgentMessage_Heartbeat) isAgentMessage_Payload() {}
 
 func (*AgentMessage_ExecOutput) isAgentMessage_Payload() {}
@@ -310,6 +352,12 @@ func (*AgentMessage_HealthReport) isAgentMessage_Payload() {}
 
 func (*AgentMessage_FileChunk) isAgentMessage_Payload() {}
 
+func (*AgentMessage_ResourceReport) isAgentMessage_Payload() {}
+
+func (*AgentMessage_ProvisionOutput) isAgentMessage_Payload() {}
+
+func (*AgentMessage_SshKeyResult) isAgentMessage_Payload() {}
+
 type ControlMessage struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Payload:
@@ -317,6 +365,8 @@ type ControlMessage struct {
 	//	*ControlMessage_ExecCommand
 	//	*ControlMessage_FileTransfer
 	//	*ControlMessage_CertRotation
+	//	*ControlMessage_ProvisionCommand
+	//	*ControlMessage_SshKeyInstall
 	Payload       isControlMessage_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -386,6 +436,24 @@ func (x *ControlMessage) GetCertRotation() *CertRotation {
 	return nil
 }
 
+func (x *ControlMessage) GetProvisionCommand() *ProvisionCommand {
+	if x != nil {
+		if x, ok := x.Payload.(*ControlMessage_ProvisionCommand); ok {
+			return x.ProvisionCommand
+		}
+	}
+	return nil
+}
+
+func (x *ControlMessage) GetSshKeyInstall() *SSHKeyInstallCommand {
+	if x != nil {
+		if x, ok := x.Payload.(*ControlMessage_SshKeyInstall); ok {
+			return x.SshKeyInstall
+		}
+	}
+	return nil
+}
+
 type isControlMessage_Payload interface {
 	isControlMessage_Payload()
 }
@@ -402,11 +470,23 @@ type ControlMessage_CertRotation struct {
 	CertRotation *CertRotation `protobuf:"bytes,3,opt,name=cert_rotation,json=certRotation,proto3,oneof"`
 }
 
+type ControlMessage_ProvisionCommand struct {
+	ProvisionCommand *ProvisionCommand `protobuf:"bytes,4,opt,name=provision_command,json=provisionCommand,proto3,oneof"`
+}
+
+type ControlMessage_SshKeyInstall struct {
+	SshKeyInstall *SSHKeyInstallCommand `protobuf:"bytes,5,opt,name=ssh_key_install,json=sshKeyInstall,proto3,oneof"`
+}
+
 func (*ControlMessage_ExecCommand) isControlMessage_Payload() {}
 
 func (*ControlMessage_FileTransfer) isControlMessage_Payload() {}
 
 func (*ControlMessage_CertRotation) isControlMessage_Payload() {}
+
+func (*ControlMessage_ProvisionCommand) isControlMessage_Payload() {}
+
+func (*ControlMessage_SshKeyInstall) isControlMessage_Payload() {}
 
 type Heartbeat struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -920,6 +1000,414 @@ func (x *CertRotation) GetNewCertificate() []byte {
 	return nil
 }
 
+type NetworkInterface struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Ips           []string               `protobuf:"bytes,2,rep,name=ips,proto3" json:"ips,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NetworkInterface) Reset() {
+	*x = NetworkInterface{}
+	mi := &file_agent_v1_agent_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NetworkInterface) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NetworkInterface) ProtoMessage() {}
+
+func (x *NetworkInterface) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NetworkInterface.ProtoReflect.Descriptor instead.
+func (*NetworkInterface) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *NetworkInterface) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *NetworkInterface) GetIps() []string {
+	if x != nil {
+		return x.Ips
+	}
+	return nil
+}
+
+type ResourceReport struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	AgentId           string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
+	CpuModel          string                 `protobuf:"bytes,2,opt,name=cpu_model,json=cpuModel,proto3" json:"cpu_model,omitempty"`
+	CpuCores          int32                  `protobuf:"varint,3,opt,name=cpu_cores,json=cpuCores,proto3" json:"cpu_cores,omitempty"`
+	MemoryTotal       uint64                 `protobuf:"varint,4,opt,name=memory_total,json=memoryTotal,proto3" json:"memory_total,omitempty"`
+	MemoryAvailable   uint64                 `protobuf:"varint,5,opt,name=memory_available,json=memoryAvailable,proto3" json:"memory_available,omitempty"`
+	KernelVersion     string                 `protobuf:"bytes,6,opt,name=kernel_version,json=kernelVersion,proto3" json:"kernel_version,omitempty"`
+	DockerVersion     string                 `protobuf:"bytes,7,opt,name=docker_version,json=dockerVersion,proto3" json:"docker_version,omitempty"`
+	Disks             []*DiskInfo            `protobuf:"bytes,8,rep,name=disks,proto3" json:"disks,omitempty"`
+	NetworkInterfaces []*NetworkInterface    `protobuf:"bytes,9,rep,name=network_interfaces,json=networkInterfaces,proto3" json:"network_interfaces,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ResourceReport) Reset() {
+	*x = ResourceReport{}
+	mi := &file_agent_v1_agent_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResourceReport) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResourceReport) ProtoMessage() {}
+
+func (x *ResourceReport) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResourceReport.ProtoReflect.Descriptor instead.
+func (*ResourceReport) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ResourceReport) GetAgentId() string {
+	if x != nil {
+		return x.AgentId
+	}
+	return ""
+}
+
+func (x *ResourceReport) GetCpuModel() string {
+	if x != nil {
+		return x.CpuModel
+	}
+	return ""
+}
+
+func (x *ResourceReport) GetCpuCores() int32 {
+	if x != nil {
+		return x.CpuCores
+	}
+	return 0
+}
+
+func (x *ResourceReport) GetMemoryTotal() uint64 {
+	if x != nil {
+		return x.MemoryTotal
+	}
+	return 0
+}
+
+func (x *ResourceReport) GetMemoryAvailable() uint64 {
+	if x != nil {
+		return x.MemoryAvailable
+	}
+	return 0
+}
+
+func (x *ResourceReport) GetKernelVersion() string {
+	if x != nil {
+		return x.KernelVersion
+	}
+	return ""
+}
+
+func (x *ResourceReport) GetDockerVersion() string {
+	if x != nil {
+		return x.DockerVersion
+	}
+	return ""
+}
+
+func (x *ResourceReport) GetDisks() []*DiskInfo {
+	if x != nil {
+		return x.Disks
+	}
+	return nil
+}
+
+func (x *ResourceReport) GetNetworkInterfaces() []*NetworkInterface {
+	if x != nil {
+		return x.NetworkInterfaces
+	}
+	return nil
+}
+
+type ProvisionCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	Component     string                 `protobuf:"bytes,2,opt,name=component,proto3" json:"component,omitempty"`
+	Script        []byte                 `protobuf:"bytes,3,opt,name=script,proto3" json:"script,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProvisionCommand) Reset() {
+	*x = ProvisionCommand{}
+	mi := &file_agent_v1_agent_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProvisionCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProvisionCommand) ProtoMessage() {}
+
+func (x *ProvisionCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProvisionCommand.ProtoReflect.Descriptor instead.
+func (*ProvisionCommand) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ProvisionCommand) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *ProvisionCommand) GetComponent() string {
+	if x != nil {
+		return x.Component
+	}
+	return ""
+}
+
+func (x *ProvisionCommand) GetScript() []byte {
+	if x != nil {
+		return x.Script
+	}
+	return nil
+}
+
+type ProvisionOutput struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	Component     string                 `protobuf:"bytes,2,opt,name=component,proto3" json:"component,omitempty"`
+	Output        []byte                 `protobuf:"bytes,3,opt,name=output,proto3" json:"output,omitempty"`
+	Finished      bool                   `protobuf:"varint,4,opt,name=finished,proto3" json:"finished,omitempty"`
+	Success       bool                   `protobuf:"varint,5,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,6,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProvisionOutput) Reset() {
+	*x = ProvisionOutput{}
+	mi := &file_agent_v1_agent_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProvisionOutput) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProvisionOutput) ProtoMessage() {}
+
+func (x *ProvisionOutput) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProvisionOutput.ProtoReflect.Descriptor instead.
+func (*ProvisionOutput) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ProvisionOutput) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *ProvisionOutput) GetComponent() string {
+	if x != nil {
+		return x.Component
+	}
+	return ""
+}
+
+func (x *ProvisionOutput) GetOutput() []byte {
+	if x != nil {
+		return x.Output
+	}
+	return nil
+}
+
+func (x *ProvisionOutput) GetFinished() bool {
+	if x != nil {
+		return x.Finished
+	}
+	return false
+}
+
+func (x *ProvisionOutput) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *ProvisionOutput) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type SSHKeyInstallCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Action        string                 `protobuf:"bytes,1,opt,name=action,proto3" json:"action,omitempty"`
+	PublicKey     string                 `protobuf:"bytes,2,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SSHKeyInstallCommand) Reset() {
+	*x = SSHKeyInstallCommand{}
+	mi := &file_agent_v1_agent_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SSHKeyInstallCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SSHKeyInstallCommand) ProtoMessage() {}
+
+func (x *SSHKeyInstallCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SSHKeyInstallCommand.ProtoReflect.Descriptor instead.
+func (*SSHKeyInstallCommand) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *SSHKeyInstallCommand) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *SSHKeyInstallCommand) GetPublicKey() string {
+	if x != nil {
+		return x.PublicKey
+	}
+	return ""
+}
+
+type SSHKeyInstallResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SSHKeyInstallResult) Reset() {
+	*x = SSHKeyInstallResult{}
+	mi := &file_agent_v1_agent_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SSHKeyInstallResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SSHKeyInstallResult) ProtoMessage() {}
+
+func (x *SSHKeyInstallResult) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SSHKeyInstallResult.ProtoReflect.Descriptor instead.
+func (*SSHKeyInstallResult) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *SSHKeyInstallResult) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *SSHKeyInstallResult) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
 var File_agent_v1_agent_proto protoreflect.FileDescriptor
 
 const file_agent_v1_agent_proto_rawDesc = "" +
@@ -933,19 +1421,24 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"\x10RegisterResponse\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12 \n" +
 	"\vcertificate\x18\x02 \x01(\fR\vcertificate\x12%\n" +
-	"\x0eca_certificate\x18\x03 \x01(\fR\rcaCertificate\"\xfc\x01\n" +
+	"\x0eca_certificate\x18\x03 \x01(\fR\rcaCertificate\"\xd0\x03\n" +
 	"\fAgentMessage\x123\n" +
 	"\theartbeat\x18\x01 \x01(\v2\x13.agent.v1.HeartbeatH\x00R\theartbeat\x127\n" +
 	"\vexec_output\x18\x02 \x01(\v2\x14.agent.v1.ExecOutputH\x00R\n" +
 	"execOutput\x12=\n" +
 	"\rhealth_report\x18\x03 \x01(\v2\x16.agent.v1.HealthReportH\x00R\fhealthReport\x124\n" +
 	"\n" +
-	"file_chunk\x18\x04 \x01(\v2\x13.agent.v1.FileChunkH\x00R\tfileChunkB\t\n" +
-	"\apayload\"\xdc\x01\n" +
+	"file_chunk\x18\x04 \x01(\v2\x13.agent.v1.FileChunkH\x00R\tfileChunk\x12C\n" +
+	"\x0fresource_report\x18\x05 \x01(\v2\x18.agent.v1.ResourceReportH\x00R\x0eresourceReport\x12F\n" +
+	"\x10provision_output\x18\x06 \x01(\v2\x19.agent.v1.ProvisionOutputH\x00R\x0fprovisionOutput\x12E\n" +
+	"\x0essh_key_result\x18\a \x01(\v2\x1d.agent.v1.SSHKeyInstallResultH\x00R\fsshKeyResultB\t\n" +
+	"\apayload\"\xf1\x02\n" +
 	"\x0eControlMessage\x12:\n" +
 	"\fexec_command\x18\x01 \x01(\v2\x15.agent.v1.ExecCommandH\x00R\vexecCommand\x12D\n" +
 	"\rfile_transfer\x18\x02 \x01(\v2\x1d.agent.v1.FileTransferRequestH\x00R\ffileTransfer\x12=\n" +
-	"\rcert_rotation\x18\x03 \x01(\v2\x16.agent.v1.CertRotationH\x00R\fcertRotationB\t\n" +
+	"\rcert_rotation\x18\x03 \x01(\v2\x16.agent.v1.CertRotationH\x00R\fcertRotation\x12I\n" +
+	"\x11provision_command\x18\x04 \x01(\v2\x1a.agent.v1.ProvisionCommandH\x00R\x10provisionCommand\x12H\n" +
+	"\x0fssh_key_install\x18\x05 \x01(\v2\x1e.agent.v1.SSHKeyInstallCommandH\x00R\rsshKeyInstallB\t\n" +
 	"\apayload\"`\n" +
 	"\tHeartbeat\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x128\n" +
@@ -1000,7 +1493,38 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"\x06UPLOAD\x10\x00\x12\f\n" +
 	"\bDOWNLOAD\x10\x01\"7\n" +
 	"\fCertRotation\x12'\n" +
-	"\x0fnew_certificate\x18\x01 \x01(\fR\x0enewCertificate2\x92\x01\n" +
+	"\x0fnew_certificate\x18\x01 \x01(\fR\x0enewCertificate\"8\n" +
+	"\x10NetworkInterface\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x10\n" +
+	"\x03ips\x18\x02 \x03(\tR\x03ips\"\xf6\x02\n" +
+	"\x0eResourceReport\x12\x19\n" +
+	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12\x1b\n" +
+	"\tcpu_model\x18\x02 \x01(\tR\bcpuModel\x12\x1b\n" +
+	"\tcpu_cores\x18\x03 \x01(\x05R\bcpuCores\x12!\n" +
+	"\fmemory_total\x18\x04 \x01(\x04R\vmemoryTotal\x12)\n" +
+	"\x10memory_available\x18\x05 \x01(\x04R\x0fmemoryAvailable\x12%\n" +
+	"\x0ekernel_version\x18\x06 \x01(\tR\rkernelVersion\x12%\n" +
+	"\x0edocker_version\x18\a \x01(\tR\rdockerVersion\x12(\n" +
+	"\x05disks\x18\b \x03(\v2\x12.agent.v1.DiskInfoR\x05disks\x12I\n" +
+	"\x12network_interfaces\x18\t \x03(\v2\x1a.agent.v1.NetworkInterfaceR\x11networkInterfaces\"_\n" +
+	"\x10ProvisionCommand\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x1c\n" +
+	"\tcomponent\x18\x02 \x01(\tR\tcomponent\x12\x16\n" +
+	"\x06script\x18\x03 \x01(\fR\x06script\"\xaa\x01\n" +
+	"\x0fProvisionOutput\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x1c\n" +
+	"\tcomponent\x18\x02 \x01(\tR\tcomponent\x12\x16\n" +
+	"\x06output\x18\x03 \x01(\fR\x06output\x12\x1a\n" +
+	"\bfinished\x18\x04 \x01(\bR\bfinished\x12\x18\n" +
+	"\asuccess\x18\x05 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x06 \x01(\tR\x05error\"M\n" +
+	"\x14SSHKeyInstallCommand\x12\x16\n" +
+	"\x06action\x18\x01 \x01(\tR\x06action\x12\x1d\n" +
+	"\n" +
+	"public_key\x18\x02 \x01(\tR\tpublicKey\"E\n" +
+	"\x13SSHKeyInstallResult\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error2\x92\x01\n" +
 	"\fAgentService\x12?\n" +
 	"\aConnect\x12\x16.agent.v1.AgentMessage\x1a\x18.agent.v1.ControlMessage(\x010\x01\x12A\n" +
 	"\bRegister\x12\x19.agent.v1.RegisterRequest\x1a\x1a.agent.v1.RegisterResponseBIZGgithub.com/othmanhaba/nixway-core/internal/agent/proto/agent/v1;agentv1b\x06proto3"
@@ -1018,7 +1542,7 @@ func file_agent_v1_agent_proto_rawDescGZIP() []byte {
 }
 
 var file_agent_v1_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_agent_v1_agent_proto_goTypes = []any{
 	(FileTransferRequest_Direction)(0), // 0: agent.v1.FileTransferRequest.Direction
 	(*RegisterRequest)(nil),            // 1: agent.v1.RegisterRequest
@@ -1033,30 +1557,43 @@ var file_agent_v1_agent_proto_goTypes = []any{
 	(*FileChunk)(nil),                  // 10: agent.v1.FileChunk
 	(*FileTransferRequest)(nil),        // 11: agent.v1.FileTransferRequest
 	(*CertRotation)(nil),               // 12: agent.v1.CertRotation
-	nil,                                // 13: agent.v1.ExecCommand.EnvEntry
-	(*timestamppb.Timestamp)(nil),      // 14: google.protobuf.Timestamp
+	(*NetworkInterface)(nil),           // 13: agent.v1.NetworkInterface
+	(*ResourceReport)(nil),             // 14: agent.v1.ResourceReport
+	(*ProvisionCommand)(nil),           // 15: agent.v1.ProvisionCommand
+	(*ProvisionOutput)(nil),            // 16: agent.v1.ProvisionOutput
+	(*SSHKeyInstallCommand)(nil),       // 17: agent.v1.SSHKeyInstallCommand
+	(*SSHKeyInstallResult)(nil),        // 18: agent.v1.SSHKeyInstallResult
+	nil,                                // 19: agent.v1.ExecCommand.EnvEntry
+	(*timestamppb.Timestamp)(nil),      // 20: google.protobuf.Timestamp
 }
 var file_agent_v1_agent_proto_depIdxs = []int32{
 	5,  // 0: agent.v1.AgentMessage.heartbeat:type_name -> agent.v1.Heartbeat
 	7,  // 1: agent.v1.AgentMessage.exec_output:type_name -> agent.v1.ExecOutput
 	8,  // 2: agent.v1.AgentMessage.health_report:type_name -> agent.v1.HealthReport
 	10, // 3: agent.v1.AgentMessage.file_chunk:type_name -> agent.v1.FileChunk
-	6,  // 4: agent.v1.ControlMessage.exec_command:type_name -> agent.v1.ExecCommand
-	11, // 5: agent.v1.ControlMessage.file_transfer:type_name -> agent.v1.FileTransferRequest
-	12, // 6: agent.v1.ControlMessage.cert_rotation:type_name -> agent.v1.CertRotation
-	14, // 7: agent.v1.Heartbeat.timestamp:type_name -> google.protobuf.Timestamp
-	13, // 8: agent.v1.ExecCommand.env:type_name -> agent.v1.ExecCommand.EnvEntry
-	9,  // 9: agent.v1.HealthReport.disks:type_name -> agent.v1.DiskInfo
-	0,  // 10: agent.v1.FileTransferRequest.direction:type_name -> agent.v1.FileTransferRequest.Direction
-	3,  // 11: agent.v1.AgentService.Connect:input_type -> agent.v1.AgentMessage
-	1,  // 12: agent.v1.AgentService.Register:input_type -> agent.v1.RegisterRequest
-	4,  // 13: agent.v1.AgentService.Connect:output_type -> agent.v1.ControlMessage
-	2,  // 14: agent.v1.AgentService.Register:output_type -> agent.v1.RegisterResponse
-	13, // [13:15] is the sub-list for method output_type
-	11, // [11:13] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	14, // 4: agent.v1.AgentMessage.resource_report:type_name -> agent.v1.ResourceReport
+	16, // 5: agent.v1.AgentMessage.provision_output:type_name -> agent.v1.ProvisionOutput
+	18, // 6: agent.v1.AgentMessage.ssh_key_result:type_name -> agent.v1.SSHKeyInstallResult
+	6,  // 7: agent.v1.ControlMessage.exec_command:type_name -> agent.v1.ExecCommand
+	11, // 8: agent.v1.ControlMessage.file_transfer:type_name -> agent.v1.FileTransferRequest
+	12, // 9: agent.v1.ControlMessage.cert_rotation:type_name -> agent.v1.CertRotation
+	15, // 10: agent.v1.ControlMessage.provision_command:type_name -> agent.v1.ProvisionCommand
+	17, // 11: agent.v1.ControlMessage.ssh_key_install:type_name -> agent.v1.SSHKeyInstallCommand
+	20, // 12: agent.v1.Heartbeat.timestamp:type_name -> google.protobuf.Timestamp
+	19, // 13: agent.v1.ExecCommand.env:type_name -> agent.v1.ExecCommand.EnvEntry
+	9,  // 14: agent.v1.HealthReport.disks:type_name -> agent.v1.DiskInfo
+	0,  // 15: agent.v1.FileTransferRequest.direction:type_name -> agent.v1.FileTransferRequest.Direction
+	9,  // 16: agent.v1.ResourceReport.disks:type_name -> agent.v1.DiskInfo
+	13, // 17: agent.v1.ResourceReport.network_interfaces:type_name -> agent.v1.NetworkInterface
+	3,  // 18: agent.v1.AgentService.Connect:input_type -> agent.v1.AgentMessage
+	1,  // 19: agent.v1.AgentService.Register:input_type -> agent.v1.RegisterRequest
+	4,  // 20: agent.v1.AgentService.Connect:output_type -> agent.v1.ControlMessage
+	2,  // 21: agent.v1.AgentService.Register:output_type -> agent.v1.RegisterResponse
+	20, // [20:22] is the sub-list for method output_type
+	18, // [18:20] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_agent_v1_agent_proto_init() }
@@ -1069,11 +1606,16 @@ func file_agent_v1_agent_proto_init() {
 		(*AgentMessage_ExecOutput)(nil),
 		(*AgentMessage_HealthReport)(nil),
 		(*AgentMessage_FileChunk)(nil),
+		(*AgentMessage_ResourceReport)(nil),
+		(*AgentMessage_ProvisionOutput)(nil),
+		(*AgentMessage_SshKeyResult)(nil),
 	}
 	file_agent_v1_agent_proto_msgTypes[3].OneofWrappers = []any{
 		(*ControlMessage_ExecCommand)(nil),
 		(*ControlMessage_FileTransfer)(nil),
 		(*ControlMessage_CertRotation)(nil),
+		(*ControlMessage_ProvisionCommand)(nil),
+		(*ControlMessage_SshKeyInstall)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -1081,7 +1623,7 @@ func file_agent_v1_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_agent_v1_agent_proto_rawDesc), len(file_agent_v1_agent_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   13,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

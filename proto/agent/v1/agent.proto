@@ -30,6 +30,9 @@ message AgentMessage {
     ExecOutput exec_output = 2;
     HealthReport health_report = 3;
     FileChunk file_chunk = 4;
+    ResourceReport resource_report = 5;
+    ProvisionOutput provision_output = 6;
+    SSHKeyInstallResult ssh_key_result = 7;
   }
 }
 
@@ -38,6 +41,8 @@ message ControlMessage {
     ExecCommand exec_command = 1;
     FileTransferRequest file_transfer = 2;
     CertRotation cert_rotation = 3;
+    ProvisionCommand provision_command = 4;
+    SSHKeyInstallCommand ssh_key_install = 5;
   }
 }
 
@@ -95,4 +100,46 @@ message FileTransferRequest {
 
 message CertRotation {
   bytes new_certificate = 1;
+}
+
+message NetworkInterface {
+  string name = 1;
+  repeated string ips = 2;
+}
+
+message ResourceReport {
+  string agent_id = 1;
+  string cpu_model = 2;
+  int32 cpu_cores = 3;
+  uint64 memory_total = 4;
+  uint64 memory_available = 5;
+  string kernel_version = 6;
+  string docker_version = 7;
+  repeated DiskInfo disks = 8;
+  repeated NetworkInterface network_interfaces = 9;
+}
+
+message ProvisionCommand {
+  string job_id = 1;
+  string component = 2;
+  bytes script = 3;
+}
+
+message ProvisionOutput {
+  string job_id = 1;
+  string component = 2;
+  bytes output = 3;
+  bool finished = 4;
+  bool success = 5;
+  string error = 6;
+}
+
+message SSHKeyInstallCommand {
+  string action = 1;
+  string public_key = 2;
+}
+
+message SSHKeyInstallResult {
+  bool success = 1;
+  string error = 2;
 }
