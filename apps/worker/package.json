@@ -1,0 +1,1 @@
+{"name": "@nixway/worker", "private": true, "scripts": {"build": "go build -o bin/worker .", "dev": "go run .", "test": "go test ./...", "lint": "golangci-lint run"}}

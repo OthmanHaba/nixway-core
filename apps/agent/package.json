@@ -1,0 +1,1 @@
+{"name": "@nixway/agent", "private": true, "scripts": {"build": "CGO_ENABLED=0 go build -ldflags='-s -w' -o bin/agent .", "dev": "go run .", "test": "go test ./...", "lint": "golangci-lint run"}}

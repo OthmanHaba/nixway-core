@@ -1,0 +1,16 @@
+{
+  "name": "nixway-core",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "test:integration": "turbo run test:integration",
+    "lint": "turbo run lint",
+    "generate": "turbo run generate"
+  },
+  "devDependencies": {
+    "turbo": "^2"
+  },
+  "packageManager": "pnpm@9.15.4"
+}

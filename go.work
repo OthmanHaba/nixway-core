@@ -1,0 +1,9 @@
+go 1.23
+
+use (
+	./internal
+	./apps/api
+	./apps/worker
+	./apps/agent
+	./apps/cli
+)
