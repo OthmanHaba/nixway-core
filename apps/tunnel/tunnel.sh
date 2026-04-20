@@ -23,8 +23,5 @@ cloudflared tunnel --url "http://localhost:${PORT}" 2>&1 | while read -r line; d
     echo "  TUNNEL URL: $url"
     echo "=========================================="
     echo ""
-    echo "Set this in your agent installer or config:"
-    echo "  export NIXWAY_API_URL=$url"
-    echo ""
   fi
 done

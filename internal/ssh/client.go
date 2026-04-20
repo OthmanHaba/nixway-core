@@ -151,6 +151,83 @@ func (c *Client) RunCommandStreaming(ctx context.Context, command string, onOutp
 	return <-done
 }
 
+// InteractiveSession represents a PTY-backed SSH session for terminal access.
+type InteractiveSession struct {
+	conn    *gossh.Client
+	session *gossh.Session
+	Stdin   io.WriteCloser
+	Stdout  io.Reader
+}
+
+// StartInteractiveSession opens an SSH connection with a PTY for interactive use.
+func (c *Client) StartInteractiveSession(cols, rows int) (*InteractiveSession, error) {
+	conn, err := gossh.Dial("tcp", c.addr, c.config)
+	if err != nil {
+		return nil, fmt.Errorf("dial: %w", err)
+	}
+
+	session, err := conn.NewSession()
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("new session: %w", err)
+	}
+
+	modes := gossh.TerminalModes{
+		gossh.ECHO:          1,
+		gossh.TTY_OP_ISPEED: 14400,
+		gossh.TTY_OP_OSPEED: 14400,
+	}
+
+	if err := session.RequestPty("xterm-256color", rows, cols, modes); err != nil {
+		session.Close()
+		conn.Close()
+		return nil, fmt.Errorf("request pty: %w", err)
+	}
+
+	stdin, err := session.StdinPipe()
+	if err != nil {
+		session.Close()
+		conn.Close()
+		return nil, fmt.Errorf("stdin pipe: %w", err)
+	}
+
+	stdout, err := session.StdoutPipe()
+	if err != nil {
+		session.Close()
+		conn.Close()
+		return nil, fmt.Errorf("stdout pipe: %w", err)
+	}
+
+	if err := session.Shell(); err != nil {
+		session.Close()
+		conn.Close()
+		return nil, fmt.Errorf("start shell: %w", err)
+	}
+
+	return &InteractiveSession{
+		conn:    conn,
+		session: session,
+		Stdin:   stdin,
+		Stdout:  stdout,
+	}, nil
+}
+
+// Resize changes the terminal size.
+func (s *InteractiveSession) Resize(cols, rows int) error {
+	return s.session.WindowChange(rows, cols)
+}
+
+// Close terminates the SSH session and connection.
+func (s *InteractiveSession) Close() {
+	s.session.Close()
+	s.conn.Close()
+}
+
+// Wait waits for the session to finish.
+func (s *InteractiveSession) Wait() error {
+	return s.session.Wait()
+}
+
 func parseOSRelease(content string) (string, string) {
 	var id, version string
 	for _, line := range strings.Split(content, "\n") {

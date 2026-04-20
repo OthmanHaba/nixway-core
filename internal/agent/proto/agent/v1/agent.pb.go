@@ -207,6 +207,11 @@ type AgentMessage struct {
 	//	*AgentMessage_ResourceReport
 	//	*AgentMessage_ProvisionOutput
 	//	*AgentMessage_SshKeyResult
+	//	*AgentMessage_WireguardKeygenResult
+	//	*AgentMessage_WireguardApplyResult
+	//	*AgentMessage_WireguardTeardownResult
+	//	*AgentMessage_MeshHealthReport
+	//	*AgentMessage_DnsUpdateResult
 	Payload       isAgentMessage_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -312,6 +317,51 @@ func (x *AgentMessage) GetSshKeyResult() *SSHKeyInstallResult {
 	return nil
 }
 
+func (x *AgentMessage) GetWireguardKeygenResult() *WireGuardKeyGenResult {
+	if x != nil {
+		if x, ok := x.Payload.(*AgentMessage_WireguardKeygenResult); ok {
+			return x.WireguardKeygenResult
+		}
+	}
+	return nil
+}
+
+func (x *AgentMessage) GetWireguardApplyResult() *WireGuardApplyResult {
+	if x != nil {
+		if x, ok := x.Payload.(*AgentMessage_WireguardApplyResult); ok {
+			return x.WireguardApplyResult
+		}
+	}
+	return nil
+}
+
+func (x *AgentMessage) GetWireguardTeardownResult() *WireGuardTeardownResult {
+	if x != nil {
+		if x, ok := x.Payload.(*AgentMessage_WireguardTeardownResult); ok {
+			return x.WireguardTeardownResult
+		}
+	}
+	return nil
+}
+
+func (x *AgentMessage) GetMeshHealthReport() *MeshHealthReport {
+	if x != nil {
+		if x, ok := x.Payload.(*AgentMessage_MeshHealthReport); ok {
+			return x.MeshHealthReport
+		}
+	}
+	return nil
+}
+
+func (x *AgentMessage) GetDnsUpdateResult() *DNSUpdateResult {
+	if x != nil {
+		if x, ok := x.Payload.(*AgentMessage_DnsUpdateResult); ok {
+			return x.DnsUpdateResult
+		}
+	}
+	return nil
+}
+
 type isAgentMessage_Payload interface {
 	isAgentMessage_Payload()
 }
@@ -344,6 +394,26 @@ type AgentMessage_SshKeyResult struct {
 	SshKeyResult *SSHKeyInstallResult `protobuf:"bytes,7,opt,name=ssh_key_result,json=sshKeyResult,proto3,oneof"`
 }
 
+type AgentMessage_WireguardKeygenResult struct {
+	WireguardKeygenResult *WireGuardKeyGenResult `protobuf:"bytes,8,opt,name=wireguard_keygen_result,json=wireguardKeygenResult,proto3,oneof"`
+}
+
+type AgentMessage_WireguardApplyResult struct {
+	WireguardApplyResult *WireGuardApplyResult `protobuf:"bytes,9,opt,name=wireguard_apply_result,json=wireguardApplyResult,proto3,oneof"`
+}
+
+type AgentMessage_WireguardTeardownResult struct {
+	WireguardTeardownResult *WireGuardTeardownResult `protobuf:"bytes,10,opt,name=wireguard_teardown_result,json=wireguardTeardownResult,proto3,oneof"`
+}
+
+type AgentMessage_MeshHealthReport struct {
+	MeshHealthReport *MeshHealthReport `protobuf:"bytes,11,opt,name=mesh_health_report,json=meshHealthReport,proto3,oneof"`
+}
+
+type AgentMessage_DnsUpdateResult struct {
+	DnsUpdateResult *DNSUpdateResult `protobuf:"bytes,12,opt,name=dns_update_result,json=dnsUpdateResult,proto3,oneof"`
+}
+
 func (*AgentMessage_Heartbeat) isAgentMessage_Payload() {}
 
 func (*AgentMessage_ExecOutput) isAgentMessage_Payload() {}
@@ -358,6 +428,16 @@ func (*AgentMessage_ProvisionOutput) isAgentMessage_Payload() {}
 
 func (*AgentMessage_SshKeyResult) isAgentMessage_Payload() {}
 
+func (*AgentMessage_WireguardKeygenResult) isAgentMessage_Payload() {}
+
+func (*AgentMessage_WireguardApplyResult) isAgentMessage_Payload() {}
+
+func (*AgentMessage_WireguardTeardownResult) isAgentMessage_Payload() {}
+
+func (*AgentMessage_MeshHealthReport) isAgentMessage_Payload() {}
+
+func (*AgentMessage_DnsUpdateResult) isAgentMessage_Payload() {}
+
 type ControlMessage struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Payload:
@@ -367,6 +447,10 @@ type ControlMessage struct {
 	//	*ControlMessage_CertRotation
 	//	*ControlMessage_ProvisionCommand
 	//	*ControlMessage_SshKeyInstall
+	//	*ControlMessage_WireguardKeygen
+	//	*ControlMessage_WireguardApply
+	//	*ControlMessage_WireguardTeardown
+	//	*ControlMessage_DnsUpdateHosts
 	Payload       isControlMessage_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -454,6 +538,42 @@ func (x *ControlMessage) GetSshKeyInstall() *SSHKeyInstallCommand {
 	return nil
 }
 
+func (x *ControlMessage) GetWireguardKeygen() *WireGuardKeyGenCommand {
+	if x != nil {
+		if x, ok := x.Payload.(*ControlMessage_WireguardKeygen); ok {
+			return x.WireguardKeygen
+		}
+	}
+	return nil
+}
+
+func (x *ControlMessage) GetWireguardApply() *WireGuardApplyCommand {
+	if x != nil {
+		if x, ok := x.Payload.(*ControlMessage_WireguardApply); ok {
+			return x.WireguardApply
+		}
+	}
+	return nil
+}
+
+func (x *ControlMessage) GetWireguardTeardown() *WireGuardTeardownCommand {
+	if x != nil {
+		if x, ok := x.Payload.(*ControlMessage_WireguardTeardown); ok {
+			return x.WireguardTeardown
+		}
+	}
+	return nil
+}
+
+func (x *ControlMessage) GetDnsUpdateHosts() *DNSUpdateHostsCommand {
+	if x != nil {
+		if x, ok := x.Payload.(*ControlMessage_DnsUpdateHosts); ok {
+			return x.DnsUpdateHosts
+		}
+	}
+	return nil
+}
+
 type isControlMessage_Payload interface {
 	isControlMessage_Payload()
 }
@@ -478,6 +598,22 @@ type ControlMessage_SshKeyInstall struct {
 	SshKeyInstall *SSHKeyInstallCommand `protobuf:"bytes,5,opt,name=ssh_key_install,json=sshKeyInstall,proto3,oneof"`
 }
 
+type ControlMessage_WireguardKeygen struct {
+	WireguardKeygen *WireGuardKeyGenCommand `protobuf:"bytes,6,opt,name=wireguard_keygen,json=wireguardKeygen,proto3,oneof"`
+}
+
+type ControlMessage_WireguardApply struct {
+	WireguardApply *WireGuardApplyCommand `protobuf:"bytes,7,opt,name=wireguard_apply,json=wireguardApply,proto3,oneof"`
+}
+
+type ControlMessage_WireguardTeardown struct {
+	WireguardTeardown *WireGuardTeardownCommand `protobuf:"bytes,8,opt,name=wireguard_teardown,json=wireguardTeardown,proto3,oneof"`
+}
+
+type ControlMessage_DnsUpdateHosts struct {
+	DnsUpdateHosts *DNSUpdateHostsCommand `protobuf:"bytes,9,opt,name=dns_update_hosts,json=dnsUpdateHosts,proto3,oneof"`
+}
+
 func (*ControlMessage_ExecCommand) isControlMessage_Payload() {}
 
 func (*ControlMessage_FileTransfer) isControlMessage_Payload() {}
@@ -487,6 +623,14 @@ func (*ControlMessage_CertRotation) isControlMessage_Payload() {}
 func (*ControlMessage_ProvisionCommand) isControlMessage_Payload() {}
 
 func (*ControlMessage_SshKeyInstall) isControlMessage_Payload() {}
+
+func (*ControlMessage_WireguardKeygen) isControlMessage_Payload() {}
+
+func (*ControlMessage_WireguardApply) isControlMessage_Payload() {}
+
+func (*ControlMessage_WireguardTeardown) isControlMessage_Payload() {}
+
+func (*ControlMessage_DnsUpdateHosts) isControlMessage_Payload() {}
 
 type Heartbeat struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1408,6 +1552,613 @@ func (x *SSHKeyInstallResult) GetError() string {
 	return ""
 }
 
+// Control plane asks agent to generate a WireGuard keypair.
+type WireGuardKeyGenCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MemberId      string                 `protobuf:"bytes,1,opt,name=member_id,json=memberId,proto3" json:"member_id,omitempty"`
+	ListenPort    int32                  `protobuf:"varint,2,opt,name=listen_port,json=listenPort,proto3" json:"listen_port,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WireGuardKeyGenCommand) Reset() {
+	*x = WireGuardKeyGenCommand{}
+	mi := &file_agent_v1_agent_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WireGuardKeyGenCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WireGuardKeyGenCommand) ProtoMessage() {}
+
+func (x *WireGuardKeyGenCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WireGuardKeyGenCommand.ProtoReflect.Descriptor instead.
+func (*WireGuardKeyGenCommand) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *WireGuardKeyGenCommand) GetMemberId() string {
+	if x != nil {
+		return x.MemberId
+	}
+	return ""
+}
+
+func (x *WireGuardKeyGenCommand) GetListenPort() int32 {
+	if x != nil {
+		return x.ListenPort
+	}
+	return 0
+}
+
+// Agent returns the generated public key. Private key stays on the node.
+type WireGuardKeyGenResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MemberId      string                 `protobuf:"bytes,1,opt,name=member_id,json=memberId,proto3" json:"member_id,omitempty"`
+	PublicKey     string                 `protobuf:"bytes,2,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	Success       bool                   `protobuf:"varint,3,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WireGuardKeyGenResult) Reset() {
+	*x = WireGuardKeyGenResult{}
+	mi := &file_agent_v1_agent_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WireGuardKeyGenResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WireGuardKeyGenResult) ProtoMessage() {}
+
+func (x *WireGuardKeyGenResult) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WireGuardKeyGenResult.ProtoReflect.Descriptor instead.
+func (*WireGuardKeyGenResult) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *WireGuardKeyGenResult) GetMemberId() string {
+	if x != nil {
+		return x.MemberId
+	}
+	return ""
+}
+
+func (x *WireGuardKeyGenResult) GetPublicKey() string {
+	if x != nil {
+		return x.PublicKey
+	}
+	return ""
+}
+
+func (x *WireGuardKeyGenResult) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *WireGuardKeyGenResult) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+// Control plane pushes a full WireGuard config to the agent.
+type WireGuardApplyCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MemberId      string                 `protobuf:"bytes,1,opt,name=member_id,json=memberId,proto3" json:"member_id,omitempty"`
+	Config        string                 `protobuf:"bytes,2,opt,name=config,proto3" json:"config,omitempty"`                              // full wg0.conf content (PrivateKey placeholder replaced by agent)
+	WireguardIp   string                 `protobuf:"bytes,3,opt,name=wireguard_ip,json=wireguardIp,proto3" json:"wireguard_ip,omitempty"` // e.g. "10.100.0.1"
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WireGuardApplyCommand) Reset() {
+	*x = WireGuardApplyCommand{}
+	mi := &file_agent_v1_agent_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WireGuardApplyCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WireGuardApplyCommand) ProtoMessage() {}
+
+func (x *WireGuardApplyCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WireGuardApplyCommand.ProtoReflect.Descriptor instead.
+func (*WireGuardApplyCommand) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *WireGuardApplyCommand) GetMemberId() string {
+	if x != nil {
+		return x.MemberId
+	}
+	return ""
+}
+
+func (x *WireGuardApplyCommand) GetConfig() string {
+	if x != nil {
+		return x.Config
+	}
+	return ""
+}
+
+func (x *WireGuardApplyCommand) GetWireguardIp() string {
+	if x != nil {
+		return x.WireguardIp
+	}
+	return ""
+}
+
+// Agent confirms config was applied.
+type WireGuardApplyResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MemberId      string                 `protobuf:"bytes,1,opt,name=member_id,json=memberId,proto3" json:"member_id,omitempty"`
+	Success       bool                   `protobuf:"varint,2,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WireGuardApplyResult) Reset() {
+	*x = WireGuardApplyResult{}
+	mi := &file_agent_v1_agent_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WireGuardApplyResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WireGuardApplyResult) ProtoMessage() {}
+
+func (x *WireGuardApplyResult) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WireGuardApplyResult.ProtoReflect.Descriptor instead.
+func (*WireGuardApplyResult) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *WireGuardApplyResult) GetMemberId() string {
+	if x != nil {
+		return x.MemberId
+	}
+	return ""
+}
+
+func (x *WireGuardApplyResult) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *WireGuardApplyResult) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+// Control plane tells agent to tear down its WireGuard interface.
+type WireGuardTeardownCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MemberId      string                 `protobuf:"bytes,1,opt,name=member_id,json=memberId,proto3" json:"member_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WireGuardTeardownCommand) Reset() {
+	*x = WireGuardTeardownCommand{}
+	mi := &file_agent_v1_agent_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WireGuardTeardownCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WireGuardTeardownCommand) ProtoMessage() {}
+
+func (x *WireGuardTeardownCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WireGuardTeardownCommand.ProtoReflect.Descriptor instead.
+func (*WireGuardTeardownCommand) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *WireGuardTeardownCommand) GetMemberId() string {
+	if x != nil {
+		return x.MemberId
+	}
+	return ""
+}
+
+type WireGuardTeardownResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MemberId      string                 `protobuf:"bytes,1,opt,name=member_id,json=memberId,proto3" json:"member_id,omitempty"`
+	Success       bool                   `protobuf:"varint,2,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WireGuardTeardownResult) Reset() {
+	*x = WireGuardTeardownResult{}
+	mi := &file_agent_v1_agent_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WireGuardTeardownResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WireGuardTeardownResult) ProtoMessage() {}
+
+func (x *WireGuardTeardownResult) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WireGuardTeardownResult.ProtoReflect.Descriptor instead.
+func (*WireGuardTeardownResult) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *WireGuardTeardownResult) GetMemberId() string {
+	if x != nil {
+		return x.MemberId
+	}
+	return ""
+}
+
+func (x *WireGuardTeardownResult) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *WireGuardTeardownResult) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+// Agent periodically reports mesh health to the control plane.
+type MeshHealthReport struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AgentId       string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
+	MemberId      string                 `protobuf:"bytes,2,opt,name=member_id,json=memberId,proto3" json:"member_id,omitempty"`
+	Peers         []*PeerHealthInfo      `protobuf:"bytes,3,rep,name=peers,proto3" json:"peers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MeshHealthReport) Reset() {
+	*x = MeshHealthReport{}
+	mi := &file_agent_v1_agent_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MeshHealthReport) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MeshHealthReport) ProtoMessage() {}
+
+func (x *MeshHealthReport) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MeshHealthReport.ProtoReflect.Descriptor instead.
+func (*MeshHealthReport) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *MeshHealthReport) GetAgentId() string {
+	if x != nil {
+		return x.AgentId
+	}
+	return ""
+}
+
+func (x *MeshHealthReport) GetMemberId() string {
+	if x != nil {
+		return x.MemberId
+	}
+	return ""
+}
+
+func (x *MeshHealthReport) GetPeers() []*PeerHealthInfo {
+	if x != nil {
+		return x.Peers
+	}
+	return nil
+}
+
+type PeerHealthInfo struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	PeerMemberId         string                 `protobuf:"bytes,1,opt,name=peer_member_id,json=peerMemberId,proto3" json:"peer_member_id,omitempty"`
+	PeerIp               string                 `protobuf:"bytes,2,opt,name=peer_ip,json=peerIp,proto3" json:"peer_ip,omitempty"`
+	Reachable            bool                   `protobuf:"varint,3,opt,name=reachable,proto3" json:"reachable,omitempty"`
+	RttMs                int32                  `protobuf:"varint,4,opt,name=rtt_ms,json=rttMs,proto3" json:"rtt_ms,omitempty"`
+	LastHandshakeSeconds int32                  `protobuf:"varint,5,opt,name=last_handshake_seconds,json=lastHandshakeSeconds,proto3" json:"last_handshake_seconds,omitempty"` // seconds since last WireGuard handshake
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *PeerHealthInfo) Reset() {
+	*x = PeerHealthInfo{}
+	mi := &file_agent_v1_agent_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PeerHealthInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PeerHealthInfo) ProtoMessage() {}
+
+func (x *PeerHealthInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PeerHealthInfo.ProtoReflect.Descriptor instead.
+func (*PeerHealthInfo) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *PeerHealthInfo) GetPeerMemberId() string {
+	if x != nil {
+		return x.PeerMemberId
+	}
+	return ""
+}
+
+func (x *PeerHealthInfo) GetPeerIp() string {
+	if x != nil {
+		return x.PeerIp
+	}
+	return ""
+}
+
+func (x *PeerHealthInfo) GetReachable() bool {
+	if x != nil {
+		return x.Reachable
+	}
+	return false
+}
+
+func (x *PeerHealthInfo) GetRttMs() int32 {
+	if x != nil {
+		return x.RttMs
+	}
+	return 0
+}
+
+func (x *PeerHealthInfo) GetLastHandshakeSeconds() int32 {
+	if x != nil {
+		return x.LastHandshakeSeconds
+	}
+	return 0
+}
+
+// Control plane pushes updated DNS hosts file to the agent.
+type DNSUpdateHostsCommand struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	ClusterSlug     string                 `protobuf:"bytes,1,opt,name=cluster_slug,json=clusterSlug,proto3" json:"cluster_slug,omitempty"`
+	HostsContent    string                 `protobuf:"bytes,2,opt,name=hosts_content,json=hostsContent,proto3" json:"hosts_content,omitempty"`          // full hosts file content
+	CorefileContent string                 `protobuf:"bytes,3,opt,name=corefile_content,json=corefileContent,proto3" json:"corefile_content,omitempty"` // full Corefile content
+	DeployCoredns   bool                   `protobuf:"varint,4,opt,name=deploy_coredns,json=deployCoredns,proto3" json:"deploy_coredns,omitempty"`      // if true, also deploy/restart CoreDNS container
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *DNSUpdateHostsCommand) Reset() {
+	*x = DNSUpdateHostsCommand{}
+	mi := &file_agent_v1_agent_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DNSUpdateHostsCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DNSUpdateHostsCommand) ProtoMessage() {}
+
+func (x *DNSUpdateHostsCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DNSUpdateHostsCommand.ProtoReflect.Descriptor instead.
+func (*DNSUpdateHostsCommand) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *DNSUpdateHostsCommand) GetClusterSlug() string {
+	if x != nil {
+		return x.ClusterSlug
+	}
+	return ""
+}
+
+func (x *DNSUpdateHostsCommand) GetHostsContent() string {
+	if x != nil {
+		return x.HostsContent
+	}
+	return ""
+}
+
+func (x *DNSUpdateHostsCommand) GetCorefileContent() string {
+	if x != nil {
+		return x.CorefileContent
+	}
+	return ""
+}
+
+func (x *DNSUpdateHostsCommand) GetDeployCoredns() bool {
+	if x != nil {
+		return x.DeployCoredns
+	}
+	return false
+}
+
+type DNSUpdateResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DNSUpdateResult) Reset() {
+	*x = DNSUpdateResult{}
+	mi := &file_agent_v1_agent_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DNSUpdateResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DNSUpdateResult) ProtoMessage() {}
+
+func (x *DNSUpdateResult) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DNSUpdateResult.ProtoReflect.Descriptor instead.
+func (*DNSUpdateResult) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *DNSUpdateResult) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *DNSUpdateResult) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
 var File_agent_v1_agent_proto protoreflect.FileDescriptor
 
 const file_agent_v1_agent_proto_rawDesc = "" +
@@ -1421,7 +2172,7 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"\x10RegisterResponse\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12 \n" +
 	"\vcertificate\x18\x02 \x01(\fR\vcertificate\x12%\n" +
-	"\x0eca_certificate\x18\x03 \x01(\fR\rcaCertificate\"\xd0\x03\n" +
+	"\x0eca_certificate\x18\x03 \x01(\fR\rcaCertificate\"\xf9\x06\n" +
 	"\fAgentMessage\x123\n" +
 	"\theartbeat\x18\x01 \x01(\v2\x13.agent.v1.HeartbeatH\x00R\theartbeat\x127\n" +
 	"\vexec_output\x18\x02 \x01(\v2\x14.agent.v1.ExecOutputH\x00R\n" +
@@ -1431,14 +2182,24 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"file_chunk\x18\x04 \x01(\v2\x13.agent.v1.FileChunkH\x00R\tfileChunk\x12C\n" +
 	"\x0fresource_report\x18\x05 \x01(\v2\x18.agent.v1.ResourceReportH\x00R\x0eresourceReport\x12F\n" +
 	"\x10provision_output\x18\x06 \x01(\v2\x19.agent.v1.ProvisionOutputH\x00R\x0fprovisionOutput\x12E\n" +
-	"\x0essh_key_result\x18\a \x01(\v2\x1d.agent.v1.SSHKeyInstallResultH\x00R\fsshKeyResultB\t\n" +
-	"\apayload\"\xf1\x02\n" +
+	"\x0essh_key_result\x18\a \x01(\v2\x1d.agent.v1.SSHKeyInstallResultH\x00R\fsshKeyResult\x12Y\n" +
+	"\x17wireguard_keygen_result\x18\b \x01(\v2\x1f.agent.v1.WireGuardKeyGenResultH\x00R\x15wireguardKeygenResult\x12V\n" +
+	"\x16wireguard_apply_result\x18\t \x01(\v2\x1e.agent.v1.WireGuardApplyResultH\x00R\x14wireguardApplyResult\x12_\n" +
+	"\x19wireguard_teardown_result\x18\n" +
+	" \x01(\v2!.agent.v1.WireGuardTeardownResultH\x00R\x17wireguardTeardownResult\x12J\n" +
+	"\x12mesh_health_report\x18\v \x01(\v2\x1a.agent.v1.MeshHealthReportH\x00R\x10meshHealthReport\x12G\n" +
+	"\x11dns_update_result\x18\f \x01(\v2\x19.agent.v1.DNSUpdateResultH\x00R\x0fdnsUpdateResultB\t\n" +
+	"\apayload\"\xae\x05\n" +
 	"\x0eControlMessage\x12:\n" +
 	"\fexec_command\x18\x01 \x01(\v2\x15.agent.v1.ExecCommandH\x00R\vexecCommand\x12D\n" +
 	"\rfile_transfer\x18\x02 \x01(\v2\x1d.agent.v1.FileTransferRequestH\x00R\ffileTransfer\x12=\n" +
 	"\rcert_rotation\x18\x03 \x01(\v2\x16.agent.v1.CertRotationH\x00R\fcertRotation\x12I\n" +
 	"\x11provision_command\x18\x04 \x01(\v2\x1a.agent.v1.ProvisionCommandH\x00R\x10provisionCommand\x12H\n" +
-	"\x0fssh_key_install\x18\x05 \x01(\v2\x1e.agent.v1.SSHKeyInstallCommandH\x00R\rsshKeyInstallB\t\n" +
+	"\x0fssh_key_install\x18\x05 \x01(\v2\x1e.agent.v1.SSHKeyInstallCommandH\x00R\rsshKeyInstall\x12M\n" +
+	"\x10wireguard_keygen\x18\x06 \x01(\v2 .agent.v1.WireGuardKeyGenCommandH\x00R\x0fwireguardKeygen\x12J\n" +
+	"\x0fwireguard_apply\x18\a \x01(\v2\x1f.agent.v1.WireGuardApplyCommandH\x00R\x0ewireguardApply\x12S\n" +
+	"\x12wireguard_teardown\x18\b \x01(\v2\".agent.v1.WireGuardTeardownCommandH\x00R\x11wireguardTeardown\x12K\n" +
+	"\x10dns_update_hosts\x18\t \x01(\v2\x1f.agent.v1.DNSUpdateHostsCommandH\x00R\x0ednsUpdateHostsB\t\n" +
 	"\apayload\"`\n" +
 	"\tHeartbeat\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x128\n" +
@@ -1524,6 +2285,48 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"public_key\x18\x02 \x01(\tR\tpublicKey\"E\n" +
 	"\x13SSHKeyInstallResult\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"V\n" +
+	"\x16WireGuardKeyGenCommand\x12\x1b\n" +
+	"\tmember_id\x18\x01 \x01(\tR\bmemberId\x12\x1f\n" +
+	"\vlisten_port\x18\x02 \x01(\x05R\n" +
+	"listenPort\"\x83\x01\n" +
+	"\x15WireGuardKeyGenResult\x12\x1b\n" +
+	"\tmember_id\x18\x01 \x01(\tR\bmemberId\x12\x1d\n" +
+	"\n" +
+	"public_key\x18\x02 \x01(\tR\tpublicKey\x12\x18\n" +
+	"\asuccess\x18\x03 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error\"o\n" +
+	"\x15WireGuardApplyCommand\x12\x1b\n" +
+	"\tmember_id\x18\x01 \x01(\tR\bmemberId\x12\x16\n" +
+	"\x06config\x18\x02 \x01(\tR\x06config\x12!\n" +
+	"\fwireguard_ip\x18\x03 \x01(\tR\vwireguardIp\"c\n" +
+	"\x14WireGuardApplyResult\x12\x1b\n" +
+	"\tmember_id\x18\x01 \x01(\tR\bmemberId\x12\x18\n" +
+	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x03 \x01(\tR\x05error\"7\n" +
+	"\x18WireGuardTeardownCommand\x12\x1b\n" +
+	"\tmember_id\x18\x01 \x01(\tR\bmemberId\"f\n" +
+	"\x17WireGuardTeardownResult\x12\x1b\n" +
+	"\tmember_id\x18\x01 \x01(\tR\bmemberId\x12\x18\n" +
+	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x03 \x01(\tR\x05error\"z\n" +
+	"\x10MeshHealthReport\x12\x19\n" +
+	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12\x1b\n" +
+	"\tmember_id\x18\x02 \x01(\tR\bmemberId\x12.\n" +
+	"\x05peers\x18\x03 \x03(\v2\x18.agent.v1.PeerHealthInfoR\x05peers\"\xba\x01\n" +
+	"\x0ePeerHealthInfo\x12$\n" +
+	"\x0epeer_member_id\x18\x01 \x01(\tR\fpeerMemberId\x12\x17\n" +
+	"\apeer_ip\x18\x02 \x01(\tR\x06peerIp\x12\x1c\n" +
+	"\treachable\x18\x03 \x01(\bR\treachable\x12\x15\n" +
+	"\x06rtt_ms\x18\x04 \x01(\x05R\x05rttMs\x124\n" +
+	"\x16last_handshake_seconds\x18\x05 \x01(\x05R\x14lastHandshakeSeconds\"\xb1\x01\n" +
+	"\x15DNSUpdateHostsCommand\x12!\n" +
+	"\fcluster_slug\x18\x01 \x01(\tR\vclusterSlug\x12#\n" +
+	"\rhosts_content\x18\x02 \x01(\tR\fhostsContent\x12)\n" +
+	"\x10corefile_content\x18\x03 \x01(\tR\x0fcorefileContent\x12%\n" +
+	"\x0edeploy_coredns\x18\x04 \x01(\bR\rdeployCoredns\"A\n" +
+	"\x0fDNSUpdateResult\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error2\x92\x01\n" +
 	"\fAgentService\x12?\n" +
 	"\aConnect\x12\x16.agent.v1.AgentMessage\x1a\x18.agent.v1.ControlMessage(\x010\x01\x12A\n" +
@@ -1542,7 +2345,7 @@ func file_agent_v1_agent_proto_rawDescGZIP() []byte {
 }
 
 var file_agent_v1_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
 var file_agent_v1_agent_proto_goTypes = []any{
 	(FileTransferRequest_Direction)(0), // 0: agent.v1.FileTransferRequest.Direction
 	(*RegisterRequest)(nil),            // 1: agent.v1.RegisterRequest
@@ -1563,8 +2366,18 @@ var file_agent_v1_agent_proto_goTypes = []any{
 	(*ProvisionOutput)(nil),            // 16: agent.v1.ProvisionOutput
 	(*SSHKeyInstallCommand)(nil),       // 17: agent.v1.SSHKeyInstallCommand
 	(*SSHKeyInstallResult)(nil),        // 18: agent.v1.SSHKeyInstallResult
-	nil,                                // 19: agent.v1.ExecCommand.EnvEntry
-	(*timestamppb.Timestamp)(nil),      // 20: google.protobuf.Timestamp
+	(*WireGuardKeyGenCommand)(nil),     // 19: agent.v1.WireGuardKeyGenCommand
+	(*WireGuardKeyGenResult)(nil),      // 20: agent.v1.WireGuardKeyGenResult
+	(*WireGuardApplyCommand)(nil),      // 21: agent.v1.WireGuardApplyCommand
+	(*WireGuardApplyResult)(nil),       // 22: agent.v1.WireGuardApplyResult
+	(*WireGuardTeardownCommand)(nil),   // 23: agent.v1.WireGuardTeardownCommand
+	(*WireGuardTeardownResult)(nil),    // 24: agent.v1.WireGuardTeardownResult
+	(*MeshHealthReport)(nil),           // 25: agent.v1.MeshHealthReport
+	(*PeerHealthInfo)(nil),             // 26: agent.v1.PeerHealthInfo
+	(*DNSUpdateHostsCommand)(nil),      // 27: agent.v1.DNSUpdateHostsCommand
+	(*DNSUpdateResult)(nil),            // 28: agent.v1.DNSUpdateResult
+	nil,                                // 29: agent.v1.ExecCommand.EnvEntry
+	(*timestamppb.Timestamp)(nil),      // 30: google.protobuf.Timestamp
 }
 var file_agent_v1_agent_proto_depIdxs = []int32{
 	5,  // 0: agent.v1.AgentMessage.heartbeat:type_name -> agent.v1.Heartbeat
@@ -1574,26 +2387,36 @@ var file_agent_v1_agent_proto_depIdxs = []int32{
 	14, // 4: agent.v1.AgentMessage.resource_report:type_name -> agent.v1.ResourceReport
 	16, // 5: agent.v1.AgentMessage.provision_output:type_name -> agent.v1.ProvisionOutput
 	18, // 6: agent.v1.AgentMessage.ssh_key_result:type_name -> agent.v1.SSHKeyInstallResult
-	6,  // 7: agent.v1.ControlMessage.exec_command:type_name -> agent.v1.ExecCommand
-	11, // 8: agent.v1.ControlMessage.file_transfer:type_name -> agent.v1.FileTransferRequest
-	12, // 9: agent.v1.ControlMessage.cert_rotation:type_name -> agent.v1.CertRotation
-	15, // 10: agent.v1.ControlMessage.provision_command:type_name -> agent.v1.ProvisionCommand
-	17, // 11: agent.v1.ControlMessage.ssh_key_install:type_name -> agent.v1.SSHKeyInstallCommand
-	20, // 12: agent.v1.Heartbeat.timestamp:type_name -> google.protobuf.Timestamp
-	19, // 13: agent.v1.ExecCommand.env:type_name -> agent.v1.ExecCommand.EnvEntry
-	9,  // 14: agent.v1.HealthReport.disks:type_name -> agent.v1.DiskInfo
-	0,  // 15: agent.v1.FileTransferRequest.direction:type_name -> agent.v1.FileTransferRequest.Direction
-	9,  // 16: agent.v1.ResourceReport.disks:type_name -> agent.v1.DiskInfo
-	13, // 17: agent.v1.ResourceReport.network_interfaces:type_name -> agent.v1.NetworkInterface
-	3,  // 18: agent.v1.AgentService.Connect:input_type -> agent.v1.AgentMessage
-	1,  // 19: agent.v1.AgentService.Register:input_type -> agent.v1.RegisterRequest
-	4,  // 20: agent.v1.AgentService.Connect:output_type -> agent.v1.ControlMessage
-	2,  // 21: agent.v1.AgentService.Register:output_type -> agent.v1.RegisterResponse
-	20, // [20:22] is the sub-list for method output_type
-	18, // [18:20] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	20, // 7: agent.v1.AgentMessage.wireguard_keygen_result:type_name -> agent.v1.WireGuardKeyGenResult
+	22, // 8: agent.v1.AgentMessage.wireguard_apply_result:type_name -> agent.v1.WireGuardApplyResult
+	24, // 9: agent.v1.AgentMessage.wireguard_teardown_result:type_name -> agent.v1.WireGuardTeardownResult
+	25, // 10: agent.v1.AgentMessage.mesh_health_report:type_name -> agent.v1.MeshHealthReport
+	28, // 11: agent.v1.AgentMessage.dns_update_result:type_name -> agent.v1.DNSUpdateResult
+	6,  // 12: agent.v1.ControlMessage.exec_command:type_name -> agent.v1.ExecCommand
+	11, // 13: agent.v1.ControlMessage.file_transfer:type_name -> agent.v1.FileTransferRequest
+	12, // 14: agent.v1.ControlMessage.cert_rotation:type_name -> agent.v1.CertRotation
+	15, // 15: agent.v1.ControlMessage.provision_command:type_name -> agent.v1.ProvisionCommand
+	17, // 16: agent.v1.ControlMessage.ssh_key_install:type_name -> agent.v1.SSHKeyInstallCommand
+	19, // 17: agent.v1.ControlMessage.wireguard_keygen:type_name -> agent.v1.WireGuardKeyGenCommand
+	21, // 18: agent.v1.ControlMessage.wireguard_apply:type_name -> agent.v1.WireGuardApplyCommand
+	23, // 19: agent.v1.ControlMessage.wireguard_teardown:type_name -> agent.v1.WireGuardTeardownCommand
+	27, // 20: agent.v1.ControlMessage.dns_update_hosts:type_name -> agent.v1.DNSUpdateHostsCommand
+	30, // 21: agent.v1.Heartbeat.timestamp:type_name -> google.protobuf.Timestamp
+	29, // 22: agent.v1.ExecCommand.env:type_name -> agent.v1.ExecCommand.EnvEntry
+	9,  // 23: agent.v1.HealthReport.disks:type_name -> agent.v1.DiskInfo
+	0,  // 24: agent.v1.FileTransferRequest.direction:type_name -> agent.v1.FileTransferRequest.Direction
+	9,  // 25: agent.v1.ResourceReport.disks:type_name -> agent.v1.DiskInfo
+	13, // 26: agent.v1.ResourceReport.network_interfaces:type_name -> agent.v1.NetworkInterface
+	26, // 27: agent.v1.MeshHealthReport.peers:type_name -> agent.v1.PeerHealthInfo
+	3,  // 28: agent.v1.AgentService.Connect:input_type -> agent.v1.AgentMessage
+	1,  // 29: agent.v1.AgentService.Register:input_type -> agent.v1.RegisterRequest
+	4,  // 30: agent.v1.AgentService.Connect:output_type -> agent.v1.ControlMessage
+	2,  // 31: agent.v1.AgentService.Register:output_type -> agent.v1.RegisterResponse
+	30, // [30:32] is the sub-list for method output_type
+	28, // [28:30] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_agent_v1_agent_proto_init() }
@@ -1609,6 +2432,11 @@ func file_agent_v1_agent_proto_init() {
 		(*AgentMessage_ResourceReport)(nil),
 		(*AgentMessage_ProvisionOutput)(nil),
 		(*AgentMessage_SshKeyResult)(nil),
+		(*AgentMessage_WireguardKeygenResult)(nil),
+		(*AgentMessage_WireguardApplyResult)(nil),
+		(*AgentMessage_WireguardTeardownResult)(nil),
+		(*AgentMessage_MeshHealthReport)(nil),
+		(*AgentMessage_DnsUpdateResult)(nil),
 	}
 	file_agent_v1_agent_proto_msgTypes[3].OneofWrappers = []any{
 		(*ControlMessage_ExecCommand)(nil),
@@ -1616,6 +2444,10 @@ func file_agent_v1_agent_proto_init() {
 		(*ControlMessage_CertRotation)(nil),
 		(*ControlMessage_ProvisionCommand)(nil),
 		(*ControlMessage_SshKeyInstall)(nil),
+		(*ControlMessage_WireguardKeygen)(nil),
+		(*ControlMessage_WireguardApply)(nil),
+		(*ControlMessage_WireguardTeardown)(nil),
+		(*ControlMessage_DnsUpdateHosts)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -1623,7 +2455,7 @@ func file_agent_v1_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_agent_v1_agent_proto_rawDesc), len(file_agent_v1_agent_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   19,
+			NumMessages:   29,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

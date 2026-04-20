@@ -53,12 +53,18 @@ func authenticate(r *http.Request, queries *db.Queries, sessions *auth.SessionMa
 		}, true
 	}
 
-	// Try session cookie
+	// Try session cookie or query param (for WebSocket connections)
+	var sessionToken string
 	cookie, err := r.Cookie("session")
-	if err != nil {
+	if err == nil {
+		sessionToken = cookie.Value
+	} else if token := r.URL.Query().Get("session_token"); token != "" {
+		sessionToken = token
+	}
+	if sessionToken == "" {
 		return nil, false
 	}
-	session, err := sessions.Get(r.Context(), cookie.Value)
+	session, err := sessions.Get(r.Context(), sessionToken)
 	if err != nil {
 		return nil, false
 	}

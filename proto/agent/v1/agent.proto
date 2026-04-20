@@ -33,6 +33,11 @@ message AgentMessage {
     ResourceReport resource_report = 5;
     ProvisionOutput provision_output = 6;
     SSHKeyInstallResult ssh_key_result = 7;
+    WireGuardKeyGenResult wireguard_keygen_result = 8;
+    WireGuardApplyResult wireguard_apply_result = 9;
+    WireGuardTeardownResult wireguard_teardown_result = 10;
+    MeshHealthReport mesh_health_report = 11;
+    DNSUpdateResult dns_update_result = 12;
   }
 }
 
@@ -43,6 +48,10 @@ message ControlMessage {
     CertRotation cert_rotation = 3;
     ProvisionCommand provision_command = 4;
     SSHKeyInstallCommand ssh_key_install = 5;
+    WireGuardKeyGenCommand wireguard_keygen = 6;
+    WireGuardApplyCommand wireguard_apply = 7;
+    WireGuardTeardownCommand wireguard_teardown = 8;
+    DNSUpdateHostsCommand dns_update_hosts = 9;
   }
 }
 
@@ -140,6 +149,79 @@ message SSHKeyInstallCommand {
 }
 
 message SSHKeyInstallResult {
+  bool success = 1;
+  string error = 2;
+}
+
+// --- WireGuard Messages ---
+
+// Control plane asks agent to generate a WireGuard keypair.
+message WireGuardKeyGenCommand {
+  string member_id = 1;
+  int32 listen_port = 2;
+}
+
+// Agent returns the generated public key. Private key stays on the node.
+message WireGuardKeyGenResult {
+  string member_id = 1;
+  string public_key = 2;
+  bool success = 3;
+  string error = 4;
+}
+
+// Control plane pushes a full WireGuard config to the agent.
+message WireGuardApplyCommand {
+  string member_id = 1;
+  string config = 2;        // full wg0.conf content (PrivateKey placeholder replaced by agent)
+  string wireguard_ip = 3;  // e.g. "10.100.0.1"
+}
+
+// Agent confirms config was applied.
+message WireGuardApplyResult {
+  string member_id = 1;
+  bool success = 2;
+  string error = 3;
+}
+
+// Control plane tells agent to tear down its WireGuard interface.
+message WireGuardTeardownCommand {
+  string member_id = 1;
+}
+
+message WireGuardTeardownResult {
+  string member_id = 1;
+  bool success = 2;
+  string error = 3;
+}
+
+// --- Mesh Health Messages ---
+
+// Agent periodically reports mesh health to the control plane.
+message MeshHealthReport {
+  string agent_id = 1;
+  string member_id = 2;
+  repeated PeerHealthInfo peers = 3;
+}
+
+message PeerHealthInfo {
+  string peer_member_id = 1;
+  string peer_ip = 2;
+  bool reachable = 3;
+  int32 rtt_ms = 4;
+  int32 last_handshake_seconds = 5;  // seconds since last WireGuard handshake
+}
+
+// --- DNS Messages ---
+
+// Control plane pushes updated DNS hosts file to the agent.
+message DNSUpdateHostsCommand {
+  string cluster_slug = 1;
+  string hosts_content = 2;    // full hosts file content
+  string corefile_content = 3; // full Corefile content
+  bool deploy_coredns = 4;     // if true, also deploy/restart CoreDNS container
+}
+
+message DNSUpdateResult {
   bool success = 1;
   string error = 2;
 }

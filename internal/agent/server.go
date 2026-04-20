@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"net/netip"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,6 +18,14 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// MeshRegenerator handles mesh lifecycle events with logging.
+type MeshRegenerator interface {
+	RegenerateMesh(ctx context.Context, clusterID uuid.UUID) error
+	OnKeyGenResult(ctx context.Context, clusterID uuid.UUID, memberID uuid.UUID, serverName, publicKey string)
+	OnApplyResult(ctx context.Context, clusterID uuid.UUID, memberID uuid.UUID, serverName string, success bool, errMsg string)
+	OnTeardownResult(ctx context.Context, clusterID uuid.UUID, memberID uuid.UUID, serverName string, success bool)
+}
+
 // Server implements agentv1.AgentServiceServer.
 type Server struct {
 	agentv1.UnimplementedAgentServiceServer
@@ -24,10 +33,16 @@ type Server struct {
 	queries *db.Queries
 	redis   *redis.Client
 	logger  *slog.Logger
+	meshReg MeshRegenerator
 }
 
 func NewServer(conn *ConnManager, queries *db.Queries, redisClient *redis.Client, logger *slog.Logger) *Server {
 	return &Server{conn: conn, queries: queries, redis: redisClient, logger: logger}
+}
+
+// SetMeshRegenerator sets the mesh regenerator (called after wiring to avoid circular deps).
+func (s *Server) SetMeshRegenerator(mr MeshRegenerator) {
+	s.meshReg = mr
 }
 
 // Register handles agent registration, issuing an agent ID.
@@ -127,6 +142,7 @@ func (s *Server) Connect(stream agentv1.AgentService_ConnectServer) error {
 					s.conn.Register(agentID)
 				}
 				s.conn.SetStream(agentID, stream)
+				s.linkAgentToServer(stream.Context(), agentID)
 			}
 			s.conn.Heartbeat(agentID)
 			s.conn.UpdateResources(agentID, rr)
@@ -156,6 +172,63 @@ func (s *Server) Connect(stream agentv1.AgentService_ConnectServer) error {
 				"agent_id", agentID,
 				"success", kr.Success,
 				"error", kr.Error,
+			)
+
+		case *agentv1.AgentMessage_WireguardKeygenResult:
+			r := p.WireguardKeygenResult
+			s.logger.Info("wireguard keygen result",
+				"agent_id", agentID,
+				"member_id", r.MemberId,
+				"success", r.Success,
+			)
+			if r.Success {
+				s.handleWireGuardKeyGenResult(stream.Context(), r)
+			}
+
+		case *agentv1.AgentMessage_WireguardApplyResult:
+			r := p.WireguardApplyResult
+			s.logger.Info("wireguard apply result",
+				"agent_id", agentID,
+				"member_id", r.MemberId,
+				"success", r.Success,
+			)
+			if s.meshReg != nil {
+				if mid, err := uuid.Parse(r.MemberId); err == nil {
+					if member, err := s.queries.GetClusterMemberByID(stream.Context(), mid); err == nil {
+						go s.meshReg.OnApplyResult(stream.Context(), member.ClusterID, mid, r.MemberId, r.Success, r.Error)
+					}
+				}
+			}
+
+		case *agentv1.AgentMessage_WireguardTeardownResult:
+			r := p.WireguardTeardownResult
+			s.logger.Info("wireguard teardown result",
+				"agent_id", agentID,
+				"member_id", r.MemberId,
+				"success", r.Success,
+			)
+			if s.meshReg != nil {
+				if mid, err := uuid.Parse(r.MemberId); err == nil {
+					if member, err := s.queries.GetClusterMemberByID(stream.Context(), mid); err == nil {
+						go s.meshReg.OnTeardownResult(stream.Context(), member.ClusterID, mid, r.MemberId, r.Success)
+					}
+				}
+			}
+
+		case *agentv1.AgentMessage_MeshHealthReport:
+			mh := p.MeshHealthReport
+			s.logger.Debug("mesh health report",
+				"agent_id", agentID,
+				"member_id", mh.MemberId,
+				"peers", len(mh.Peers),
+			)
+			s.handleMeshHealthReport(stream.Context(), mh)
+
+		case *agentv1.AgentMessage_DnsUpdateResult:
+			r := p.DnsUpdateResult
+			s.logger.Info("dns update result",
+				"agent_id", agentID,
+				"success", r.Success,
 			)
 
 		default:
@@ -273,5 +346,106 @@ func (s *Server) handleProvisionOutput(ctx context.Context, po *agentv1.Provisio
 				Error:       jobErr,
 			})
 		}
+	}
+}
+
+func (s *Server) handleWireGuardKeyGenResult(ctx context.Context, r *agentv1.WireGuardKeyGenResult) {
+	if s.queries == nil {
+		return
+	}
+
+	memberID, err := uuid.Parse(r.MemberId)
+	if err != nil {
+		s.logger.Warn("invalid member_id in keygen result", "member_id", r.MemberId)
+		return
+	}
+
+	if err := s.queries.UpdateClusterMemberPublicKey(ctx, db.UpdateClusterMemberPublicKeyParams{
+		ID:                 memberID,
+		WireguardPublicKey: r.PublicKey,
+	}); err != nil {
+		s.logger.Error("failed to update member public key", "member_id", r.MemberId, "error", err)
+		return
+	}
+
+	s.logger.Info("stored WireGuard public key", "member_id", r.MemberId)
+
+	// Trigger mesh regeneration via mesh manager (which logs + streams)
+	if s.meshReg != nil {
+		member, err := s.queries.GetClusterMemberByID(ctx, memberID)
+		if err == nil {
+			go s.meshReg.OnKeyGenResult(ctx, member.ClusterID, memberID, r.MemberId, r.PublicKey)
+		}
+	}
+}
+
+func (s *Server) handleMeshHealthReport(ctx context.Context, mh *agentv1.MeshHealthReport) {
+	if s.queries == nil {
+		return
+	}
+
+	memberID, err := uuid.Parse(mh.MemberId)
+	if err != nil {
+		s.logger.Warn("invalid member_id in mesh health", "member_id", mh.MemberId)
+		return
+	}
+
+	// Look up the reporting member to get the cluster ID
+	member, err := s.queries.GetClusterMemberByID(ctx, memberID)
+	if err != nil {
+		s.logger.Warn("could not find cluster member", "member_id", mh.MemberId, "error", err)
+		return
+	}
+
+	for _, p := range mh.Peers {
+		// Resolve peer member ID: agent doesn't know it, so look up by WireGuard IP
+		var peerMemberID uuid.UUID
+		if p.PeerMemberId != "" {
+			peerMemberID, err = uuid.Parse(p.PeerMemberId)
+			if err != nil {
+				continue
+			}
+		} else if p.PeerIp != "" {
+			peerAddr, err := netip.ParseAddr(p.PeerIp)
+			if err != nil {
+				s.logger.Debug("invalid peer IP", "peer_ip", p.PeerIp, "error", err)
+				continue
+			}
+			peerMember, err := s.queries.GetClusterMemberByClusterAndIP(ctx, db.GetClusterMemberByClusterAndIPParams{
+				ClusterID:   member.ClusterID,
+				WireguardIp: peerAddr,
+			})
+			if err != nil {
+				s.logger.Debug("could not resolve peer by IP", "peer_ip", p.PeerIp, "error", err)
+				continue
+			}
+			peerMemberID = peerMember.ID
+		} else {
+			continue
+		}
+
+		status := "active"
+		if !p.Reachable {
+			status = "failed"
+		} else if p.LastHandshakeSeconds > 300 || p.RttMs > 500 {
+			status = "degraded"
+		}
+
+		var handshakeAt pgtype.Timestamptz
+		if p.Reachable && p.LastHandshakeSeconds > 0 {
+			handshakeAt = pgtype.Timestamptz{
+				Time:  time.Now().Add(-time.Duration(p.LastHandshakeSeconds) * time.Second),
+				Valid: true,
+			}
+		}
+
+		rttMs := int32(p.RttMs)
+		_ = s.queries.UpdatePeerHealth(ctx, db.UpdatePeerHealthParams{
+			MemberID:        memberID,
+			PeerMemberID:    peerMemberID,
+			Status:          status,
+			LastHandshakeAt: handshakeAt,
+			RttMs:           &rttMs,
+		})
 	}
 }

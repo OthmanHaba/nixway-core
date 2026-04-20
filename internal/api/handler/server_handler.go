@@ -143,7 +143,7 @@ func (h *ServerHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 type serverDetailResponse struct {
-	Server    db.Server          `json:"server"`
+	db.Server
 	Resources *db.ServerResource `json:"resources,omitempty"`
 }
 

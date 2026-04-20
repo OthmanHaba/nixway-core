@@ -39,19 +39,54 @@ func NewService(queries *db.Queries, redisClient *redis.Client, logger *slog.Log
 	}
 }
 
-// resolvePublicURL returns the current public URL, re-reading .tunnel-url if needed.
-func (s *Service) resolvePublicURL() string {
-	if s.apiURL != "" && !strings.Contains(s.apiURL, "localhost") {
-		return s.apiURL
+// filePaths returns candidate paths for a dotfile at the project root.
+func filePaths(name string) []string {
+	paths := []string{name, "../../" + name, "../" + name}
+	if root := os.Getenv("NIXWAY_ROOT"); root != "" {
+		paths = append([]string{root + "/" + name}, paths...)
 	}
-	if data, err := os.ReadFile(".tunnel-url"); err == nil {
-		url := strings.TrimSpace(string(data))
-		if url != "" {
-			s.apiURL = url
-			return url
+	return paths
+}
+
+// readDotfile reads the first found dotfile from candidate paths.
+func readDotfile(name string) string {
+	for _, path := range filePaths(name) {
+		if data, err := os.ReadFile(path); err == nil {
+			if v := strings.TrimSpace(string(data)); v != "" {
+				return v
+			}
 		}
 	}
+	return ""
+}
+
+// resolvePublicURL returns the current public URL, always re-reading .tunnel-url
+// since free Cloudflare tunnels rotate URLs frequently.
+func (s *Service) resolvePublicURL() string {
+	if url := readDotfile(".tunnel-url"); url != "" {
+		if url != s.apiURL {
+			s.logger.Info("tunnel URL updated for provisioning", "old", s.apiURL, "new", url)
+		}
+		s.apiURL = url
+		return url
+	}
 	return s.apiURL
+}
+
+// resolveGRPCAddr returns the gRPC address the agent should connect to.
+// In dev, agents use localhost:9090 via SSH reverse tunnel from the controller.
+func (s *Service) resolveGRPCAddr() string {
+	return "localhost:9090"
+}
+
+// stripScheme removes the http:// or https:// prefix from a URL.
+func stripScheme(rawURL string) string {
+	for _, prefix := range []string{"https://", "http://"} {
+		if len(rawURL) > len(prefix) && rawURL[:len(prefix)] == prefix {
+			return rawURL[len(prefix):]
+		}
+	}
+	return rawURL
 }
 
 // RunProvisioning SSHes into the server and executes each component script,
@@ -120,7 +155,7 @@ func (s *Service) RunProvisioning(ctx context.Context, jobID, serverID, teamID u
 	for _, component := range components {
 		var script []byte
 		if component == "agent" {
-			script, err = GetAgentScript(s.resolvePublicURL(), s.grpcAddr, serverID.String())
+			script, err = GetAgentScript(s.resolvePublicURL(), s.resolveGRPCAddr(), serverID.String())
 		} else {
 			script, err = GetScript(component)
 		}

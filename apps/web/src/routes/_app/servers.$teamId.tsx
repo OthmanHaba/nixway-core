@@ -17,6 +17,33 @@ import {
 } from '@/components/ui/select'
 import { Loader2, Plus } from 'lucide-react'
 
+function StatusDot({ status }: { status: string }) {
+  const colors: Record<string, string> = {
+    online: 'bg-green-500',
+    degraded: 'bg-yellow-500',
+    offline: 'bg-red-500',
+    provisioning: 'bg-blue-500',
+  }
+  const pulse = status === 'online' || status === 'provisioning'
+  const color = colors[status] ?? 'bg-gray-400'
+  return (
+    <span className="relative flex h-2 w-2 shrink-0">
+      {pulse && <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${color} opacity-60`} />}
+      <span className={`relative inline-flex rounded-full h-2 w-2 ${color}`} />
+    </span>
+  )
+}
+
+function relativeTime(dateStr: string | null): string {
+  if (!dateStr) return 'Never'
+  const diff = Date.now() - new Date(dateStr).getTime()
+  if (diff < 5000) return 'just now'
+  if (diff < 60_000) return `${Math.floor(diff / 1000)}s ago`
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
+  return `${Math.floor(diff / 86_400_000)}d ago`
+}
+
 export const Route = createFileRoute('/_app/servers/$teamId')({
   component: ServersPage,
 })
@@ -52,6 +79,7 @@ function ServersPage() {
   const { data: servers = [], isLoading } = useQuery({
     queryKey: ['teams', teamId, 'servers'],
     queryFn: () => api.get<Server[]>(`/teams/${teamId}/servers`),
+    refetchInterval: 10_000,
   })
 
   const { data: sshKeys = [] } = useQuery({
@@ -107,7 +135,12 @@ function ServersPage() {
   const columns = [
     columnHelper.accessor('name', {
       header: 'Name',
-      cell: (info) => <span className="font-medium">{info.getValue()}</span>,
+      cell: (info) => (
+        <div className="flex items-center gap-2">
+          <StatusDot status={info.row.original.status} />
+          <span className="font-medium">{info.getValue()}</span>
+        </div>
+      ),
     }),
     columnHelper.accessor('public_ip', {
       header: 'IP',
@@ -131,14 +164,11 @@ function ServersPage() {
     }),
     columnHelper.accessor('last_seen_at', {
       header: 'Last Seen',
-      cell: (info) => {
-        const val = info.getValue()
-        return (
-          <span className="text-muted-foreground">
-            {val ? new Date(val).toLocaleString() : 'Never'}
-          </span>
-        )
-      },
+      cell: (info) => (
+        <span className="text-muted-foreground">
+          {relativeTime(info.getValue())}
+        </span>
+      ),
     }),
   ]
 

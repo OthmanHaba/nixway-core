@@ -50,7 +50,7 @@ func main() {
 		go RunHeartbeat(agentID, stream, logger)
 
 		// Process control messages from the server.
-		if err := receiveLoop(ctx, stream, client, logger); err != nil {
+		if err := receiveLoop(ctx, stream, client, agentID, logger); err != nil {
 			logger.Warn("stream error, reconnecting", "err", err)
 			// Loop will reconnect via ConnectWithRetry.
 			client.Close()
@@ -72,6 +72,7 @@ func receiveLoop(
 	ctx context.Context,
 	stream agentv1.AgentService_ConnectClient,
 	_ *Client,
+	agentID string,
 	logger *slog.Logger,
 ) error {
 	for {
@@ -106,6 +107,30 @@ func receiveLoop(
 				"action", p.SshKeyInstall.Action,
 			)
 			go HandleSSHKeyInstall(ctx, p.SshKeyInstall, stream, logger)
+
+		case *agentv1.ControlMessage_WireguardKeygen:
+			logger.Info("wireguard keygen command received",
+				"member_id", p.WireguardKeygen.MemberId,
+			)
+			go HandleWireGuardKeyGen(ctx, p.WireguardKeygen, stream, logger)
+
+		case *agentv1.ControlMessage_WireguardApply:
+			logger.Info("wireguard apply command received",
+				"member_id", p.WireguardApply.MemberId,
+			)
+			go HandleWireGuardApply(ctx, p.WireguardApply, stream, agentID, logger)
+
+		case *agentv1.ControlMessage_WireguardTeardown:
+			logger.Info("wireguard teardown command received",
+				"member_id", p.WireguardTeardown.MemberId,
+			)
+			go HandleWireGuardTeardown(ctx, p.WireguardTeardown, stream, logger)
+
+		case *agentv1.ControlMessage_DnsUpdateHosts:
+			logger.Info("dns update command received",
+				"cluster_slug", p.DnsUpdateHosts.ClusterSlug,
+			)
+			go HandleDNSUpdate(ctx, p.DnsUpdateHosts, stream, logger)
 
 		default:
 			logger.Warn("unknown control message payload")

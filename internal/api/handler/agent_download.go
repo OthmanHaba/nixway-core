@@ -15,11 +15,43 @@ type AgentDownloadHandler struct {
 }
 
 func NewAgentDownloadHandler(binaryDir string, logger *slog.Logger) *AgentDownloadHandler {
+	dir := binaryDir
+	// If it's a relative path and doesn't exist from cwd, try resolving from project root
+	if !filepath.IsAbs(dir) {
+		if _, err := os.Stat(dir); err != nil {
+			// Try common relative paths (running from apps/api/, apps/worker/, etc.)
+			for _, prefix := range []string{"../../", "../"} {
+				candidate := filepath.Join(prefix, dir)
+				if _, err := os.Stat(candidate); err == nil {
+					dir = candidate
+					break
+				}
+			}
+			// Also try NIXWAY_ROOT
+			if root := os.Getenv("NIXWAY_ROOT"); root != "" {
+				candidate := filepath.Join(root, binaryDir)
+				if _, err := os.Stat(candidate); err == nil {
+					dir = candidate
+				}
+			}
+		}
+	}
+	// Resolve to absolute for reliable serving
+	if abs, err := filepath.Abs(dir); err == nil {
+		dir = abs
+	}
+	logger.Info("agent binary directory", "path", dir, "original", binaryDir, "exists", dirExists(dir))
 	return &AgentDownloadHandler{
-		binaryDir: binaryDir,
+		binaryDir: dir,
 		logger:    logger,
 	}
 }
+
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
 
 // Download serves the agent binary for the requested architecture.
 // GET /agent/download/{arch}

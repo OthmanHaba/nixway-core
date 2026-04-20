@@ -15,7 +15,7 @@ import (
 
 const createServer = `-- name: CreateServer :one
 INSERT INTO servers (team_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, team_id, agent_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status, last_seen_at, created_at, updated_at
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, team_id, agent_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status, last_seen_at, created_at, updated_at, cluster_id
 `
 
 type CreateServerParams struct {
@@ -61,6 +61,7 @@ func (q *Queries) CreateServer(ctx context.Context, arg CreateServerParams) (Ser
 		&i.LastSeenAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ClusterID,
 	)
 	return i, err
 }
@@ -80,7 +81,7 @@ func (q *Queries) DeleteServer(ctx context.Context, arg DeleteServerParams) erro
 }
 
 const getServerByAgentID = `-- name: GetServerByAgentID :one
-SELECT id, team_id, agent_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status, last_seen_at, created_at, updated_at FROM servers WHERE agent_id = $1
+SELECT id, team_id, agent_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status, last_seen_at, created_at, updated_at, cluster_id FROM servers WHERE agent_id = $1
 `
 
 func (q *Queries) GetServerByAgentID(ctx context.Context, agentID *string) (Server, error) {
@@ -102,12 +103,13 @@ func (q *Queries) GetServerByAgentID(ctx context.Context, agentID *string) (Serv
 		&i.LastSeenAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ClusterID,
 	)
 	return i, err
 }
 
 const getServerByID = `-- name: GetServerByID :one
-SELECT id, team_id, agent_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status, last_seen_at, created_at, updated_at FROM servers WHERE id = $1 AND team_id = $2
+SELECT id, team_id, agent_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status, last_seen_at, created_at, updated_at, cluster_id FROM servers WHERE id = $1 AND team_id = $2
 `
 
 type GetServerByIDParams struct {
@@ -134,12 +136,13 @@ func (q *Queries) GetServerByID(ctx context.Context, arg GetServerByIDParams) (S
 		&i.LastSeenAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ClusterID,
 	)
 	return i, err
 }
 
 const listServersByTeam = `-- name: ListServersByTeam :many
-SELECT id, team_id, agent_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status, last_seen_at, created_at, updated_at FROM servers WHERE team_id = $1 ORDER BY created_at DESC
+SELECT id, team_id, agent_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status, last_seen_at, created_at, updated_at, cluster_id FROM servers WHERE team_id = $1 ORDER BY created_at DESC
 `
 
 func (q *Queries) ListServersByTeam(ctx context.Context, teamID uuid.UUID) ([]Server, error) {
@@ -167,6 +170,7 @@ func (q *Queries) ListServersByTeam(ctx context.Context, teamID uuid.UUID) ([]Se
 			&i.LastSeenAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ClusterID,
 		); err != nil {
 			return nil, err
 		}

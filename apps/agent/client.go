@@ -2,12 +2,15 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"log/slog"
 	"math"
+	"strings"
 	"time"
 
 	agentv1 "github.com/othmanhaba/nixway-core/internal/agent/proto/agent/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -29,8 +32,15 @@ func NewClient(serverAddr, agentID string, logger *slog.Logger) *Client {
 }
 
 // connect establishes the gRPC connection (no retry — caller handles retry).
+// Uses TLS when connecting to port 443 (e.g. via Cloudflare tunnel), plaintext otherwise.
 func (c *Client) connect() error {
-	conn, err := grpc.NewClient(c.serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	var creds grpc.DialOption
+	if strings.HasSuffix(c.serverAddr, ":443") {
+		creds = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{}))
+	} else {
+		creds = grpc.WithTransportCredentials(insecure.NewCredentials())
+	}
+	conn, err := grpc.NewClient(c.serverAddr, creds)
 	if err != nil {
 		return err
 	}

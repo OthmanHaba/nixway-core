@@ -17,7 +17,7 @@ GRPC_ADDR="__GRPC_ADDR__"
 SERVER_ID="__SERVER_ID__"
 
 echo "Downloading agent for $ARCH..."
-curl -fsSL "${API_URL}/agent/download/${ARCH}" -o /tmp/nixway-agent
+curl --http1.1 -fsSL "${API_URL}/agent/download/${ARCH}" -o /tmp/nixway-agent
 chmod +x /tmp/nixway-agent
 mv /tmp/nixway-agent /usr/local/bin/nixway-agent
 echo "Installed to /usr/local/bin/nixway-agent"
