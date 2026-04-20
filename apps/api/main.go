@@ -17,9 +17,13 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/config"
 	"github.com/othmanhaba/nixway-core/internal/crypto"
 	"github.com/othmanhaba/nixway-core/internal/db"
+	"github.com/othmanhaba/nixway-core/internal/cluster"
 	"github.com/othmanhaba/nixway-core/internal/email"
+	githubsvc "github.com/othmanhaba/nixway-core/internal/github"
+	"github.com/othmanhaba/nixway-core/internal/mesh"
 	"github.com/othmanhaba/nixway-core/internal/provisioner"
 	nixredis "github.com/othmanhaba/nixway-core/internal/redis"
+	"github.com/othmanhaba/nixway-core/internal/secret"
 	"github.com/othmanhaba/nixway-core/internal/server"
 )
 
@@ -121,8 +125,23 @@ func main() {
 	statusWatcher := server.NewStatusWatcher(queries, logger)
 	go statusWatcher.Run(ctx)
 
+	// Cluster service
+	clusterSvc := cluster.NewService(queries, cfg.Cluster.PoolCIDR, logger)
+
+	// Mesh manager
+	meshMgr := mesh.NewManager(queries, connMgr, redisClient, logger)
+
+	// Wire mesh regenerator into agent server (for post-keygen mesh rebuild)
+	agentSrv.SetMeshRegenerator(meshMgr)
+
+	// GitHub App service
+	githubService := githubsvc.NewService(cfg.GitHub.BaseURL, cfg.GitHub.APIURL, cfg.GitHub.WebhookURL, cfg.GitHub.RedirectURL, logger)
+
+	// Secrets service
+	secretSvc := secret.NewService(queries, masterKey, logger)
+
 	// Router & Server
-	router := api.NewRouter(queries, sessions, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc, provisionSvc)
+	router := api.NewRouter(queries, sessions, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc, provisionSvc, clusterSvc, meshMgr, githubService, secretSvc)
 	srv := api.NewServer(router, cfg.Server.Host, cfg.Server.Port, logger)
 
 	if err := srv.Start(); err != nil {

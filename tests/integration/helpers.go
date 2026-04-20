@@ -16,13 +16,18 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/othmanhaba/nixway-core/internal/agent"
 	"github.com/othmanhaba/nixway-core/internal/api"
 	"github.com/othmanhaba/nixway-core/internal/audit"
 	"github.com/othmanhaba/nixway-core/internal/auth"
+	"github.com/othmanhaba/nixway-core/internal/agent"
+	"github.com/othmanhaba/nixway-core/internal/cluster"
 	"github.com/othmanhaba/nixway-core/internal/config"
+	githubsvc "github.com/othmanhaba/nixway-core/internal/github"
+	"github.com/othmanhaba/nixway-core/internal/mesh"
 	"github.com/othmanhaba/nixway-core/internal/db"
 	"github.com/othmanhaba/nixway-core/internal/email"
+	"github.com/othmanhaba/nixway-core/internal/provisioner"
+	"github.com/othmanhaba/nixway-core/internal/secret"
 	internalredis "github.com/othmanhaba/nixway-core/internal/redis"
 	"github.com/othmanhaba/nixway-core/internal/server"
 	"github.com/redis/go-redis/v9"
@@ -46,6 +51,7 @@ type TestEnv struct {
 	Client      *http.Client
 	Logger      *slog.Logger
 	Config      *config.Config
+	MasterKey   [32]byte
 	transport   http.RoundTripper // TLS transport that trusts the test server cert
 }
 
@@ -112,6 +118,18 @@ func SetupTestEnv(t *testing.T) *TestEnv {
 	_, err = pool.Exec(ctx, upSQL2)
 	require.NoError(t, err)
 
+	migration3SQL, err := os.ReadFile("../../sql/migrations/00003_clusters_networking.sql")
+	require.NoError(t, err)
+	upSQL3 := extractGooseUp(string(migration3SQL))
+	_, err = pool.Exec(ctx, upSQL3)
+	require.NoError(t, err)
+
+	migration4SQL, err := os.ReadFile("../../sql/migrations/00004_integrations.sql")
+	require.NoError(t, err)
+	upSQL4 := extractGooseUp(string(migration4SQL))
+	_, err = pool.Exec(ctx, upSQL4)
+	require.NoError(t, err)
+
 	// --- Run River migrations ---
 	riverMigrator, err := rivermigrate.New(riverpgxv5.New(pool), nil)
 	require.NoError(t, err)
@@ -156,14 +174,27 @@ func SetupTestEnv(t *testing.T) *TestEnv {
 	_, err = rand.Read(masterKey[:])
 	require.NoError(t, err)
 
-	onboardingSvc := server.NewOnboardingService(queries, logger, masterKey, "http://localhost:8080")
+	onboardingSvc := server.NewOnboardingService(queries, logger, masterKey, "http://localhost:8080", "localhost:9090")
 
-	// --- Agent connection manager ---
+	// --- Provisioning service ---
+	provisionSvc := provisioner.NewService(queries, redisClient, logger, masterKey, "http://localhost:8080", "localhost:9090")
+
+	// --- Cluster service ---
+	clusterSvc := cluster.NewService(queries, "10.100.0.0/10", logger)
+
+	// --- Mesh manager ---
 	connMgr := agent.NewConnManager(logger)
+	meshMgr := mesh.NewManager(queries, connMgr, redisClient, logger)
+
+	// --- GitHub App service ---
+	githubService := githubsvc.NewService("https://github.com", "https://api.github.com", "http://localhost:8080", "http://localhost:5173", logger)
+
+	// --- Secrets service ---
+	secretSvc := secret.NewService(queries, masterKey, logger)
 
 	// --- Create API router and test server ---
 	// Use TLS server so that Secure cookies are preserved by the cookie jar.
-	router := api.NewRouter(queries, sessionMgr, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc, connMgr)
+	router := api.NewRouter(queries, sessionMgr, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc, provisionSvc, clusterSvc, meshMgr, githubService, secretSvc)
 	ts := httptest.NewTLSServer(router)
 	t.Cleanup(func() {
 		ts.Close()
@@ -192,6 +223,7 @@ func SetupTestEnv(t *testing.T) *TestEnv {
 		Client:      client,
 		Logger:      logger,
 		Config:      cfg,
+		MasterKey:   masterKey,
 		transport:   transport,
 	}
 }
@@ -258,6 +290,25 @@ func (e *TestEnv) DeleteWith(client *http.Client, path string) *http.Response {
 	req, err := http.NewRequestWithContext(e.Ctx, http.MethodDelete, e.Server.URL+path, nil)
 	require.NoError(e.T, err)
 	resp, err := client.Do(req)
+	require.NoError(e.T, err)
+	return resp
+}
+
+// Put sends a PUT request with JSON body using the default client.
+func (e *TestEnv) Put(path string, body any) *http.Response {
+	e.T.Helper()
+	var bodyReader io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		require.NoError(e.T, err)
+		bodyReader = bytes.NewReader(b)
+	}
+	req, err := http.NewRequestWithContext(e.Ctx, http.MethodPut, e.Server.URL+path, bodyReader)
+	require.NoError(e.T, err)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	resp, err := e.Client.Do(req)
 	require.NoError(e.T, err)
 	return resp
 }

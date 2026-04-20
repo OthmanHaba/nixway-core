@@ -17,6 +17,9 @@ type Config struct {
 	Auth     AuthConfig
 	Email    EmailConfig
 	Crypto   CryptoConfig
+	Cluster  ClusterConfig
+	GitHub   GitHubConfig
+	Webhook  WebhookConfig
 }
 
 type ServerConfig struct {
@@ -56,6 +59,21 @@ type EmailConfig struct {
 
 type CryptoConfig struct {
 	MasterKey string
+}
+
+type ClusterConfig struct {
+	PoolCIDR string // CIDR pool for cluster allocation (default: 10.100.0.0/10)
+}
+
+type GitHubConfig struct {
+	BaseURL     string // GitHub base URL (default: https://github.com, override for GHE)
+	APIURL      string // GitHub API URL (default: https://api.github.com)
+	WebhookURL  string // Public URL for GitHub webhooks (defaults to Server.PublicURL / tunnel URL)
+	RedirectURL string // URL GitHub redirects user's browser to (defaults to Email.BaseURL / frontend URL)
+}
+
+type WebhookConfig struct {
+	EventRetentionDays int // Days to keep webhook events (default: 10, 0 = keep forever)
 }
 
 func Load() (*Config, error) {
@@ -107,6 +125,18 @@ func Load() (*Config, error) {
 	// Crypto defaults
 	v.SetDefault("crypto.master_key", "")
 
+	// Cluster defaults
+	v.SetDefault("cluster.pool_cidr", "10.100.0.0/10")
+
+	// GitHub defaults
+	v.SetDefault("github.base_url", "https://github.com")
+	v.SetDefault("github.api_url", "https://api.github.com")
+	v.SetDefault("github.webhook_url", "")  // defaults to server.public_url (tunnel URL)
+	v.SetDefault("github.redirect_url", "") // defaults to email.base_url (frontend URL)
+
+	// Webhook defaults
+	v.SetDefault("webhook.event_retention_days", 10)
+
 	// Email defaults
 	v.SetDefault("email.driver", "console")
 	v.SetDefault("email.from", "noreply@nixway.dev")
@@ -123,8 +153,15 @@ func Load() (*Config, error) {
 
 	// If no public URL set, try reading from .tunnel-url file (written by cloudflared tunnel)
 	if cfg.Server.PublicURL == "" {
-		if data, err := os.ReadFile(".tunnel-url"); err == nil {
-			cfg.Server.PublicURL = strings.TrimSpace(string(data))
+		tunnelPaths := []string{".tunnel-url", "../../.tunnel-url", "../.tunnel-url"}
+		if root := os.Getenv("NIXWAY_ROOT"); root != "" {
+			tunnelPaths = append([]string{root + "/.tunnel-url"}, tunnelPaths...)
+		}
+		for _, tp := range tunnelPaths {
+			if data, err := os.ReadFile(tp); err == nil {
+				cfg.Server.PublicURL = strings.TrimSpace(string(data))
+				break
+			}
 		}
 	}
 	// Final fallback to localhost
@@ -151,6 +188,21 @@ func Load() (*Config, error) {
 	if cfg.Crypto.MasterKey == "" {
 		cfg.Crypto.MasterKey = v.GetString("crypto.master_key")
 	}
+
+	cfg.Cluster.PoolCIDR = v.GetString("cluster.pool_cidr")
+
+	cfg.GitHub.BaseURL = v.GetString("github.base_url")
+	cfg.GitHub.APIURL = v.GetString("github.api_url")
+	cfg.GitHub.WebhookURL = v.GetString("github.webhook_url")
+	if cfg.GitHub.WebhookURL == "" {
+		cfg.GitHub.WebhookURL = cfg.Server.PublicURL
+	}
+	cfg.GitHub.RedirectURL = v.GetString("github.redirect_url")
+	if cfg.GitHub.RedirectURL == "" {
+		cfg.GitHub.RedirectURL = cfg.Email.BaseURL // frontend URL (e.g., http://localhost:5173)
+	}
+
+	cfg.Webhook.EventRetentionDays = v.GetInt("webhook.event_retention_days")
 
 	return cfg, nil
 }

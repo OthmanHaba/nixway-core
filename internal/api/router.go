@@ -11,10 +11,15 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/api/respond"
 	"github.com/othmanhaba/nixway-core/internal/audit"
 	"github.com/othmanhaba/nixway-core/internal/auth"
+	"github.com/othmanhaba/nixway-core/internal/cluster"
 	"github.com/othmanhaba/nixway-core/internal/config"
+	githubsvc "github.com/othmanhaba/nixway-core/internal/github"
+	"github.com/othmanhaba/nixway-core/internal/mesh"
 	"github.com/othmanhaba/nixway-core/internal/db"
 	"github.com/othmanhaba/nixway-core/internal/email"
 	"github.com/othmanhaba/nixway-core/internal/provisioner"
+	"github.com/othmanhaba/nixway-core/internal/registry"
+	"github.com/othmanhaba/nixway-core/internal/secret"
 	"github.com/othmanhaba/nixway-core/internal/server"
 )
 
@@ -29,6 +34,10 @@ func NewRouter(
 	masterKey [32]byte,
 	onboardingSvc *server.OnboardingService,
 	provisionSvc *provisioner.Service,
+	clusterSvc *cluster.Service,
+	meshMgr *mesh.Manager,
+	githubService *githubsvc.Service,
+	secretSvc *secret.Service,
 ) http.Handler {
 	authH := handler.NewAuthHandler(queries, sessions, emailSender, auditWriter, cfg, logger)
 	teamH := handler.NewTeamHandler(queries, emailSender, auditWriter, cfg, logger)
@@ -39,7 +48,13 @@ func NewRouter(
 	tagH := handler.NewTagHandler(queries, logger)
 	provisionH := handler.NewProvisionHandler(queries, redisClient, auditWriter, provisionSvc, logger)
 	discoverH := handler.NewDiscoveryHandler(logger)
+	clusterH := handler.NewClusterHandler(queries, auditWriter, clusterSvc, meshMgr, redisClient, logger)
 	agentDlH := handler.NewAgentDownloadHandler(cfg.Server.AgentBinaryDir, logger)
+	terminalH := handler.NewTerminalHandler(queries, logger, masterKey)
+	githubH := handler.NewGitHubHandler(queries, auditWriter, githubService, masterKey, logger)
+	webhookH := handler.NewWebhookHandler(queries, masterKey, logger)
+	registryH := handler.NewRegistryHandler(queries, auditWriter, registry.NewValidator(), masterKey, logger)
+	secretH := handler.NewSecretHandler(queries, auditWriter, secretSvc, logger)
 
 	mux := http.NewServeMux()
 
@@ -50,6 +65,9 @@ func NewRouter(
 	mux.HandleFunc("POST /api/v1/auth/verify-email", authH.VerifyEmail)
 	mux.HandleFunc("POST /api/v1/auth/forgot-password", authH.ForgotPassword)
 	mux.HandleFunc("POST /api/v1/auth/reset-password", authH.ResetPassword)
+
+	// Public webhook route (no auth)
+	mux.HandleFunc("POST /api/v1/webhooks/github/{appId}", webhookH.HandleGitHub)
 
 	// Protected routes — use a separate mux wrapped with auth middleware
 	protected := http.NewServeMux()
@@ -109,6 +127,51 @@ func NewRouter(
 	protected.HandleFunc("GET /api/v1/teams/{id}/servers/{serverId}/provision", provisionH.Status)
 	protected.HandleFunc("GET /api/v1/teams/{id}/servers/{serverId}/provision/{jobId}/logs", provisionH.StreamLogs)
 	protected.HandleFunc("POST /api/v1/teams/{id}/servers/{serverId}/provision/retry", provisionH.Retry)
+
+	// Terminal (WebSocket)
+	protected.HandleFunc("GET /api/v1/teams/{id}/servers/{serverId}/terminal", terminalH.Connect)
+
+	// Clusters
+	protected.HandleFunc("POST /api/v1/teams/{id}/clusters", clusterH.Create)
+	protected.HandleFunc("GET /api/v1/teams/{id}/clusters", clusterH.List)
+	protected.HandleFunc("GET /api/v1/teams/{id}/clusters/{clusterId}", clusterH.Get)
+	protected.HandleFunc("PUT /api/v1/teams/{id}/clusters/{clusterId}", clusterH.Update)
+	protected.HandleFunc("DELETE /api/v1/teams/{id}/clusters/{clusterId}", clusterH.Delete)
+
+	// Cluster members
+	protected.HandleFunc("GET /api/v1/teams/{id}/clusters/{clusterId}/members", clusterH.ListMembers)
+	protected.HandleFunc("POST /api/v1/teams/{id}/clusters/{clusterId}/members", clusterH.AddMember)
+	protected.HandleFunc("DELETE /api/v1/teams/{id}/clusters/{clusterId}/members/{serverId}", clusterH.RemoveMember)
+
+	// Mesh health + events + logs
+	protected.HandleFunc("GET /api/v1/teams/{id}/clusters/{clusterId}/mesh", clusterH.MeshHealth)
+	protected.HandleFunc("POST /api/v1/teams/{id}/clusters/{clusterId}/mesh/regenerate", clusterH.RegenerateMesh)
+	protected.HandleFunc("GET /api/v1/teams/{id}/clusters/{clusterId}/mesh/logs", clusterH.StreamMeshLogs)
+	protected.HandleFunc("GET /api/v1/teams/{id}/clusters/{clusterId}/events", clusterH.ListEvents)
+
+	// GitHub App
+	protected.HandleFunc("POST /api/v1/teams/{id}/github/manifest", githubH.CreateManifest)
+	protected.HandleFunc("POST /api/v1/teams/{id}/github/callback", githubH.HandleCallback)
+	protected.HandleFunc("GET /api/v1/teams/{id}/github/app", githubH.GetApp)
+	protected.HandleFunc("DELETE /api/v1/teams/{id}/github/app", githubH.DeleteApp)
+	protected.HandleFunc("GET /api/v1/teams/{id}/github/installations", githubH.ListInstallations)
+	protected.HandleFunc("GET /api/v1/teams/{id}/github/installations/{installationId}/repos", githubH.ListRepos)
+
+	// Container registries
+	protected.HandleFunc("POST /api/v1/teams/{id}/registries", registryH.Create)
+	protected.HandleFunc("GET /api/v1/teams/{id}/registries", registryH.List)
+	protected.HandleFunc("GET /api/v1/teams/{id}/registries/{registryId}", registryH.Get)
+	protected.HandleFunc("PUT /api/v1/teams/{id}/registries/{registryId}", registryH.Update)
+	protected.HandleFunc("DELETE /api/v1/teams/{id}/registries/{registryId}", registryH.Delete)
+	protected.HandleFunc("POST /api/v1/teams/{id}/registries/{registryId}/validate", registryH.Revalidate)
+
+	// Secrets
+	protected.HandleFunc("POST /api/v1/teams/{id}/secrets", secretH.Create)
+	protected.HandleFunc("GET /api/v1/teams/{id}/secrets", secretH.List)
+	protected.HandleFunc("GET /api/v1/teams/{id}/secrets/{secretId}", secretH.Get)
+	protected.HandleFunc("POST /api/v1/teams/{id}/secrets/{secretId}/reveal", secretH.Reveal)
+	protected.HandleFunc("PUT /api/v1/teams/{id}/secrets/{secretId}", secretH.Update)
+	protected.HandleFunc("DELETE /api/v1/teams/{id}/secrets/{secretId}", secretH.Delete)
 
 	// Discovery
 	protected.HandleFunc("POST /api/v1/discover", discoverH.Discover)

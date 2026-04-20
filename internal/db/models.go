@@ -39,6 +39,77 @@ type AuditLog struct {
 	CreatedAt    time.Time       `json:"created_at"`
 }
 
+type Cluster struct {
+	ID          uuid.UUID    `json:"id"`
+	TeamID      uuid.UUID    `json:"team_id"`
+	Name        string       `json:"name"`
+	Slug        string       `json:"slug"`
+	Description string       `json:"description"`
+	Region      string       `json:"region"`
+	Cidr        netip.Prefix `json:"cidr"`
+	Status      string       `json:"status"`
+	CreatedAt   time.Time    `json:"created_at"`
+	UpdatedAt   time.Time    `json:"updated_at"`
+}
+
+type ClusterMember struct {
+	ID                 uuid.UUID  `json:"id"`
+	ClusterID          uuid.UUID  `json:"cluster_id"`
+	ServerID           uuid.UUID  `json:"server_id"`
+	WireguardIp        netip.Addr `json:"wireguard_ip"`
+	WireguardPublicKey string     `json:"wireguard_public_key"`
+	WireguardEndpoint  string     `json:"wireguard_endpoint"`
+	ListenPort         int32      `json:"listen_port"`
+	JoinedAt           time.Time  `json:"joined_at"`
+}
+
+type GithubApp struct {
+	ID            uuid.UUID `json:"id"`
+	TeamID        uuid.UUID `json:"team_id"`
+	AppID         int64     `json:"app_id"`
+	AppName       string    `json:"app_name"`
+	AppSlug       string    `json:"app_slug"`
+	ClientID      string    `json:"client_id"`
+	ClientSecret  []byte    `json:"client_secret"`
+	PrivateKey    []byte    `json:"private_key"`
+	WebhookSecret []byte    `json:"webhook_secret"`
+	HtmlUrl       string    `json:"html_url"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+type GithubInstallation struct {
+	ID             uuid.UUID          `json:"id"`
+	GithubAppID    uuid.UUID          `json:"github_app_id"`
+	InstallationID int64              `json:"installation_id"`
+	AccountLogin   string             `json:"account_login"`
+	AccountType    string             `json:"account_type"`
+	TargetType     string             `json:"target_type"`
+	SuspendedAt    pgtype.Timestamptz `json:"suspended_at"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+}
+
+type GithubWebhookEvent struct {
+	ID          uuid.UUID `json:"id"`
+	GithubAppID uuid.UUID `json:"github_app_id"`
+	EventType   string    `json:"event_type"`
+	Action      *string   `json:"action"`
+	DeliveryID  string    `json:"delivery_id"`
+	Payload     []byte    `json:"payload"`
+	Processed   bool      `json:"processed"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+type MeshEvent struct {
+	ID        uuid.UUID       `json:"id"`
+	ClusterID uuid.UUID       `json:"cluster_id"`
+	EventType string          `json:"event_type"`
+	MemberID  pgtype.UUID     `json:"member_id"`
+	Details   json.RawMessage `json:"details"`
+	CreatedAt time.Time       `json:"created_at"`
+}
+
 type ProvisioningJob struct {
 	ID          uuid.UUID          `json:"id"`
 	ServerID    uuid.UUID          `json:"server_id"`
@@ -49,6 +120,47 @@ type ProvisioningJob struct {
 	CompletedAt pgtype.Timestamptz `json:"completed_at"`
 	Error       *string            `json:"error"`
 	CreatedAt   time.Time          `json:"created_at"`
+}
+
+type RegistryCredential struct {
+	ID                 uuid.UUID          `json:"id"`
+	TeamID             uuid.UUID          `json:"team_id"`
+	Name               string             `json:"name"`
+	RegistryType       string             `json:"registry_type"`
+	RegistryUrl        string             `json:"registry_url"`
+	Username           string             `json:"username"`
+	Password           []byte             `json:"password"`
+	Region             *string            `json:"region"`
+	AwsAccessKeyID     *string            `json:"aws_access_key_id"`
+	AwsSecretAccessKey []byte             `json:"aws_secret_access_key"`
+	ValidatedAt        pgtype.Timestamptz `json:"validated_at"`
+	CreatedAt          time.Time          `json:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at"`
+}
+
+type Secret struct {
+	ID             uuid.UUID          `json:"id"`
+	TeamID         uuid.UUID          `json:"team_id"`
+	Environment    string             `json:"environment"`
+	Key            string             `json:"key"`
+	EncryptedValue []byte             `json:"encrypted_value"`
+	Version        int32              `json:"version"`
+	RevealedAt     pgtype.Timestamptz `json:"revealed_at"`
+	CreatedBy      pgtype.UUID        `json:"created_by"`
+	UpdatedBy      pgtype.UUID        `json:"updated_by"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+}
+
+type SecretAccessLog struct {
+	ID        uuid.UUID   `json:"id"`
+	SecretID  uuid.UUID   `json:"secret_id"`
+	TeamID    uuid.UUID   `json:"team_id"`
+	ActorID   pgtype.UUID `json:"actor_id"`
+	ActorType string      `json:"actor_type"`
+	Action    string      `json:"action"`
+	IpAddress *netip.Addr `json:"ip_address"`
+	CreatedAt time.Time   `json:"created_at"`
 }
 
 type Server struct {
@@ -67,6 +179,7 @@ type Server struct {
 	LastSeenAt pgtype.Timestamptz `json:"last_seen_at"`
 	CreatedAt  time.Time          `json:"created_at"`
 	UpdatedAt  time.Time          `json:"updated_at"`
+	ClusterID  pgtype.UUID        `json:"cluster_id"`
 }
 
 type ServerResource struct {
@@ -145,4 +258,15 @@ type User struct {
 	PasswordResetExpires pgtype.Timestamptz `json:"password_reset_expires"`
 	CreatedAt            time.Time          `json:"created_at"`
 	UpdatedAt            time.Time          `json:"updated_at"`
+}
+
+type WireguardPeer struct {
+	ID              uuid.UUID          `json:"id"`
+	MemberID        uuid.UUID          `json:"member_id"`
+	PeerMemberID    uuid.UUID          `json:"peer_member_id"`
+	Status          string             `json:"status"`
+	LastHandshakeAt pgtype.Timestamptz `json:"last_handshake_at"`
+	LastCheckAt     pgtype.Timestamptz `json:"last_check_at"`
+	RttMs           *int32             `json:"rtt_ms"`
+	CreatedAt       time.Time          `json:"created_at"`
 }

@@ -128,3 +128,114 @@ export interface BuilderCandidate {
   confidence: number
   reason: string
 }
+
+export interface Cluster {
+  id: string
+  team_id: string
+  name: string
+  slug: string
+  description: string
+  region: string
+  cidr: string
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ClusterDetail extends Cluster {
+  member_count: number
+}
+
+export interface ClusterMember {
+  id: string
+  cluster_id: string
+  server_id: string
+  wireguard_ip: string
+  wireguard_public_key: string
+  wireguard_endpoint: string
+  listen_port: number
+  joined_at: string
+  server_name: string
+  public_ip: string
+  server_status: string
+}
+
+export interface WireGuardPeer {
+  id: string
+  member_id: string
+  peer_member_id: string
+  status: string
+  last_handshake_at: string | null
+  last_check_at: string | null
+  rtt_ms: number | null
+  from_ip: string
+  from_server_name: string
+  to_ip: string
+  to_server_name: string
+}
+
+export interface MeshEvent {
+  id: string
+  cluster_id: string
+  event_type: string
+  member_id: string | null
+  details: Record<string, unknown> | null
+  created_at: string
+}
+
+export interface GitHubApp {
+  id: string
+  team_id: string
+  app_id: number
+  app_name: string
+  app_slug: string
+  client_id: string
+  html_url: string
+  created_at: string
+  updated_at: string
+}
+
+export interface GitHubInstallation {
+  id: string
+  github_app_id: string
+  installation_id: number
+  account_login: string
+  account_type: string
+  target_type: string
+  suspended_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface GitHubRepository {
+  id: number
+  name: string
+  full_name: string
+  private: boolean
+  default_branch: string
+  clone_url: string
+}
+
+export interface RegistryCredential {
+  id: string
+  team_id: string
+  name: string
+  registry_type: string
+  registry_url: string
+  username: string
+  region: string | null
+  validated_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Secret {
+  id: string
+  team_id: string
+  environment: string
+  key: string
+  version: number
+  revealed_at: string | null
+  created_at: string
+  updated_at: string
+}
