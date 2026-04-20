@@ -161,6 +161,58 @@ func (s *Service) GetInstallationToken(ctx context.Context, appID int64, install
 	return result.Token, result.ExpiresAt, nil
 }
 
+// Installation represents a GitHub App installation.
+type Installation struct {
+	ID      int64  `json:"id"`
+	Account struct {
+		Login string `json:"login"`
+		Type  string `json:"type"`
+	} `json:"account"`
+	TargetType        string `json:"target_type"`
+	RepositorySelection string `json:"repository_selection"`
+}
+
+// ListInstallations fetches all installations for the app from the GitHub API.
+func (s *Service) ListInstallations(ctx context.Context, appID int64, privateKeyPEM []byte) ([]Installation, error) {
+	jwtToken, err := GenerateJWT(appID, privateKeyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("generate jwt: %w", err)
+	}
+
+	url := fmt.Sprintf("%s/app/installations", s.apiURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+jwtToken)
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("list installations: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+
+	s.logger.Info("github list installations response", "status", resp.StatusCode, "body_len", len(body))
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("list installations: unexpected status %d: %s", resp.StatusCode, body)
+	}
+
+	var installations []Installation
+	if err := json.Unmarshal(body, &installations); err != nil {
+		return nil, fmt.Errorf("decode installations: %w", err)
+	}
+
+	s.logger.Info("github installations parsed", "count", len(installations))
+	return installations, nil
+}
+
 // ListRepositories returns repositories accessible to the given installation token.
 func (s *Service) ListRepositories(ctx context.Context, token string) ([]Repository, error) {
 	url := fmt.Sprintf("%s/installation/repositories", s.apiURL)

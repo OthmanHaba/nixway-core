@@ -20,6 +20,7 @@ type Config struct {
 	Cluster  ClusterConfig
 	GitHub   GitHubConfig
 	Webhook  WebhookConfig
+	Domain   DomainConfig
 }
 
 type ServerConfig struct {
@@ -74,6 +75,10 @@ type GitHubConfig struct {
 
 type WebhookConfig struct {
 	EventRetentionDays int // Days to keep webhook events (default: 10, 0 = keep forever)
+}
+
+type DomainConfig struct {
+	BaseDomain string // Platform wildcard base domain (e.g., "apps.nixway.dev")
 }
 
 func Load() (*Config, error) {
@@ -133,6 +138,9 @@ func Load() (*Config, error) {
 	v.SetDefault("github.api_url", "https://api.github.com")
 	v.SetDefault("github.webhook_url", "")  // defaults to server.public_url (tunnel URL)
 	v.SetDefault("github.redirect_url", "") // defaults to email.base_url (frontend URL)
+
+	// Domain defaults
+	v.SetDefault("domain.base_domain", "apps.nixway.dev")
 
 	// Webhook defaults
 	v.SetDefault("webhook.event_retention_days", 10)
@@ -203,6 +211,8 @@ func Load() (*Config, error) {
 	}
 
 	cfg.Webhook.EventRetentionDays = v.GetInt("webhook.event_retention_days")
+
+	cfg.Domain.BaseDomain = v.GetString("domain.base_domain")
 
 	return cfg, nil
 }

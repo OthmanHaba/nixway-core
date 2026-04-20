@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/netip"
@@ -18,6 +19,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// DeployTriggerer triggers a deploy after a successful build.
+type DeployTriggerer interface {
+	TriggerDeploy(ctx context.Context, appID, envID, buildID uuid.UUID, targetServerID ...*uuid.UUID) (db.Deployment, error)
+}
+
 // MeshRegenerator handles mesh lifecycle events with logging.
 type MeshRegenerator interface {
 	RegenerateMesh(ctx context.Context, clusterID uuid.UUID) error
@@ -32,8 +38,9 @@ type Server struct {
 	conn    *ConnManager
 	queries *db.Queries
 	redis   *redis.Client
-	logger  *slog.Logger
-	meshReg MeshRegenerator
+	logger    *slog.Logger
+	meshReg   MeshRegenerator
+	deployer  DeployTriggerer
 }
 
 func NewServer(conn *ConnManager, queries *db.Queries, redisClient *redis.Client, logger *slog.Logger) *Server {
@@ -43,6 +50,11 @@ func NewServer(conn *ConnManager, queries *db.Queries, redisClient *redis.Client
 // SetMeshRegenerator sets the mesh regenerator (called after wiring to avoid circular deps).
 func (s *Server) SetMeshRegenerator(mr MeshRegenerator) {
 	s.meshReg = mr
+}
+
+// SetDeployTriggerer sets the deploy triggerer (called after wiring to avoid circular deps).
+func (s *Server) SetDeployTriggerer(dt DeployTriggerer) {
+	s.deployer = dt
 }
 
 // Register handles agent registration, issuing an agent ID.
@@ -231,6 +243,57 @@ func (s *Server) Connect(stream agentv1.AgentService_ConnectServer) error {
 				"success", r.Success,
 			)
 
+		case *agentv1.AgentMessage_BuildOutput:
+			bo := p.BuildOutput
+			s.logger.Info("build output",
+				"agent_id", agentID,
+				"build_id", bo.BuildId,
+				"phase", bo.Phase,
+				"finished", bo.Finished,
+				"success", bo.Success,
+			)
+			s.handleBuildOutput(stream.Context(), agentID, bo)
+
+		case *agentv1.AgentMessage_DeployOutput:
+			do := p.DeployOutput
+			s.logger.Info("deploy output",
+				"agent_id", agentID,
+				"deploy_id", do.DeployId,
+				"target_id", do.TargetId,
+				"phase", do.Phase,
+				"finished", do.Finished,
+				"success", do.Success,
+			)
+			s.handleDeployOutput(stream.Context(), do)
+
+		case *agentv1.AgentMessage_StopContainerResult:
+			r := p.StopContainerResult
+			s.logger.Info("stop container result",
+				"agent_id", agentID,
+				"container", r.ContainerName,
+				"success", r.Success,
+			)
+
+		case *agentv1.AgentMessage_ImagePullResult:
+			r := p.ImagePullResult
+			s.logger.Info("image pull result",
+				"agent_id", agentID,
+				"transfer_id", r.TransferId,
+				"success", r.Success,
+			)
+
+		case *agentv1.AgentMessage_ContainerLogsOutput:
+			lo := p.ContainerLogsOutput
+			if s.redis != nil {
+				channel := "container-logs:" + lo.RequestId
+				if len(lo.Output) > 0 {
+					s.redis.Publish(stream.Context(), channel, string(lo.Output))
+				}
+				if lo.Finished {
+					s.redis.Publish(stream.Context(), channel, "__done__")
+				}
+			}
+
 		default:
 			s.logger.Warn("unknown agent message payload type")
 		}
@@ -375,6 +438,196 @@ func (s *Server) handleWireGuardKeyGenResult(ctx context.Context, r *agentv1.Wir
 		member, err := s.queries.GetClusterMemberByID(ctx, memberID)
 		if err == nil {
 			go s.meshReg.OnKeyGenResult(ctx, member.ClusterID, memberID, r.MemberId, r.PublicKey)
+		}
+	}
+}
+
+func (s *Server) handleBuildOutput(ctx context.Context, agentID string, bo *agentv1.BuildOutput) {
+	if s.redis == nil {
+		return
+	}
+
+	buildID := bo.BuildId
+	channel := "build:" + buildID
+
+	// Stream log output to Redis for SSE consumers
+	if len(bo.Output) > 0 {
+		s.redis.Publish(ctx, channel, string(bo.Output))
+	}
+
+	// Append logs to DB
+	if s.queries != nil && len(bo.Output) > 0 {
+		bid, err := uuid.Parse(buildID)
+		if err == nil {
+			_ = s.queries.AppendBuildLogs(ctx, db.AppendBuildLogsParams{
+				ID:   bid,
+				Logs: string(bo.Output),
+			})
+		}
+	}
+
+	// Update build status from phase (cloning → building)
+	if !bo.Finished && s.queries != nil && bo.Phase != "" {
+		bid, err := uuid.Parse(buildID)
+		if err == nil {
+			phaseStatus := bo.Phase // "cloning", "detecting", "building"
+			if phaseStatus == "detecting" {
+				phaseStatus = "building"
+			}
+			_ = s.queries.UpdateBuildStatus(ctx, db.UpdateBuildStatusParams{
+				ID:        bid,
+				Status:    phaseStatus,
+				StartedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+			})
+		}
+	}
+
+	// If finished, update build status and signal done
+	if bo.Finished && s.queries != nil {
+		bid, err := uuid.Parse(buildID)
+		if err != nil {
+			return
+		}
+
+		status := "built"
+		var errPtr *string
+		if !bo.Success {
+			status = "failed"
+			errMsg := bo.Error
+			errPtr = &errMsg
+		}
+
+		// Resolve server ID from agent ID
+		serverID := pgtype.UUID{}
+		if sid, err := uuid.Parse(agentID); err == nil {
+			serverID = pgtype.UUID{Bytes: sid, Valid: true}
+		}
+
+		_ = s.queries.CompleteBuild(ctx, db.CompleteBuildParams{
+			ID:       bid,
+			Status:   status,
+			ImageTag: bo.ImageId,
+			ServerID: serverID,
+			Error:    errPtr,
+		})
+
+		s.redis.Publish(ctx, channel, "__done__")
+
+		// Auto-trigger deploy on successful build
+		if bo.Success && s.deployer != nil {
+			build, err := s.queries.GetBuild(ctx, bid)
+			if err == nil {
+				go func() {
+					_, deployErr := s.deployer.TriggerDeploy(context.Background(), build.AppID, build.EnvironmentID, bid)
+					if deployErr != nil {
+						s.logger.Error("auto-deploy failed", "build_id", buildID, "error", deployErr)
+					} else {
+						s.logger.Info("auto-deploy triggered after build", "build_id", buildID)
+					}
+				}()
+			}
+		}
+	}
+}
+
+func (s *Server) handleDeployOutput(ctx context.Context, do *agentv1.DeployOutput) {
+	if s.queries == nil {
+		return
+	}
+
+	targetID, err := uuid.Parse(do.TargetId)
+	if err != nil {
+		return
+	}
+	deployID := do.DeployId
+
+	// Update target status
+	status := do.Phase
+	var healthyAt, stoppedAt pgtype.Timestamptz
+	var startedAt pgtype.Timestamptz
+	if status != "pending" {
+		startedAt = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+	}
+	if do.Phase == "healthy" {
+		healthyAt = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+	}
+
+	var errPtr *string
+	if do.Error != "" {
+		errMsg := do.Error
+		errPtr = &errMsg
+	}
+
+	var containerPtr *string
+	if do.ContainerId != "" {
+		cid := do.ContainerId
+		containerPtr = &cid
+	}
+
+	_ = s.queries.UpdateDeploymentTargetStatus(ctx, db.UpdateDeploymentTargetStatusParams{
+		ID:                  targetID,
+		Status:              status,
+		ContainerID:         containerPtr,
+		StartedAt:           startedAt,
+		HealthyAt:           healthyAt,
+		StoppedAt:           stoppedAt,
+		HealthCheckAttempts: 0,
+		Error:               errPtr,
+	})
+
+	// Persist logs and publish to Redis for SSE
+	if s.redis != nil {
+		channel := "deploy:" + deployID
+		msg := fmt.Sprintf("[%s] target %s: %s", do.Phase, do.TargetId, do.Phase)
+		if do.Error != "" {
+			msg += " - " + do.Error
+		}
+		msg += "\n"
+
+		// Persist to DB
+		if did, err := uuid.Parse(deployID); err == nil {
+			_ = s.queries.AppendDeploymentLogs(ctx, db.AppendDeploymentLogsParams{
+				ID:   did,
+				Logs: msg,
+			})
+		}
+
+		s.redis.Publish(ctx, channel, msg)
+	}
+
+	// If finished, update deployment-level status
+	if do.Finished {
+		did, err := uuid.Parse(deployID)
+		if err != nil {
+			return
+		}
+
+		if do.Success {
+			// Increment replicas ready
+			_ = s.queries.IncrementReplicasReady(ctx, did)
+
+			// Check if all targets are done
+			deployment, err := s.queries.GetDeployment(ctx, did)
+			if err == nil && deployment.ReplicasReady+1 >= deployment.ReplicasDesired {
+				_ = s.queries.CompleteDeployment(ctx, db.CompleteDeploymentParams{
+					ID:     did,
+					Status: "healthy",
+				})
+				if s.redis != nil {
+					s.redis.Publish(ctx, "deploy:"+deployID, "__done__")
+				}
+			}
+		} else {
+			// Target failed — mark deployment as failed
+			errMsg := do.Error
+			_ = s.queries.CompleteDeployment(ctx, db.CompleteDeploymentParams{
+				ID:     did,
+				Status: "failed",
+				Error:  &errMsg,
+			})
+			if s.redis != nil {
+				s.redis.Publish(ctx, "deploy:"+deployID, "__done__")
+			}
 		}
 	}
 }

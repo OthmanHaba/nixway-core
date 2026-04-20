@@ -24,11 +24,14 @@ import { Route as AppTeamsTeamIdRouteImport } from './routes/_app/teams/$teamId'
 import { Route as AppSshKeysTeamIdRouteImport } from './routes/_app/ssh-keys.$teamId'
 import { Route as AppSettingsTeamIdRouteImport } from './routes/_app/settings.$teamId'
 import { Route as AppServersTeamIdRouteImport } from './routes/_app/servers.$teamId'
+import { Route as AppProjectsTeamIdRouteImport } from './routes/_app/projects.$teamId'
 import { Route as AppClustersTeamIdRouteImport } from './routes/_app/clusters.$teamId'
+import { Route as AppAppsAppIdRouteImport } from './routes/_app/apps_.$appId'
 import { Route as AppTeamsTeamIdTokensRouteImport } from './routes/_app/teams/$teamId/tokens'
 import { Route as AppTeamsTeamIdSettingsRouteImport } from './routes/_app/teams/$teamId/settings'
 import { Route as AppTeamsTeamIdAuditLogRouteImport } from './routes/_app/teams/$teamId/audit-log'
 import { Route as AppServersTeamIdServerIdRouteImport } from './routes/_app/servers_.$teamId.$serverId'
+import { Route as AppProjectsTeamIdProjectIdRouteImport } from './routes/_app/projects_.$teamId.$projectId'
 import { Route as AppClustersTeamIdClusterIdRouteImport } from './routes/_app/clusters_.$teamId.$clusterId'
 
 const AuthRoute = AuthRouteImport.update({
@@ -104,9 +107,19 @@ const AppServersTeamIdRoute = AppServersTeamIdRouteImport.update({
   path: '/servers/$teamId',
   getParentRoute: () => AppRoute,
 } as any)
+const AppProjectsTeamIdRoute = AppProjectsTeamIdRouteImport.update({
+  id: '/projects/$teamId',
+  path: '/projects/$teamId',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppClustersTeamIdRoute = AppClustersTeamIdRouteImport.update({
   id: '/clusters/$teamId',
   path: '/clusters/$teamId',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAppsAppIdRoute = AppAppsAppIdRouteImport.update({
+  id: '/apps_/$appId',
+  path: '/apps/$appId',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTeamsTeamIdTokensRoute = AppTeamsTeamIdTokensRouteImport.update({
@@ -130,6 +143,12 @@ const AppServersTeamIdServerIdRoute =
     path: '/servers/$teamId/$serverId',
     getParentRoute: () => AppRoute,
   } as any)
+const AppProjectsTeamIdProjectIdRoute =
+  AppProjectsTeamIdProjectIdRouteImport.update({
+    id: '/projects_/$teamId/$projectId',
+    path: '/projects/$teamId/$projectId',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppClustersTeamIdClusterIdRoute =
   AppClustersTeamIdClusterIdRouteImport.update({
     id: '/clusters_/$teamId/$clusterId',
@@ -144,7 +163,9 @@ export interface FileRoutesByFullPath {
   '/login': typeof AuthLoginRoute
   '/signup': typeof AuthSignupRoute
   '/github/callback': typeof GithubCallbackRoute
+  '/apps/$appId': typeof AppAppsAppIdRoute
   '/clusters/$teamId': typeof AppClustersTeamIdRoute
+  '/projects/$teamId': typeof AppProjectsTeamIdRoute
   '/servers/$teamId': typeof AppServersTeamIdRoute
   '/settings/$teamId': typeof AppSettingsTeamIdRoute
   '/ssh-keys/$teamId': typeof AppSshKeysTeamIdRoute
@@ -153,6 +174,7 @@ export interface FileRoutesByFullPath {
   '/verify-email/$token': typeof AuthVerifyEmailTokenRoute
   '/teams/': typeof AppTeamsIndexRoute
   '/clusters/$teamId/$clusterId': typeof AppClustersTeamIdClusterIdRoute
+  '/projects/$teamId/$projectId': typeof AppProjectsTeamIdProjectIdRoute
   '/servers/$teamId/$serverId': typeof AppServersTeamIdServerIdRoute
   '/teams/$teamId/audit-log': typeof AppTeamsTeamIdAuditLogRoute
   '/teams/$teamId/settings': typeof AppTeamsTeamIdSettingsRoute
@@ -165,7 +187,9 @@ export interface FileRoutesByTo {
   '/login': typeof AuthLoginRoute
   '/signup': typeof AuthSignupRoute
   '/github/callback': typeof GithubCallbackRoute
+  '/apps/$appId': typeof AppAppsAppIdRoute
   '/clusters/$teamId': typeof AppClustersTeamIdRoute
+  '/projects/$teamId': typeof AppProjectsTeamIdRoute
   '/servers/$teamId': typeof AppServersTeamIdRoute
   '/settings/$teamId': typeof AppSettingsTeamIdRoute
   '/ssh-keys/$teamId': typeof AppSshKeysTeamIdRoute
@@ -174,6 +198,7 @@ export interface FileRoutesByTo {
   '/verify-email/$token': typeof AuthVerifyEmailTokenRoute
   '/teams': typeof AppTeamsIndexRoute
   '/clusters/$teamId/$clusterId': typeof AppClustersTeamIdClusterIdRoute
+  '/projects/$teamId/$projectId': typeof AppProjectsTeamIdProjectIdRoute
   '/servers/$teamId/$serverId': typeof AppServersTeamIdServerIdRoute
   '/teams/$teamId/audit-log': typeof AppTeamsTeamIdAuditLogRoute
   '/teams/$teamId/settings': typeof AppTeamsTeamIdSettingsRoute
@@ -189,7 +214,9 @@ export interface FileRoutesById {
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/signup': typeof AuthSignupRoute
   '/github/callback': typeof GithubCallbackRoute
+  '/_app/apps_/$appId': typeof AppAppsAppIdRoute
   '/_app/clusters/$teamId': typeof AppClustersTeamIdRoute
+  '/_app/projects/$teamId': typeof AppProjectsTeamIdRoute
   '/_app/servers/$teamId': typeof AppServersTeamIdRoute
   '/_app/settings/$teamId': typeof AppSettingsTeamIdRoute
   '/_app/ssh-keys/$teamId': typeof AppSshKeysTeamIdRoute
@@ -198,6 +225,7 @@ export interface FileRoutesById {
   '/_auth/verify-email/$token': typeof AuthVerifyEmailTokenRoute
   '/_app/teams/': typeof AppTeamsIndexRoute
   '/_app/clusters_/$teamId/$clusterId': typeof AppClustersTeamIdClusterIdRoute
+  '/_app/projects_/$teamId/$projectId': typeof AppProjectsTeamIdProjectIdRoute
   '/_app/servers_/$teamId/$serverId': typeof AppServersTeamIdServerIdRoute
   '/_app/teams/$teamId/audit-log': typeof AppTeamsTeamIdAuditLogRoute
   '/_app/teams/$teamId/settings': typeof AppTeamsTeamIdSettingsRoute
@@ -212,7 +240,9 @@ export interface FileRouteTypes {
     | '/login'
     | '/signup'
     | '/github/callback'
+    | '/apps/$appId'
     | '/clusters/$teamId'
+    | '/projects/$teamId'
     | '/servers/$teamId'
     | '/settings/$teamId'
     | '/ssh-keys/$teamId'
@@ -221,6 +251,7 @@ export interface FileRouteTypes {
     | '/verify-email/$token'
     | '/teams/'
     | '/clusters/$teamId/$clusterId'
+    | '/projects/$teamId/$projectId'
     | '/servers/$teamId/$serverId'
     | '/teams/$teamId/audit-log'
     | '/teams/$teamId/settings'
@@ -233,7 +264,9 @@ export interface FileRouteTypes {
     | '/login'
     | '/signup'
     | '/github/callback'
+    | '/apps/$appId'
     | '/clusters/$teamId'
+    | '/projects/$teamId'
     | '/servers/$teamId'
     | '/settings/$teamId'
     | '/ssh-keys/$teamId'
@@ -242,6 +275,7 @@ export interface FileRouteTypes {
     | '/verify-email/$token'
     | '/teams'
     | '/clusters/$teamId/$clusterId'
+    | '/projects/$teamId/$projectId'
     | '/servers/$teamId/$serverId'
     | '/teams/$teamId/audit-log'
     | '/teams/$teamId/settings'
@@ -256,7 +290,9 @@ export interface FileRouteTypes {
     | '/_auth/login'
     | '/_auth/signup'
     | '/github/callback'
+    | '/_app/apps_/$appId'
     | '/_app/clusters/$teamId'
+    | '/_app/projects/$teamId'
     | '/_app/servers/$teamId'
     | '/_app/settings/$teamId'
     | '/_app/ssh-keys/$teamId'
@@ -265,6 +301,7 @@ export interface FileRouteTypes {
     | '/_auth/verify-email/$token'
     | '/_app/teams/'
     | '/_app/clusters_/$teamId/$clusterId'
+    | '/_app/projects_/$teamId/$projectId'
     | '/_app/servers_/$teamId/$serverId'
     | '/_app/teams/$teamId/audit-log'
     | '/_app/teams/$teamId/settings'
@@ -385,11 +422,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppServersTeamIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/projects/$teamId': {
+      id: '/_app/projects/$teamId'
+      path: '/projects/$teamId'
+      fullPath: '/projects/$teamId'
+      preLoaderRoute: typeof AppProjectsTeamIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/clusters/$teamId': {
       id: '/_app/clusters/$teamId'
       path: '/clusters/$teamId'
       fullPath: '/clusters/$teamId'
       preLoaderRoute: typeof AppClustersTeamIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/apps_/$appId': {
+      id: '/_app/apps_/$appId'
+      path: '/apps/$appId'
+      fullPath: '/apps/$appId'
+      preLoaderRoute: typeof AppAppsAppIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/teams/$teamId/tokens': {
@@ -420,6 +471,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppServersTeamIdServerIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/projects_/$teamId/$projectId': {
+      id: '/_app/projects_/$teamId/$projectId'
+      path: '/projects/$teamId/$projectId'
+      fullPath: '/projects/$teamId/$projectId'
+      preLoaderRoute: typeof AppProjectsTeamIdProjectIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/clusters_/$teamId/$clusterId': {
       id: '/_app/clusters_/$teamId/$clusterId'
       path: '/clusters/$teamId/$clusterId'
@@ -448,25 +506,31 @@ const AppTeamsTeamIdRouteWithChildren = AppTeamsTeamIdRoute._addFileChildren(
 
 interface AppRouteChildren {
   AppDashboardRoute: typeof AppDashboardRoute
+  AppAppsAppIdRoute: typeof AppAppsAppIdRoute
   AppClustersTeamIdRoute: typeof AppClustersTeamIdRoute
+  AppProjectsTeamIdRoute: typeof AppProjectsTeamIdRoute
   AppServersTeamIdRoute: typeof AppServersTeamIdRoute
   AppSettingsTeamIdRoute: typeof AppSettingsTeamIdRoute
   AppSshKeysTeamIdRoute: typeof AppSshKeysTeamIdRoute
   AppTeamsTeamIdRoute: typeof AppTeamsTeamIdRouteWithChildren
   AppTeamsIndexRoute: typeof AppTeamsIndexRoute
   AppClustersTeamIdClusterIdRoute: typeof AppClustersTeamIdClusterIdRoute
+  AppProjectsTeamIdProjectIdRoute: typeof AppProjectsTeamIdProjectIdRoute
   AppServersTeamIdServerIdRoute: typeof AppServersTeamIdServerIdRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppDashboardRoute: AppDashboardRoute,
+  AppAppsAppIdRoute: AppAppsAppIdRoute,
   AppClustersTeamIdRoute: AppClustersTeamIdRoute,
+  AppProjectsTeamIdRoute: AppProjectsTeamIdRoute,
   AppServersTeamIdRoute: AppServersTeamIdRoute,
   AppSettingsTeamIdRoute: AppSettingsTeamIdRoute,
   AppSshKeysTeamIdRoute: AppSshKeysTeamIdRoute,
   AppTeamsTeamIdRoute: AppTeamsTeamIdRouteWithChildren,
   AppTeamsIndexRoute: AppTeamsIndexRoute,
   AppClustersTeamIdClusterIdRoute: AppClustersTeamIdClusterIdRoute,
+  AppProjectsTeamIdProjectIdRoute: AppProjectsTeamIdProjectIdRoute,
   AppServersTeamIdServerIdRoute: AppServersTeamIdServerIdRoute,
 }
 

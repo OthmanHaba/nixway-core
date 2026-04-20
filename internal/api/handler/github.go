@@ -292,6 +292,84 @@ func (h *GitHubHandler) ListInstallations(w http.ResponseWriter, r *http.Request
 	respond.JSON(w, http.StatusOK, installations)
 }
 
+// SyncInstallations polls GitHub API for installations and upserts them into the database.
+// POST /api/v1/teams/{id}/github/installations/sync
+func (h *GitHubHandler) SyncInstallations(w http.ResponseWriter, r *http.Request) {
+	authCtx := middleware.GetAuthContext(r)
+	if authCtx == nil {
+		respond.Error(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	teamID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid team ID")
+		return
+	}
+
+	app, err := h.queries.GetGitHubAppByTeam(r.Context(), teamID)
+	if err != nil {
+		respond.Error(w, http.StatusNotFound, "github app not found")
+		return
+	}
+
+	privateKey, err := crypto.Decrypt(app.PrivateKey, h.masterKey, "github:"+teamID.String())
+	if err != nil {
+		h.logger.Error("failed to decrypt private key", "error", err)
+		respond.Error(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	// Fetch installations from GitHub API
+	h.logger.Info("syncing installations from GitHub", "app_id", app.AppID, "team_id", teamID)
+	ghInstallations, err := h.githubSvc.ListInstallations(r.Context(), app.AppID, privateKey)
+	if err != nil {
+		h.logger.Error("failed to list installations from GitHub", "error", err, "app_id", app.AppID)
+		respond.Error(w, http.StatusInternalServerError, "failed to fetch installations from GitHub: "+err.Error())
+		return
+	}
+	h.logger.Info("installations fetched from GitHub", "count", len(ghInstallations), "app_id", app.AppID)
+
+	// Upsert each installation
+	synced := 0
+	for _, inst := range ghInstallations {
+		// GitHub API returns repository_selection as "all" or "selected"
+		targetType := inst.RepositorySelection
+		if targetType != "all" && targetType != "selected" {
+			targetType = "selected"
+		}
+
+		// Check if already exists
+		_, err := h.queries.GetGitHubInstallation(r.Context(), db.GetGitHubInstallationParams{
+			GithubAppID:    app.ID,
+			InstallationID: inst.ID,
+		})
+		if err != nil {
+			// Doesn't exist — create
+			_, err = h.queries.CreateGitHubInstallation(r.Context(), db.CreateGitHubInstallationParams{
+				GithubAppID:    app.ID,
+				InstallationID: inst.ID,
+				AccountLogin:   inst.Account.Login,
+				AccountType:    inst.Account.Type,
+				TargetType:     targetType,
+			})
+			if err != nil {
+				h.logger.Error("failed to create installation", "error", err, "installation_id", inst.ID)
+				continue
+			}
+			synced++
+		}
+	}
+
+	// Re-fetch from DB to return
+	installations, _ := h.queries.ListGitHubInstallations(r.Context(), app.ID)
+
+	respond.JSON(w, http.StatusOK, map[string]any{
+		"synced":        synced,
+		"installations": installations,
+	})
+}
+
 // ListRepos lists repositories accessible to a GitHub App installation.
 // GET /api/v1/teams/{id}/github/installations/{installationId}/repos
 func (h *GitHubHandler) ListRepos(w http.ResponseWriter, r *http.Request) {

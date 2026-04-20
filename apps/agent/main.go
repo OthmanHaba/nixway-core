@@ -132,6 +132,40 @@ func receiveLoop(
 			)
 			go HandleDNSUpdate(ctx, p.DnsUpdateHosts, stream, logger)
 
+		case *agentv1.ControlMessage_BuildCommand:
+			logger.Info("build command received",
+				"build_id", p.BuildCommand.BuildId,
+				"builder", p.BuildCommand.Builder,
+			)
+			go HandleBuildCommand(ctx, p.BuildCommand, stream, logger)
+
+		case *agentv1.ControlMessage_DeployCommand:
+			logger.Info("deploy command received",
+				"deploy_id", p.DeployCommand.DeployId,
+				"image_tag", p.DeployCommand.ImageTag,
+			)
+			go HandleDeployCommand(ctx, p.DeployCommand, stream, logger)
+
+		case *agentv1.ControlMessage_StopContainer:
+			logger.Info("stop container command received",
+				"container", p.StopContainer.ContainerName,
+			)
+			go HandleStopContainerCommand(ctx, p.StopContainer, stream, logger)
+
+		case *agentv1.ControlMessage_ImagePull:
+			logger.Info("image pull command received",
+				"image_tag", p.ImagePull.ImageTag,
+				"source", p.ImagePull.SourceServerIp,
+			)
+			go HandleImagePullCommand(ctx, p.ImagePull, stream, logger)
+
+		case *agentv1.ControlMessage_ContainerLogs:
+			logger.Info("container logs command received",
+				"container", p.ContainerLogs.ContainerName,
+				"follow", p.ContainerLogs.Follow,
+			)
+			go HandleContainerLogsCommand(ctx, p.ContainerLogs, stream, logger)
+
 		default:
 			logger.Warn("unknown control message payload")
 		}

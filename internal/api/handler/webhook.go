@@ -11,8 +11,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/othmanhaba/nixway-core/internal/api/respond"
+	"github.com/othmanhaba/nixway-core/internal/build"
 	"github.com/othmanhaba/nixway-core/internal/crypto"
 	"github.com/othmanhaba/nixway-core/internal/db"
 )
@@ -20,13 +22,15 @@ import (
 // WebhookHandler handles inbound GitHub webhook events (public route, no auth).
 type WebhookHandler struct {
 	queries   *db.Queries
+	buildSvc  *build.Service
 	masterKey [32]byte
 	logger    *slog.Logger
 }
 
-func NewWebhookHandler(queries *db.Queries, masterKey [32]byte, logger *slog.Logger) *WebhookHandler {
+func NewWebhookHandler(queries *db.Queries, buildSvc *build.Service, masterKey [32]byte, logger *slog.Logger) *WebhookHandler {
 	return &WebhookHandler{
 		queries:   queries,
+		buildSvc:  buildSvc,
 		masterKey: masterKey,
 		logger:    logger,
 	}
@@ -166,6 +170,64 @@ func (h *WebhookHandler) HandleGitHub(w http.ResponseWriter, r *http.Request) {
 			})
 			if updateErr != nil {
 				h.logger.Error("failed to unsuspend installation", "error", updateErr, "installation_id", inst.ID)
+			}
+		}
+	}
+
+	// Handle push events → trigger builds for linked apps
+	if eventType == "push" && h.buildSvc != nil {
+		var pushPayload struct {
+			Ref        string `json:"ref"`
+			After      string `json:"after"`      // commit SHA
+			HeadCommit *struct {
+				Message string `json:"message"`
+			} `json:"head_commit"`
+			Repository struct {
+				FullName string `json:"full_name"`
+			} `json:"repository"`
+		}
+		if err := json.Unmarshal(body, &pushPayload); err == nil {
+			// Extract branch from ref (refs/heads/main → main)
+			branch := ""
+			if len(pushPayload.Ref) > 11 && pushPayload.Ref[:11] == "refs/heads/" {
+				branch = pushPayload.Ref[11:]
+			}
+
+			if branch != "" && pushPayload.Repository.FullName != "" {
+				// Find apps linked to this repo with auto_deploy enabled
+				apps, err := h.queries.ListAppsByRepo(r.Context(), &pushPayload.Repository.FullName)
+				if err == nil {
+					for _, linkedApp := range apps {
+						// Check branch matches
+						if linkedApp.Branch != nil && *linkedApp.Branch != branch {
+							continue
+						}
+
+						// Find production environment for this app's project
+						envs, err := h.queries.ListEnvironmentsByProject(r.Context(), linkedApp.ProjectID)
+						if err != nil || len(envs) == 0 {
+							continue
+						}
+
+						var envID uuid.UUID
+						for _, env := range envs {
+							if env.IsProduction {
+								envID = env.ID
+								break
+							}
+						}
+						if envID == uuid.Nil {
+							envID = envs[0].ID
+						}
+
+						_, buildErr := h.buildSvc.TriggerBuild(r.Context(), linkedApp.ID, envID, "push", pushPayload.After, branch)
+						if buildErr != nil {
+							h.logger.Error("failed to trigger build from push", "app_id", linkedApp.ID, "error", buildErr)
+						} else {
+							h.logger.Info("build triggered from push", "app_id", linkedApp.ID, "repo", pushPayload.Repository.FullName, "branch", branch)
+						}
+					}
+				}
 			}
 		}
 	}

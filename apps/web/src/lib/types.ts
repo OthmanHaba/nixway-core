@@ -239,3 +239,107 @@ export interface Secret {
   created_at: string
   updated_at: string
 }
+
+export interface Project {
+  id: string
+  team_id: string
+  cluster_id: string
+  name: string
+  slug: string
+  description: string
+  status: string
+  created_at: string
+  updated_at: string
+  cluster_name?: string
+}
+
+export interface Environment {
+  id: string
+  project_id: string
+  name: string
+  slug: string
+  is_production: boolean
+  created_at: string
+}
+
+export interface App {
+  id: string
+  project_id: string
+  name: string
+  slug: string
+  source_type: 'github' | 'docker_image'
+  github_installation_id: string | null
+  repo_full_name: string | null
+  branch: string | null
+  root_path: string
+  auto_deploy: boolean
+  docker_image: string | null
+  registry_credential_id: string | null
+  builder: string
+  dockerfile_path: string
+  port: number
+  health_check_path: string
+  health_check_interval: number
+  health_check_timeout: number
+  replicas: number
+  subdomain: string | null
+  custom_domain: string | null
+  domain_verified: boolean
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+export interface Build {
+  id: string
+  app_id: string
+  environment_id: string
+  trigger_type: 'push' | 'manual' | 'rollback'
+  commit_sha: string
+  commit_message: string
+  branch: string
+  builder: string
+  image_tag: string
+  server_id: string | null
+  status: 'pending' | 'cloning' | 'building' | 'built' | 'failed' | 'cancelled'
+  logs: string
+  started_at: string | null
+  completed_at: string | null
+  error: string | null
+  created_at: string
+}
+
+export interface Deployment {
+  id: string
+  app_id: string
+  environment_id: string
+  build_id: string
+  strategy: string
+  replicas_desired: number
+  replicas_ready: number
+  logs: string
+  platform_domain: string
+  status: 'pending' | 'deploying' | 'healthy' | 'degraded' | 'failed' | 'rolled_back'
+  started_at: string | null
+  completed_at: string | null
+  error: string | null
+  created_at: string
+  commit_sha?: string
+  commit_message?: string
+  image_tag?: string
+}
+
+export interface DeploymentTarget {
+  id: string
+  deployment_id: string
+  server_id: string
+  container_id: string | null
+  status: string
+  health_check_attempts: number
+  started_at: string | null
+  healthy_at: string | null
+  stopped_at: string | null
+  error: string | null
+  server_name?: string
+  public_ip?: string
+}

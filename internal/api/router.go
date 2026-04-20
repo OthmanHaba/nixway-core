@@ -9,14 +9,19 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/api/handler"
 	"github.com/othmanhaba/nixway-core/internal/api/middleware"
 	"github.com/othmanhaba/nixway-core/internal/api/respond"
+	"github.com/othmanhaba/nixway-core/internal/agent"
+	"github.com/othmanhaba/nixway-core/internal/app"
 	"github.com/othmanhaba/nixway-core/internal/audit"
 	"github.com/othmanhaba/nixway-core/internal/auth"
+	"github.com/othmanhaba/nixway-core/internal/build"
 	"github.com/othmanhaba/nixway-core/internal/cluster"
 	"github.com/othmanhaba/nixway-core/internal/config"
+	"github.com/othmanhaba/nixway-core/internal/deploy"
 	githubsvc "github.com/othmanhaba/nixway-core/internal/github"
 	"github.com/othmanhaba/nixway-core/internal/mesh"
 	"github.com/othmanhaba/nixway-core/internal/db"
 	"github.com/othmanhaba/nixway-core/internal/email"
+	"github.com/othmanhaba/nixway-core/internal/project"
 	"github.com/othmanhaba/nixway-core/internal/provisioner"
 	"github.com/othmanhaba/nixway-core/internal/registry"
 	"github.com/othmanhaba/nixway-core/internal/secret"
@@ -35,9 +40,14 @@ func NewRouter(
 	onboardingSvc *server.OnboardingService,
 	provisionSvc *provisioner.Service,
 	clusterSvc *cluster.Service,
+	connMgr *agent.ConnManager,
 	meshMgr *mesh.Manager,
 	githubService *githubsvc.Service,
 	secretSvc *secret.Service,
+	projectSvc *project.Service,
+	appSvc *app.Service,
+	buildSvc *build.Service,
+	deploySvc *deploy.Service,
 ) http.Handler {
 	authH := handler.NewAuthHandler(queries, sessions, emailSender, auditWriter, cfg, logger)
 	teamH := handler.NewTeamHandler(queries, emailSender, auditWriter, cfg, logger)
@@ -52,9 +62,13 @@ func NewRouter(
 	agentDlH := handler.NewAgentDownloadHandler(cfg.Server.AgentBinaryDir, logger)
 	terminalH := handler.NewTerminalHandler(queries, logger, masterKey)
 	githubH := handler.NewGitHubHandler(queries, auditWriter, githubService, masterKey, logger)
-	webhookH := handler.NewWebhookHandler(queries, masterKey, logger)
+	webhookH := handler.NewWebhookHandler(queries, buildSvc, masterKey, logger)
 	registryH := handler.NewRegistryHandler(queries, auditWriter, registry.NewValidator(), masterKey, logger)
 	secretH := handler.NewSecretHandler(queries, auditWriter, secretSvc, logger)
+	projectH := handler.NewProjectHandler(queries, auditWriter, projectSvc, logger)
+	appH := handler.NewAppHandler(queries, auditWriter, appSvc, logger)
+	buildH := handler.NewBuildHandler(queries, buildSvc, redisClient, logger)
+	deployH := handler.NewDeployHandler(queries, deploySvc, connMgr, redisClient, logger)
 
 	mux := http.NewServeMux()
 
@@ -155,6 +169,7 @@ func NewRouter(
 	protected.HandleFunc("GET /api/v1/teams/{id}/github/app", githubH.GetApp)
 	protected.HandleFunc("DELETE /api/v1/teams/{id}/github/app", githubH.DeleteApp)
 	protected.HandleFunc("GET /api/v1/teams/{id}/github/installations", githubH.ListInstallations)
+	protected.HandleFunc("POST /api/v1/teams/{id}/github/installations/sync", githubH.SyncInstallations)
 	protected.HandleFunc("GET /api/v1/teams/{id}/github/installations/{installationId}/repos", githubH.ListRepos)
 
 	// Container registries
@@ -173,6 +188,45 @@ func NewRouter(
 	protected.HandleFunc("PUT /api/v1/teams/{id}/secrets/{secretId}", secretH.Update)
 	protected.HandleFunc("DELETE /api/v1/teams/{id}/secrets/{secretId}", secretH.Delete)
 
+	// Projects
+	protected.HandleFunc("POST /api/v1/teams/{teamId}/projects", projectH.Create)
+	protected.HandleFunc("GET /api/v1/teams/{teamId}/projects", projectH.List)
+	protected.HandleFunc("GET /api/v1/teams/{teamId}/projects/{projectId}", projectH.Get)
+	protected.HandleFunc("PUT /api/v1/teams/{teamId}/projects/{projectId}", projectH.Update)
+	protected.HandleFunc("DELETE /api/v1/teams/{teamId}/projects/{projectId}", projectH.Delete)
+
+	// Environments
+	protected.HandleFunc("POST /api/v1/projects/{projectId}/environments", projectH.CreateEnvironment)
+	protected.HandleFunc("GET /api/v1/projects/{projectId}/environments", projectH.ListEnvironments)
+
+	// Apps
+	protected.HandleFunc("POST /api/v1/projects/{projectId}/apps", appH.Create)
+	protected.HandleFunc("GET /api/v1/projects/{projectId}/apps", appH.List)
+	protected.HandleFunc("GET /api/v1/projects/{projectId}/apps/{appId}", appH.Get)
+	protected.HandleFunc("PUT /api/v1/projects/{projectId}/apps/{appId}", appH.Update)
+	protected.HandleFunc("DELETE /api/v1/projects/{projectId}/apps/{appId}", appH.Delete)
+
+	// App (direct by ID, no projectId needed)
+	protected.HandleFunc("GET /api/v1/apps/{appId}", appH.GetDirect)
+	protected.HandleFunc("POST /api/v1/apps/{appId}/domain", appH.SetDomain)
+	protected.HandleFunc("POST /api/v1/apps/{appId}/domain/verify", appH.VerifyDomain)
+
+	// Builds
+	protected.HandleFunc("POST /api/v1/apps/{appId}/builds", buildH.TriggerBuild)
+	protected.HandleFunc("GET /api/v1/apps/{appId}/builds", buildH.List)
+	protected.HandleFunc("GET /api/v1/apps/{appId}/builds/{buildId}", buildH.Get)
+	protected.HandleFunc("GET /api/v1/apps/{appId}/builds/{buildId}/logs", buildH.StreamLogs)
+
+	// Deployments
+	protected.HandleFunc("POST /api/v1/apps/{appId}/deployments", deployH.TriggerDeploy)
+	protected.HandleFunc("GET /api/v1/apps/{appId}/deployments", deployH.List)
+	protected.HandleFunc("GET /api/v1/apps/{appId}/deployments/{deployId}", deployH.Get)
+	protected.HandleFunc("GET /api/v1/apps/{appId}/deployments/{deployId}/logs", deployH.StreamLogs)
+	protected.HandleFunc("GET /api/v1/apps/{appId}/deployments/{deployId}/targets", deployH.ListTargets)
+	protected.HandleFunc("POST /api/v1/apps/{appId}/rollback", deployH.Rollback)
+	protected.HandleFunc("GET /api/v1/apps/{appId}/logs", deployH.ContainerLogs)
+	protected.HandleFunc("POST /api/v1/apps/{appId}/cleanup", deployH.CleanupDeployments)
+
 	// Discovery
 	protected.HandleFunc("POST /api/v1/discover", discoverH.Discover)
 
@@ -183,6 +237,8 @@ func NewRouter(
 	mux.Handle("/api/v1/teams", authMW(protected))
 	mux.Handle("/api/v1/teams/", authMW(protected))
 	mux.Handle("/api/v1/invites/", authMW(protected))
+	mux.Handle("/api/v1/projects/", authMW(protected))
+	mux.Handle("/api/v1/apps/", authMW(protected))
 	mux.Handle("/api/v1/discover", authMW(protected))
 
 	// Health check

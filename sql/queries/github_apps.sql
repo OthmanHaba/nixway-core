@@ -21,6 +21,9 @@ VALUES ($1, $2, $3, $4, $5) RETURNING *;
 -- name: GetGitHubInstallation :one
 SELECT * FROM github_installations WHERE github_app_id = $1 AND installation_id = $2;
 
+-- name: GetGitHubInstallationByID :one
+SELECT * FROM github_installations WHERE id = $1;
+
 -- name: ListGitHubInstallations :many
 SELECT * FROM github_installations WHERE github_app_id = $1 ORDER BY created_at;
 

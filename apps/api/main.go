@@ -19,8 +19,12 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/db"
 	"github.com/othmanhaba/nixway-core/internal/cluster"
 	"github.com/othmanhaba/nixway-core/internal/email"
+	appsvc "github.com/othmanhaba/nixway-core/internal/app"
+	"github.com/othmanhaba/nixway-core/internal/build"
+	"github.com/othmanhaba/nixway-core/internal/deploy"
 	githubsvc "github.com/othmanhaba/nixway-core/internal/github"
 	"github.com/othmanhaba/nixway-core/internal/mesh"
+	"github.com/othmanhaba/nixway-core/internal/project"
 	"github.com/othmanhaba/nixway-core/internal/provisioner"
 	nixredis "github.com/othmanhaba/nixway-core/internal/redis"
 	"github.com/othmanhaba/nixway-core/internal/secret"
@@ -134,14 +138,26 @@ func main() {
 	// Wire mesh regenerator into agent server (for post-keygen mesh rebuild)
 	agentSrv.SetMeshRegenerator(meshMgr)
 
+	// Wire deploy triggerer (set after deploySvc is created below)
+
 	// GitHub App service
 	githubService := githubsvc.NewService(cfg.GitHub.BaseURL, cfg.GitHub.APIURL, cfg.GitHub.WebhookURL, cfg.GitHub.RedirectURL, logger)
 
 	// Secrets service
 	secretSvc := secret.NewService(queries, masterKey, logger)
 
+	// Project & App services
+	projectSvc := project.NewService(queries, logger)
+	appService := appsvc.NewService(queries, logger)
+	buildSvc := build.NewService(queries, redisClient, connMgr, githubService, masterKey, logger)
+	deploySvc := deploy.NewService(queries, redisClient, connMgr, secretSvc, logger)
+
+	// Wire deploy triggerer into agent server and build service (for auto-deploy after build)
+	agentSrv.SetDeployTriggerer(deploySvc)
+	buildSvc.SetDeployTriggerer(deploySvc)
+
 	// Router & Server
-	router := api.NewRouter(queries, sessions, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc, provisionSvc, clusterSvc, meshMgr, githubService, secretSvc)
+	router := api.NewRouter(queries, sessions, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc, provisionSvc, clusterSvc, connMgr, meshMgr, githubService, secretSvc, projectSvc, appService, buildSvc, deploySvc)
 	srv := api.NewServer(router, cfg.Server.Host, cfg.Server.Port, logger)
 
 	if err := srv.Start(); err != nil {

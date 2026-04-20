@@ -79,6 +79,14 @@ function AppLayout() {
                     Clusters
                   </Link>
                   <Link
+                    to="/projects/$teamId"
+                    params={{ teamId: currentTeam.id }}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    activeProps={{ className: 'text-sm text-foreground font-medium' }}
+                  >
+                    Projects
+                  </Link>
+                  <Link
                     to="/ssh-keys/$teamId"
                     params={{ teamId: currentTeam.id }}
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"

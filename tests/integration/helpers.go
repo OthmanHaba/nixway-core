@@ -17,15 +17,19 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/othmanhaba/nixway-core/internal/api"
+	appsvc "github.com/othmanhaba/nixway-core/internal/app"
 	"github.com/othmanhaba/nixway-core/internal/audit"
 	"github.com/othmanhaba/nixway-core/internal/auth"
 	"github.com/othmanhaba/nixway-core/internal/agent"
+	"github.com/othmanhaba/nixway-core/internal/build"
 	"github.com/othmanhaba/nixway-core/internal/cluster"
 	"github.com/othmanhaba/nixway-core/internal/config"
+	"github.com/othmanhaba/nixway-core/internal/deploy"
 	githubsvc "github.com/othmanhaba/nixway-core/internal/github"
 	"github.com/othmanhaba/nixway-core/internal/mesh"
 	"github.com/othmanhaba/nixway-core/internal/db"
 	"github.com/othmanhaba/nixway-core/internal/email"
+	"github.com/othmanhaba/nixway-core/internal/project"
 	"github.com/othmanhaba/nixway-core/internal/provisioner"
 	"github.com/othmanhaba/nixway-core/internal/secret"
 	internalredis "github.com/othmanhaba/nixway-core/internal/redis"
@@ -130,6 +134,18 @@ func SetupTestEnv(t *testing.T) *TestEnv {
 	_, err = pool.Exec(ctx, upSQL4)
 	require.NoError(t, err)
 
+	migration5SQL, err := os.ReadFile("../../sql/migrations/00005_projects_deployments.sql")
+	require.NoError(t, err)
+	upSQL5 := extractGooseUp(string(migration5SQL))
+	_, err = pool.Exec(ctx, upSQL5)
+	require.NoError(t, err)
+
+	migration6SQL, err := os.ReadFile("../../sql/migrations/00006_deploy_logs_domain.sql")
+	require.NoError(t, err)
+	upSQL6 := extractGooseUp(string(migration6SQL))
+	_, err = pool.Exec(ctx, upSQL6)
+	require.NoError(t, err)
+
 	// --- Run River migrations ---
 	riverMigrator, err := rivermigrate.New(riverpgxv5.New(pool), nil)
 	require.NoError(t, err)
@@ -192,9 +208,15 @@ func SetupTestEnv(t *testing.T) *TestEnv {
 	// --- Secrets service ---
 	secretSvc := secret.NewService(queries, masterKey, logger)
 
+	// --- Project & App services ---
+	projectSvc := project.NewService(queries, logger)
+	appService := appsvc.NewService(queries, logger)
+	buildSvc := build.NewService(queries, redisClient, connMgr, githubService, masterKey, logger)
+	deploySvc := deploy.NewService(queries, redisClient, connMgr, secretSvc, logger)
+
 	// --- Create API router and test server ---
 	// Use TLS server so that Secure cookies are preserved by the cookie jar.
-	router := api.NewRouter(queries, sessionMgr, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc, provisionSvc, clusterSvc, meshMgr, githubService, secretSvc)
+	router := api.NewRouter(queries, sessionMgr, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc, provisionSvc, clusterSvc, connMgr, meshMgr, githubService, secretSvc, projectSvc, appService, buildSvc, deploySvc)
 	ts := httptest.NewTLSServer(router)
 	t.Cleanup(func() {
 		ts.Close()

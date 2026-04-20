@@ -26,6 +26,35 @@ type ApiToken struct {
 	CreatedAt  time.Time          `json:"created_at"`
 }
 
+type App struct {
+	ID                   uuid.UUID   `json:"id"`
+	ProjectID            uuid.UUID   `json:"project_id"`
+	Name                 string      `json:"name"`
+	Slug                 string      `json:"slug"`
+	SourceType           string      `json:"source_type"`
+	GithubInstallationID pgtype.UUID `json:"github_installation_id"`
+	RepoFullName         *string     `json:"repo_full_name"`
+	Branch               *string     `json:"branch"`
+	RootPath             string      `json:"root_path"`
+	AutoDeploy           bool        `json:"auto_deploy"`
+	DockerImage          *string     `json:"docker_image"`
+	RegistryCredentialID pgtype.UUID `json:"registry_credential_id"`
+	Builder              string      `json:"builder"`
+	DockerfilePath       string      `json:"dockerfile_path"`
+	Port                 int32       `json:"port"`
+	HealthCheckPath      string      `json:"health_check_path"`
+	HealthCheckInterval  int32       `json:"health_check_interval"`
+	HealthCheckTimeout   int32       `json:"health_check_timeout"`
+	Replicas             int32       `json:"replicas"`
+	Subdomain            *string     `json:"subdomain"`
+	CustomDomain         *string     `json:"custom_domain"`
+	DomainVerified       bool        `json:"domain_verified"`
+	Status               string      `json:"status"`
+	CreatedAt            time.Time   `json:"created_at"`
+	UpdatedAt            time.Time   `json:"updated_at"`
+	Domains              []string    `json:"domains"`
+}
+
 type AuditLog struct {
 	ID           uuid.UUID       `json:"id"`
 	TeamID       pgtype.UUID     `json:"team_id"`
@@ -37,6 +66,25 @@ type AuditLog struct {
 	Metadata     json.RawMessage `json:"metadata"`
 	IpAddress    *netip.Addr     `json:"ip_address"`
 	CreatedAt    time.Time       `json:"created_at"`
+}
+
+type Build struct {
+	ID            uuid.UUID          `json:"id"`
+	AppID         uuid.UUID          `json:"app_id"`
+	EnvironmentID uuid.UUID          `json:"environment_id"`
+	TriggerType   string             `json:"trigger_type"`
+	CommitSha     string             `json:"commit_sha"`
+	CommitMessage string             `json:"commit_message"`
+	Branch        string             `json:"branch"`
+	Builder       string             `json:"builder"`
+	ImageTag      string             `json:"image_tag"`
+	ServerID      pgtype.UUID        `json:"server_id"`
+	Status        string             `json:"status"`
+	Logs          string             `json:"logs"`
+	StartedAt     pgtype.Timestamptz `json:"started_at"`
+	CompletedAt   pgtype.Timestamptz `json:"completed_at"`
+	Error         *string            `json:"error"`
+	CreatedAt     time.Time          `json:"created_at"`
 }
 
 type Cluster struct {
@@ -61,6 +109,46 @@ type ClusterMember struct {
 	WireguardEndpoint  string     `json:"wireguard_endpoint"`
 	ListenPort         int32      `json:"listen_port"`
 	JoinedAt           time.Time  `json:"joined_at"`
+}
+
+type Deployment struct {
+	ID              uuid.UUID          `json:"id"`
+	AppID           uuid.UUID          `json:"app_id"`
+	EnvironmentID   uuid.UUID          `json:"environment_id"`
+	BuildID         uuid.UUID          `json:"build_id"`
+	Strategy        string             `json:"strategy"`
+	ReplicasDesired int32              `json:"replicas_desired"`
+	ReplicasReady   int32              `json:"replicas_ready"`
+	EnvSnapshot     []byte             `json:"env_snapshot"`
+	Status          string             `json:"status"`
+	StartedAt       pgtype.Timestamptz `json:"started_at"`
+	CompletedAt     pgtype.Timestamptz `json:"completed_at"`
+	Error           *string            `json:"error"`
+	CreatedAt       time.Time          `json:"created_at"`
+	Logs            string             `json:"logs"`
+	PlatformDomain  string             `json:"platform_domain"`
+}
+
+type DeploymentTarget struct {
+	ID                  uuid.UUID          `json:"id"`
+	DeploymentID        uuid.UUID          `json:"deployment_id"`
+	ServerID            uuid.UUID          `json:"server_id"`
+	ContainerID         *string            `json:"container_id"`
+	Status              string             `json:"status"`
+	HealthCheckAttempts int32              `json:"health_check_attempts"`
+	StartedAt           pgtype.Timestamptz `json:"started_at"`
+	HealthyAt           pgtype.Timestamptz `json:"healthy_at"`
+	StoppedAt           pgtype.Timestamptz `json:"stopped_at"`
+	Error               *string            `json:"error"`
+}
+
+type Environment struct {
+	ID           uuid.UUID `json:"id"`
+	ProjectID    uuid.UUID `json:"project_id"`
+	Name         string    `json:"name"`
+	Slug         string    `json:"slug"`
+	IsProduction bool      `json:"is_production"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 type GithubApp struct {
@@ -108,6 +196,18 @@ type MeshEvent struct {
 	MemberID  pgtype.UUID     `json:"member_id"`
 	Details   json.RawMessage `json:"details"`
 	CreatedAt time.Time       `json:"created_at"`
+}
+
+type Project struct {
+	ID          uuid.UUID `json:"id"`
+	TeamID      uuid.UUID `json:"team_id"`
+	ClusterID   uuid.UUID `json:"cluster_id"`
+	Name        string    `json:"name"`
+	Slug        string    `json:"slug"`
+	Description string    `json:"description"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type ProvisioningJob struct {

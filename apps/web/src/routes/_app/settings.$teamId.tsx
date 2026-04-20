@@ -172,14 +172,47 @@ function GitHubTab({ teamId }: { teamId: string }) {
 
       {/* Installations */}
       <div>
-        <h3 className="text-lg font-semibold mb-3">Installations</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-semibold">Installations</h3>
+          {app && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                api.post(`/teams/${teamId}/github/installations/sync`).then(() => {
+                  queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'github', 'installations'] })
+                  toast({ title: 'Installations synced from GitHub' })
+                }).catch(() => {
+                  toast({ title: 'Sync failed', variant: 'destructive' })
+                })
+              }}
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Sync from GitHub
+            </Button>
+          )}
+        </div>
         {installationsLoading ? (
           <div className="flex justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : installations.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            No installations found. Install the GitHub App on your account or organization.
+          <div className="text-center py-8 space-y-3">
+            <p className="text-muted-foreground">
+              No installations found. Install the GitHub App on your account or organization to access repositories.
+            </p>
+            {app && (
+              <a
+                href={`https://github.com/apps/${app.app_slug}/installations/new`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button variant="outline" className="gap-2">
+                  <ExternalLink className="h-4 w-4" />
+                  Install App on GitHub
+                </Button>
+              </a>
+            )}
           </div>
         ) : (
           <div className="space-y-2">

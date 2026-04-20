@@ -38,6 +38,11 @@ message AgentMessage {
     WireGuardTeardownResult wireguard_teardown_result = 10;
     MeshHealthReport mesh_health_report = 11;
     DNSUpdateResult dns_update_result = 12;
+    BuildOutput build_output = 13;
+    DeployOutput deploy_output = 14;
+    StopContainerResult stop_container_result = 15;
+    ImagePullResult image_pull_result = 16;
+    ContainerLogsOutput container_logs_output = 17;
   }
 }
 
@@ -52,6 +57,11 @@ message ControlMessage {
     WireGuardApplyCommand wireguard_apply = 7;
     WireGuardTeardownCommand wireguard_teardown = 8;
     DNSUpdateHostsCommand dns_update_hosts = 9;
+    BuildCommand build_command = 10;
+    DeployCommand deploy_command = 11;
+    StopContainerCommand stop_container = 12;
+    ImagePullCommand image_pull = 13;
+    ContainerLogsCommand container_logs = 14;
   }
 }
 
@@ -224,4 +234,106 @@ message DNSUpdateHostsCommand {
 message DNSUpdateResult {
   bool success = 1;
   string error = 2;
+}
+
+// --- Build Messages ---
+
+message BuildCommand {
+  string build_id = 1;
+  string repo_url = 2;
+  string commit_sha = 3;
+  string auth_token = 4;        // GitHub installation token for private repos
+  string branch = 5;
+  string root_path = 6;         // subdirectory within repo
+  string builder = 7;           // 'auto', 'dockerfile', 'nixpacks', 'buildpacks', 'railpack'
+  string dockerfile_path = 8;
+  string image_tag = 9;         // target image tag
+  map<string, string> build_args = 10;
+}
+
+message BuildOutput {
+  string build_id = 1;
+  bytes output = 2;
+  string phase = 3;             // 'cloning', 'detecting', 'building'
+  bool finished = 4;
+  bool success = 5;
+  string error = 6;
+  string image_id = 7;          // docker image ID on success
+}
+
+// --- Deploy Messages ---
+
+message DeployCommand {
+  string deploy_id = 1;
+  string target_id = 2;         // deployment_target ID
+  string image_tag = 3;
+  string container_name = 4;
+  int32 port = 5;
+  map<string, string> env = 6;
+  string health_check_path = 7;
+  int32 health_check_interval_seconds = 8;
+  int32 health_check_timeout_seconds = 9;
+  TraefikConfig traefik = 10;
+}
+
+message TraefikConfig {
+  string app_slug = 1;
+  repeated string domains = 2;
+  bool tls = 3;
+  int32 port = 4;
+}
+
+message DeployOutput {
+  string deploy_id = 1;
+  string target_id = 2;
+  string phase = 3;             // 'starting', 'health_checking', 'healthy', 'failed'
+  string container_id = 4;
+  bool finished = 5;
+  bool success = 6;
+  string error = 7;
+}
+
+// --- Container Lifecycle ---
+
+message StopContainerCommand {
+  string container_name = 1;
+  int32 timeout_seconds = 2;
+  bool remove_traefik = 3;
+  string app_slug = 4;          // for traefik config file removal
+}
+
+message StopContainerResult {
+  string container_name = 1;
+  bool success = 2;
+  string error = 3;
+}
+
+// --- Container Logs ---
+
+message ContainerLogsCommand {
+  string request_id = 1;
+  string container_name = 2;
+  int32 tail = 3;             // number of lines to tail (0 = 100)
+  bool follow = 4;            // stream live logs
+}
+
+message ContainerLogsOutput {
+  string request_id = 1;
+  bytes output = 2;
+  bool finished = 3;
+  string error = 4;
+}
+
+// --- Image Transfer ---
+
+message ImagePullCommand {
+  string transfer_id = 1;
+  string image_tag = 2;
+  string source_server_ip = 3;  // WireGuard IP of server that has the image
+}
+
+message ImagePullResult {
+  string transfer_id = 1;
+  bool success = 2;
+  string error = 3;
 }
