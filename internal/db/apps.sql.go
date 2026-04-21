@@ -23,7 +23,7 @@ INSERT INTO apps (
     subdomain
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
-RETURNING id, project_id, name, slug, source_type, github_installation_id, repo_full_name, branch, root_path, auto_deploy, docker_image, registry_credential_id, builder, dockerfile_path, port, health_check_path, health_check_interval, health_check_timeout, replicas, subdomain, custom_domain, domain_verified, status, created_at, updated_at, domains
+RETURNING id, project_id, name, slug, source_type, github_installation_id, repo_full_name, branch, root_path, auto_deploy, docker_image, registry_credential_id, builder, dockerfile_path, port, health_check_path, health_check_interval, health_check_timeout, replicas, subdomain, custom_domain, domain_verified, status, created_at, updated_at, domains, memory_limit_mb, cpu_limit_millicores
 `
 
 type CreateAppParams struct {
@@ -98,6 +98,8 @@ func (q *Queries) CreateApp(ctx context.Context, arg CreateAppParams) (App, erro
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Domains,
+		&i.MemoryLimitMb,
+		&i.CpuLimitMillicores,
 	)
 	return i, err
 }
@@ -112,7 +114,7 @@ func (q *Queries) DeleteApp(ctx context.Context, id uuid.UUID) error {
 }
 
 const getApp = `-- name: GetApp :one
-SELECT id, project_id, name, slug, source_type, github_installation_id, repo_full_name, branch, root_path, auto_deploy, docker_image, registry_credential_id, builder, dockerfile_path, port, health_check_path, health_check_interval, health_check_timeout, replicas, subdomain, custom_domain, domain_verified, status, created_at, updated_at, domains FROM apps WHERE id = $1
+SELECT id, project_id, name, slug, source_type, github_installation_id, repo_full_name, branch, root_path, auto_deploy, docker_image, registry_credential_id, builder, dockerfile_path, port, health_check_path, health_check_interval, health_check_timeout, replicas, subdomain, custom_domain, domain_verified, status, created_at, updated_at, domains, memory_limit_mb, cpu_limit_millicores FROM apps WHERE id = $1
 `
 
 func (q *Queries) GetApp(ctx context.Context, id uuid.UUID) (App, error) {
@@ -145,6 +147,8 @@ func (q *Queries) GetApp(ctx context.Context, id uuid.UUID) (App, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Domains,
+		&i.MemoryLimitMb,
+		&i.CpuLimitMillicores,
 	)
 	return i, err
 }
@@ -166,7 +170,7 @@ func (q *Queries) GetAppDomains(ctx context.Context, id uuid.UUID) (GetAppDomain
 }
 
 const listAppsByProject = `-- name: ListAppsByProject :many
-SELECT id, project_id, name, slug, source_type, github_installation_id, repo_full_name, branch, root_path, auto_deploy, docker_image, registry_credential_id, builder, dockerfile_path, port, health_check_path, health_check_interval, health_check_timeout, replicas, subdomain, custom_domain, domain_verified, status, created_at, updated_at, domains FROM apps
+SELECT id, project_id, name, slug, source_type, github_installation_id, repo_full_name, branch, root_path, auto_deploy, docker_image, registry_credential_id, builder, dockerfile_path, port, health_check_path, health_check_interval, health_check_timeout, replicas, subdomain, custom_domain, domain_verified, status, created_at, updated_at, domains, memory_limit_mb, cpu_limit_millicores FROM apps
 WHERE project_id = $1
 ORDER BY created_at DESC
 `
@@ -207,6 +211,8 @@ func (q *Queries) ListAppsByProject(ctx context.Context, projectID uuid.UUID) ([
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Domains,
+			&i.MemoryLimitMb,
+			&i.CpuLimitMillicores,
 		); err != nil {
 			return nil, err
 		}
@@ -219,7 +225,7 @@ func (q *Queries) ListAppsByProject(ctx context.Context, projectID uuid.UUID) ([
 }
 
 const listAppsByRepo = `-- name: ListAppsByRepo :many
-SELECT a.id, a.project_id, a.name, a.slug, a.source_type, a.github_installation_id, a.repo_full_name, a.branch, a.root_path, a.auto_deploy, a.docker_image, a.registry_credential_id, a.builder, a.dockerfile_path, a.port, a.health_check_path, a.health_check_interval, a.health_check_timeout, a.replicas, a.subdomain, a.custom_domain, a.domain_verified, a.status, a.created_at, a.updated_at, a.domains, p.team_id
+SELECT a.id, a.project_id, a.name, a.slug, a.source_type, a.github_installation_id, a.repo_full_name, a.branch, a.root_path, a.auto_deploy, a.docker_image, a.registry_credential_id, a.builder, a.dockerfile_path, a.port, a.health_check_path, a.health_check_interval, a.health_check_timeout, a.replicas, a.subdomain, a.custom_domain, a.domain_verified, a.status, a.created_at, a.updated_at, a.domains, a.memory_limit_mb, a.cpu_limit_millicores, p.team_id
 FROM apps a
 JOIN projects p ON p.id = a.project_id
 WHERE a.repo_full_name = $1 AND a.auto_deploy = true
@@ -252,6 +258,8 @@ type ListAppsByRepoRow struct {
 	CreatedAt            time.Time   `json:"created_at"`
 	UpdatedAt            time.Time   `json:"updated_at"`
 	Domains              []string    `json:"domains"`
+	MemoryLimitMb        int32       `json:"memory_limit_mb"`
+	CpuLimitMillicores   int32       `json:"cpu_limit_millicores"`
 	TeamID               uuid.UUID   `json:"team_id"`
 }
 
@@ -291,6 +299,8 @@ func (q *Queries) ListAppsByRepo(ctx context.Context, repoFullName *string) ([]L
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Domains,
+			&i.MemoryLimitMb,
+			&i.CpuLimitMillicores,
 			&i.TeamID,
 		); err != nil {
 			return nil, err
@@ -340,7 +350,7 @@ SET name = $2, branch = $3, root_path = $4, auto_deploy = $5,
     subdomain = $13, custom_domain = $14,
     status = $15, updated_at = now()
 WHERE id = $1
-RETURNING id, project_id, name, slug, source_type, github_installation_id, repo_full_name, branch, root_path, auto_deploy, docker_image, registry_credential_id, builder, dockerfile_path, port, health_check_path, health_check_interval, health_check_timeout, replicas, subdomain, custom_domain, domain_verified, status, created_at, updated_at, domains
+RETURNING id, project_id, name, slug, source_type, github_installation_id, repo_full_name, branch, root_path, auto_deploy, docker_image, registry_credential_id, builder, dockerfile_path, port, health_check_path, health_check_interval, health_check_timeout, replicas, subdomain, custom_domain, domain_verified, status, created_at, updated_at, domains, memory_limit_mb, cpu_limit_millicores
 `
 
 type UpdateAppParams struct {
@@ -407,6 +417,57 @@ func (q *Queries) UpdateApp(ctx context.Context, arg UpdateAppParams) (App, erro
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Domains,
+		&i.MemoryLimitMb,
+		&i.CpuLimitMillicores,
+	)
+	return i, err
+}
+
+const updateAppResources = `-- name: UpdateAppResources :one
+UPDATE apps
+SET memory_limit_mb = $2, cpu_limit_millicores = $3, updated_at = now()
+WHERE id = $1
+RETURNING id, project_id, name, slug, source_type, github_installation_id, repo_full_name, branch, root_path, auto_deploy, docker_image, registry_credential_id, builder, dockerfile_path, port, health_check_path, health_check_interval, health_check_timeout, replicas, subdomain, custom_domain, domain_verified, status, created_at, updated_at, domains, memory_limit_mb, cpu_limit_millicores
+`
+
+type UpdateAppResourcesParams struct {
+	ID                 uuid.UUID `json:"id"`
+	MemoryLimitMb      int32     `json:"memory_limit_mb"`
+	CpuLimitMillicores int32     `json:"cpu_limit_millicores"`
+}
+
+func (q *Queries) UpdateAppResources(ctx context.Context, arg UpdateAppResourcesParams) (App, error) {
+	row := q.db.QueryRow(ctx, updateAppResources, arg.ID, arg.MemoryLimitMb, arg.CpuLimitMillicores)
+	var i App
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Name,
+		&i.Slug,
+		&i.SourceType,
+		&i.GithubInstallationID,
+		&i.RepoFullName,
+		&i.Branch,
+		&i.RootPath,
+		&i.AutoDeploy,
+		&i.DockerImage,
+		&i.RegistryCredentialID,
+		&i.Builder,
+		&i.DockerfilePath,
+		&i.Port,
+		&i.HealthCheckPath,
+		&i.HealthCheckInterval,
+		&i.HealthCheckTimeout,
+		&i.Replicas,
+		&i.Subdomain,
+		&i.CustomDomain,
+		&i.DomainVerified,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Domains,
+		&i.MemoryLimitMb,
+		&i.CpuLimitMillicores,
 	)
 	return i, err
 }

@@ -327,6 +327,7 @@ function ServerDetailPage() {
           <TabsTrigger value="terminal">Terminal</TabsTrigger>
           <TabsTrigger value="provisioning">Provisioning</TabsTrigger>
           <TabsTrigger value="tags">Tags</TabsTrigger>
+          <TabsTrigger value="server-logs">Server Logs</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -656,7 +657,74 @@ function ServerDetailPage() {
             </div>
           )}
         </TabsContent>
+
+        {/* Server Logs Tab */}
+        <TabsContent value="server-logs" className="mt-4 space-y-4">
+          <ServerLogsPanel teamId={teamId} serverId={serverId} />
+        </TabsContent>
       </Tabs>
+    </div>
+  )
+}
+
+function ServerLogsPanel({ teamId, serverId }: { teamId: string; serverId: string }) {
+  const [unit, setUnit] = useState('')
+  const [lines, setLines] = useState<string[]>([])
+  const [connected, setConnected] = useState(false)
+  const endRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setLines([])
+    setConnected(false)
+
+    const params = new URLSearchParams({ tail: '200', follow: 'true' })
+    if (unit) params.set('unit', unit)
+
+    const url = `/api/v1/teams/${teamId}/servers/${serverId}/logs?${params}`
+    const es = new EventSource(url, { withCredentials: true })
+
+    es.onopen = () => setConnected(true)
+    es.onmessage = (e) => {
+      setLines((prev) => [...prev, e.data])
+    }
+    es.addEventListener('done', () => {
+      setConnected(false)
+      es.close()
+    })
+    es.onerror = () => {
+      setConnected(false)
+      es.close()
+    }
+
+    return () => { es.close() }
+  }, [teamId, serverId, unit])
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [lines])
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3">
+        <Label className="text-sm">Unit Filter</Label>
+        <select className="border rounded-md px-2 py-1 text-sm bg-background" value={unit} onChange={(e) => setUnit(e.target.value)}>
+          <option value="">All</option>
+          <option value="docker">Docker</option>
+          <option value="nixway-agent">Nixway Agent</option>
+          <option value="sshd">SSH</option>
+        </select>
+        {connected && <Badge variant="default" className="bg-green-500 hover:bg-green-500 text-xs">Live</Badge>}
+      </div>
+      <div className="bg-black rounded-lg p-4 font-mono text-xs max-h-[500px] overflow-y-auto">
+        {lines.length === 0 ? (
+          <span className="text-muted-foreground">Waiting for logs...</span>
+        ) : (
+          lines.map((line, i) => (
+            <div key={i} className="text-gray-300 py-0.5 whitespace-pre-wrap break-all">{line}</div>
+          ))
+        )}
+        <div ref={endRef} />
+      </div>
     </div>
   )
 }

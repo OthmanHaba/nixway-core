@@ -46,3 +46,9 @@ UPDATE apps SET domains = $2, updated_at = now() WHERE id = $1;
 
 -- name: GetAppDomains :one
 SELECT id, domains FROM apps WHERE id = $1;
+
+-- name: UpdateAppResources :one
+UPDATE apps
+SET memory_limit_mb = $2, cpu_limit_millicores = $3, updated_at = now()
+WHERE id = $1
+RETURNING *;

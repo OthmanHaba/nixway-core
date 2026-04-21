@@ -166,6 +166,35 @@ func receiveLoop(
 			)
 			go HandleContainerLogsCommand(ctx, p.ContainerLogs, stream, logger)
 
+		case *agentv1.ControlMessage_ContainerExec:
+			logger.Info("container exec command received",
+				"session_id", p.ContainerExec.SessionId,
+				"container", p.ContainerExec.ContainerName,
+			)
+			go HandleContainerExecCommand(ctx, p.ContainerExec, stream, logger)
+
+		case *agentv1.ControlMessage_ContainerExecInput:
+			RouteExecInput(p.ContainerExecInput, logger)
+
+		case *agentv1.ControlMessage_RestartContainer:
+			logger.Info("restart container command received",
+				"container", p.RestartContainer.ContainerName,
+			)
+			go HandleRestartContainerCommand(ctx, p.RestartContainer, stream, logger)
+
+		case *agentv1.ControlMessage_ContainerInspect:
+			logger.Info("container inspect command received",
+				"container", p.ContainerInspect.ContainerName,
+			)
+			go HandleContainerInspectCommand(ctx, p.ContainerInspect, stream, logger)
+
+		case *agentv1.ControlMessage_ServerLogs:
+			logger.Info("server logs command received",
+				"unit", p.ServerLogs.Unit,
+				"follow", p.ServerLogs.Follow,
+			)
+			go HandleServerLogsCommand(ctx, p.ServerLogs, stream, logger)
+
 		default:
 			logger.Warn("unknown control message payload")
 		}

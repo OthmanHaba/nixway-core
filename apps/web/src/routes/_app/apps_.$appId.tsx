@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '@/lib/api'
-import type { App, Build, Deployment, DeploymentTarget } from '@/lib/types'
+import type { App, Build, Deployment, DeploymentTarget, ContainerReplica, ContainerInspect, ContainerLogEntry } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { Loader2, GitBranch, Box, Hammer, Activity, RotateCcw, Play, ChevronRight } from 'lucide-react'
+import { Loader2, GitBranch, Box, Hammer, Activity, RotateCcw, Play, ChevronRight, Terminal, Search, RefreshCw, Square, Cpu, MemoryStick } from 'lucide-react'
 
 export const Route = createFileRoute('/_app/apps_/$appId')({
   component: AppDetailPage,
@@ -367,6 +367,310 @@ function ContainerLogsPanel({ appId }: { appId: string }) {
   )
 }
 
+// --- Container Inspect Panel ---
+
+function InspectPanel({ appId }: { appId: string }) {
+  const { data: replicas = [] } = useQuery({
+    queryKey: ['apps', appId, 'replicas'],
+    queryFn: () => api.get<ContainerReplica[]>(`/apps/${appId}/replicas`),
+  })
+
+  const [selectedContainer, setSelectedContainer] = useState('')
+  const [inspectData, setInspectData] = useState<ContainerInspect | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  // Build container name from latest deployment
+  const { data: deploys = [] } = useQuery({
+    queryKey: ['apps', appId, 'deployments', 'for-inspect'],
+    queryFn: () => api.get<Deployment[]>(`/apps/${appId}/deployments?limit=1`),
+  })
+
+  const { data: app } = useQuery({
+    queryKey: ['apps', appId],
+    queryFn: () => api.get<App>(`/apps/${appId}`),
+  })
+
+  const containerName = selectedContainer || (deploys.length > 0 && app
+    ? `nixway-${app.slug}-${deploys[0].id.slice(0, 8)}`
+    : '')
+
+  const fetchInspect = async () => {
+    if (!containerName) return
+    setLoading(true)
+    try {
+      const data = await api.get<ContainerInspect>(`/apps/${appId}/containers/${containerName}/inspect`)
+      setInspectData(data)
+    } catch {
+      setInspectData(null)
+    }
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    if (containerName) fetchInspect()
+  }, [containerName])
+
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return 'No limit'
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">Container: {containerName || 'None'}</span>
+        <Button size="sm" variant="outline" onClick={fetchInspect} disabled={loading || !containerName}>
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+        </Button>
+      </div>
+
+      {inspectData ? (
+        <div className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle className="text-sm">Status</CardTitle></CardHeader>
+            <CardContent>
+              <dl className="grid grid-cols-2 gap-2 text-sm">
+                <dt className="text-muted-foreground">Status</dt>
+                <dd><Badge variant={inspectData.status === 'running' ? 'default' : 'secondary'} className={inspectData.status === 'running' ? 'bg-green-500 hover:bg-green-500' : ''}>{inspectData.status}</Badge></dd>
+                <dt className="text-muted-foreground">Image</dt><dd className="font-mono text-xs">{inspectData.image}</dd>
+                <dt className="text-muted-foreground">PID</dt><dd>{inspectData.pid}</dd>
+                <dt className="text-muted-foreground">Restart Count</dt><dd>{inspectData.restart_count}</dd>
+                <dt className="text-muted-foreground">Network IP</dt><dd className="font-mono text-xs">{inspectData.network_ip}</dd>
+                <dt className="text-muted-foreground">Ports</dt><dd className="font-mono text-xs">{inspectData.ports?.join(', ') || 'none'}</dd>
+              </dl>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-sm">Resources</CardTitle></CardHeader>
+            <CardContent>
+              <dl className="grid grid-cols-2 gap-2 text-sm">
+                <dt className="text-muted-foreground">Memory Usage</dt><dd>{formatBytes(inspectData.memory_usage)}</dd>
+                <dt className="text-muted-foreground">Memory Limit</dt><dd>{formatBytes(inspectData.memory_limit)}</dd>
+                <dt className="text-muted-foreground">CPU</dt><dd>{inspectData.cpu_percent.toFixed(1)}%</dd>
+              </dl>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-sm">Environment Variables</CardTitle></CardHeader>
+            <CardContent>
+              <div className="space-y-1 max-h-64 overflow-y-auto">
+                {Object.entries(inspectData.env || {}).map(([k, v]) => (
+                  <div key={k} className="flex gap-2 text-xs font-mono">
+                    <span className="text-muted-foreground min-w-0 shrink-0">{k}=</span>
+                    <span className={v.startsWith('SECRET_REF:') ? 'text-yellow-500' : 'text-foreground'}>{v}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground text-center py-8">
+          {loading ? 'Loading...' : 'No container to inspect. Deploy the app first.'}
+        </p>
+      )}
+    </div>
+  )
+}
+
+// --- Resource Limits Panel ---
+
+function ResourceLimitsPanel({ app, appId }: { app: App; appId: string }) {
+  const queryClient = useQueryClient()
+  const [memoryMb, setMemoryMb] = useState(String(app.memory_limit_mb || 0))
+  const [cpuMillicores, setCpuMillicores] = useState(String(app.cpu_limit_millicores || 0))
+
+  const updateResources = useMutation({
+    mutationFn: (data: { memory_limit_mb: number; cpu_limit_millicores: number }) =>
+      api.put(`/apps/${appId}/resources`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['apps', appId] })
+    },
+  })
+
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-sm">Resource Limits</CardTitle></CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-xs text-muted-foreground">
+          Set memory and CPU limits for containers. 0 means no limit.
+          Changing limits will take effect on the next deployment.
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label className="flex items-center gap-1.5"><MemoryStick className="h-3.5 w-3.5" /> Memory (MB)</Label>
+            <Input type="number" value={memoryMb} onChange={(e) => setMemoryMb(e.target.value)} placeholder="0 = no limit" />
+          </div>
+          <div>
+            <Label className="flex items-center gap-1.5"><Cpu className="h-3.5 w-3.5" /> CPU (millicores)</Label>
+            <Input type="number" value={cpuMillicores} onChange={(e) => setCpuMillicores(e.target.value)} placeholder="0 = no limit" />
+            <p className="text-xs text-muted-foreground mt-1">1000 = 1 CPU core</p>
+          </div>
+        </div>
+        <Button
+          size="sm"
+          onClick={() => updateResources.mutate({
+            memory_limit_mb: parseInt(memoryMb, 10) || 0,
+            cpu_limit_millicores: parseInt(cpuMillicores, 10) || 0,
+          })}
+          disabled={updateResources.isPending}
+        >
+          {updateResources.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Save Resource Limits
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+// --- Log Search Panel ---
+
+function LogSearchPanel({ appId }: { appId: string }) {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<ContainerLogEntry[]>([])
+  const [searching, setSearching] = useState(false)
+
+  const handleSearch = async () => {
+    if (!query.trim()) return
+    setSearching(true)
+    try {
+      const data = await api.get<ContainerLogEntry[]>(
+        `/apps/${appId}/logs/search?q=${encodeURIComponent(query)}&limit=200`
+      )
+      setResults(data)
+    } catch {
+      setResults([])
+    }
+    setSearching(false)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search logs (full-text)..."
+          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+        />
+        <Button size="sm" onClick={handleSearch} disabled={searching || !query.trim()}>
+          {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+        </Button>
+      </div>
+
+      {results.length > 0 ? (
+        <div className="bg-black rounded-lg p-4 font-mono text-xs max-h-96 overflow-y-auto">
+          {results.map((entry) => (
+            <div key={entry.id} className="text-gray-300 py-0.5 whitespace-pre-wrap break-all">
+              <span className="text-gray-500">{new Date(entry.logged_at).toLocaleTimeString()}</span>
+              {' '}
+              <span className="text-blue-400">[{entry.container_name}]</span>
+              {' '}
+              {entry.line}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground text-center py-4">
+          {searching ? 'Searching...' : 'Search historical container logs (last 7 days).'}
+        </p>
+      )}
+    </div>
+  )
+}
+
+// --- Lifecycle Controls ---
+
+function LifecycleControls({ appId }: { appId: string }) {
+  const queryClient = useQueryClient()
+  const { data: replicas = [], isLoading } = useQuery({
+    queryKey: ['apps', appId, 'replicas'],
+    queryFn: () => api.get<ContainerReplica[]>(`/apps/${appId}/replicas`),
+    refetchInterval: 10_000,
+  })
+
+  const { data: deploys = [] } = useQuery({
+    queryKey: ['apps', appId, 'deployments', 'for-lifecycle'],
+    queryFn: () => api.get<Deployment[]>(`/apps/${appId}/deployments?limit=1`),
+  })
+
+  const { data: app } = useQuery({
+    queryKey: ['apps', appId],
+    queryFn: () => api.get<App>(`/apps/${appId}`),
+  })
+
+  const restart = useMutation({
+    mutationFn: (containerName: string) =>
+      api.post(`/apps/${appId}/containers/${containerName}/restart`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['apps', appId, 'replicas'] })
+    },
+  })
+
+  const stop = useMutation({
+    mutationFn: (containerName: string) =>
+      api.post(`/apps/${appId}/containers/${containerName}/stop`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['apps', appId, 'replicas'] })
+    },
+  })
+
+  const containerName = deploys.length > 0 && app
+    ? `nixway-${app.slug}-${deploys[0].id.slice(0, 8)}`
+    : ''
+
+  if (isLoading) return <Loader2 className="h-5 w-5 animate-spin" />
+
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-sm">Active Replicas</CardTitle></CardHeader>
+      <CardContent>
+        {replicas.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No active replicas.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Server</TableHead>
+                <TableHead>Container</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {replicas.map((r, i) => (
+                <TableRow key={i}>
+                  <TableCell className="text-sm">{r.server_name}</TableCell>
+                  <TableCell><code className="text-xs font-mono">{r.container_id?.slice(0, 12) || containerName}</code></TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline"
+                        onClick={() => restart.mutate(containerName)}
+                        disabled={restart.isPending}
+                      >
+                        <RefreshCw className="h-3.5 w-3.5 mr-1" /> Restart
+                      </Button>
+                      <Button size="sm" variant="destructive"
+                        onClick={() => { if (confirm('Stop this container?')) stop.mutate(containerName) }}
+                        disabled={stop.isPending}
+                      >
+                        <Square className="h-3.5 w-3.5 mr-1" /> Stop
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 function DomainsCard({ app, appId }: { app: App; appId: string }) {
   const queryClient = useQueryClient()
   const [customDomain, setCustomDomain] = useState(app.custom_domain || '')
@@ -654,6 +958,8 @@ function AppDetailPage() {
           <TabsTrigger value="builds">Builds ({builds.length})</TabsTrigger>
           <TabsTrigger value="deployments">Deployments ({deployments.length})</TabsTrigger>
           <TabsTrigger value="logs">Logs</TabsTrigger>
+          <TabsTrigger value="inspect">Inspect</TabsTrigger>
+          <TabsTrigger value="resources">Resources</TabsTrigger>
         </TabsList>
 
         {/* Overview */}
@@ -848,8 +1154,20 @@ function AppDetailPage() {
         </TabsContent>
 
         {/* Container Logs */}
-        <TabsContent value="logs" className="mt-4">
+        <TabsContent value="logs" className="mt-4 space-y-6">
           <ContainerLogsPanel appId={appId} />
+          <LogSearchPanel appId={appId} />
+        </TabsContent>
+
+        {/* Inspect */}
+        <TabsContent value="inspect" className="mt-4 space-y-4">
+          <LifecycleControls appId={appId} />
+          <InspectPanel appId={appId} />
+        </TabsContent>
+
+        {/* Resources */}
+        <TabsContent value="resources" className="mt-4">
+          <ResourceLimitsPanel app={app} appId={appId} />
         </TabsContent>
       </Tabs>
 

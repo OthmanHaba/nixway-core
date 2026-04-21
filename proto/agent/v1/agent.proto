@@ -43,6 +43,10 @@ message AgentMessage {
     StopContainerResult stop_container_result = 15;
     ImagePullResult image_pull_result = 16;
     ContainerLogsOutput container_logs_output = 17;
+    ContainerExecOutput container_exec_output = 18;
+    RestartContainerResult restart_container_result = 19;
+    ContainerInspectResult container_inspect_result = 20;
+    ServerLogsOutput server_logs_output = 21;
   }
 }
 
@@ -62,6 +66,11 @@ message ControlMessage {
     StopContainerCommand stop_container = 12;
     ImagePullCommand image_pull = 13;
     ContainerLogsCommand container_logs = 14;
+    ContainerExecCommand container_exec = 15;
+    ContainerExecInput container_exec_input = 16;
+    RestartContainerCommand restart_container = 17;
+    ContainerInspectCommand container_inspect = 18;
+    ServerLogsCommand server_logs = 19;
   }
 }
 
@@ -274,6 +283,8 @@ message DeployCommand {
   int32 health_check_interval_seconds = 8;
   int32 health_check_timeout_seconds = 9;
   TraefikConfig traefik = 10;
+  int32 memory_limit_mb = 11;
+  int32 cpu_limit_millicores = 12;
 }
 
 message TraefikConfig {
@@ -336,4 +347,86 @@ message ImagePullResult {
   string transfer_id = 1;
   bool success = 2;
   string error = 3;
+}
+
+// --- Container Exec (Terminal) ---
+
+message ContainerExecCommand {
+  string session_id = 1;
+  string container_name = 2;
+  string command = 3;        // default "/bin/sh"
+  int32 cols = 4;
+  int32 rows = 5;
+}
+
+message ContainerExecInput {
+  string session_id = 1;
+  bytes data = 2;            // stdin bytes
+  int32 cols = 3;            // resize (0 = no resize)
+  int32 rows = 4;
+  bool close = 5;            // client closing session
+}
+
+message ContainerExecOutput {
+  string session_id = 1;
+  bytes data = 2;            // stdout/stderr bytes
+  bool finished = 3;
+  int32 exit_code = 4;
+  string error = 5;
+}
+
+// --- Container Restart ---
+
+message RestartContainerCommand {
+  string container_name = 1;
+  int32 timeout_seconds = 2;
+}
+
+message RestartContainerResult {
+  string container_name = 1;
+  bool success = 2;
+  string error = 3;
+}
+
+// --- Container Inspect ---
+
+message ContainerInspectCommand {
+  string request_id = 1;
+  string container_name = 2;
+}
+
+message ContainerInspectResult {
+  string request_id = 1;
+  string container_name = 2;
+  string status = 3;
+  string image = 4;
+  string created_at = 5;
+  string started_at = 6;
+  int64 memory_limit = 7;     // bytes
+  int64 memory_usage = 8;     // bytes
+  double cpu_percent = 9;
+  int64 pid = 10;
+  map<string, string> env = 11;
+  map<string, string> labels = 12;
+  repeated string ports = 13;
+  string network_ip = 14;
+  int64 restart_count = 15;
+  bool success = 16;
+  string error = 17;
+}
+
+// --- Server Syslog / Journald ---
+
+message ServerLogsCommand {
+  string request_id = 1;
+  string unit = 2;           // systemd unit (empty = all)
+  int32 tail = 3;
+  bool follow = 4;
+}
+
+message ServerLogsOutput {
+  string request_id = 1;
+  bytes output = 2;
+  bool finished = 3;
+  string error = 4;
 }

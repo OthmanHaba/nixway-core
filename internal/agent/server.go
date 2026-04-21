@@ -294,6 +294,45 @@ func (s *Server) Connect(stream agentv1.AgentService_ConnectServer) error {
 				}
 			}
 
+		case *agentv1.AgentMessage_ContainerExecOutput:
+			eo := p.ContainerExecOutput
+			if s.redis != nil {
+				channel := "exec:" + eo.SessionId
+				if len(eo.Data) > 0 {
+					s.redis.Publish(stream.Context(), channel, string(eo.Data))
+				}
+				if eo.Finished {
+					s.redis.Publish(stream.Context(), channel, "__done__")
+				}
+			}
+
+		case *agentv1.AgentMessage_RestartContainerResult:
+			r := p.RestartContainerResult
+			s.logger.Info("restart container result",
+				"agent_id", agentID,
+				"container", r.ContainerName,
+				"success", r.Success,
+			)
+
+		case *agentv1.AgentMessage_ContainerInspectResult:
+			ir := p.ContainerInspectResult
+			if s.redis != nil {
+				data, _ := json.Marshal(ir)
+				s.redis.Publish(stream.Context(), "inspect:"+ir.RequestId, string(data))
+			}
+
+		case *agentv1.AgentMessage_ServerLogsOutput:
+			slo := p.ServerLogsOutput
+			if s.redis != nil {
+				channel := "server-logs:" + slo.RequestId
+				if len(slo.Output) > 0 {
+					s.redis.Publish(stream.Context(), channel, string(slo.Output))
+				}
+				if slo.Finished {
+					s.redis.Publish(stream.Context(), channel, "__done__")
+				}
+			}
+
 		default:
 			s.logger.Warn("unknown agent message payload type")
 		}

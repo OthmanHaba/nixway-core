@@ -380,6 +380,43 @@ func (h *AppHandler) SetDomain(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, a)
 }
 
+// UpdateResources handles PUT /api/v1/apps/{appId}/resources
+func (h *AppHandler) UpdateResources(w http.ResponseWriter, r *http.Request) {
+	authCtx := middleware.GetAuthContext(r)
+	if authCtx == nil {
+		respond.Error(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	appID, err := uuid.Parse(r.PathValue("appId"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid app ID")
+		return
+	}
+
+	var req struct {
+		MemoryLimitMb      int32 `json:"memory_limit_mb"`
+		CpuLimitMillicores int32 `json:"cpu_limit_millicores"`
+	}
+	if err := respond.DecodeJSON(r, &req); err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	updated, err := h.queries.UpdateAppResources(r.Context(), db.UpdateAppResourcesParams{
+		ID:                 appID,
+		MemoryLimitMb:      req.MemoryLimitMb,
+		CpuLimitMillicores: req.CpuLimitMillicores,
+	})
+	if err != nil {
+		h.logger.Error("failed to update resources", "error", err)
+		respond.Error(w, http.StatusInternalServerError, "failed to update resources")
+		return
+	}
+
+	respond.JSON(w, http.StatusOK, updated)
+}
+
 // VerifyDomain handles POST /api/v1/apps/{appId}/domain/verify
 func (h *AppHandler) VerifyDomain(w http.ResponseWriter, r *http.Request) {
 	authCtx := middleware.GetAuthContext(r)

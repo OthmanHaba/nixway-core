@@ -285,6 +285,8 @@ export interface App {
   subdomain: string | null
   custom_domain: string | null
   domain_verified: boolean
+  memory_limit_mb: number
+  cpu_limit_millicores: number
   status: string
   created_at: string
   updated_at: string
@@ -342,4 +344,56 @@ export interface DeploymentTarget {
   error: string | null
   server_name?: string
   public_ip?: string
+}
+
+export interface ContainerReplica {
+  container_id: string | null
+  server_id: string
+  server_name: string
+  agent_id: string | null
+}
+
+export interface ContainerInspect {
+  request_id: string
+  container_name: string
+  status: string
+  image: string
+  created_at: string
+  started_at: string
+  memory_limit: number
+  memory_usage: number
+  cpu_percent: number
+  pid: number
+  env: Record<string, string>
+  labels: Record<string, string>
+  ports: string[]
+  network_ip: string
+  restart_count: number
+  success: boolean
+  error: string
+}
+
+export interface ContainerLogEntry {
+  id: number
+  app_id: string
+  server_id: string
+  container_name: string
+  replica_index: number
+  line: string
+  stream: string
+  logged_at: string
+}
+
+export interface TerminalSession {
+  id: string
+  team_id: string
+  user_id: string
+  app_id: string | null
+  server_id: string
+  container_name: string | null
+  replica_index: number | null
+  session_type: 'ssh' | 'container_exec'
+  started_at: string
+  ended_at: string | null
+  duration_seconds: number | null
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/build"
 	"github.com/othmanhaba/nixway-core/internal/cluster"
 	"github.com/othmanhaba/nixway-core/internal/config"
+	"github.com/othmanhaba/nixway-core/internal/containerlog"
 	"github.com/othmanhaba/nixway-core/internal/deploy"
 	githubsvc "github.com/othmanhaba/nixway-core/internal/github"
 	"github.com/othmanhaba/nixway-core/internal/mesh"
@@ -48,6 +49,7 @@ func NewRouter(
 	appSvc *app.Service,
 	buildSvc *build.Service,
 	deploySvc *deploy.Service,
+	containerLogSvc *containerlog.Service,
 ) http.Handler {
 	authH := handler.NewAuthHandler(queries, sessions, emailSender, auditWriter, cfg, logger)
 	teamH := handler.NewTeamHandler(queries, emailSender, auditWriter, cfg, logger)
@@ -68,7 +70,8 @@ func NewRouter(
 	projectH := handler.NewProjectHandler(queries, auditWriter, projectSvc, logger)
 	appH := handler.NewAppHandler(queries, auditWriter, appSvc, logger)
 	buildH := handler.NewBuildHandler(queries, buildSvc, redisClient, logger)
-	deployH := handler.NewDeployHandler(queries, deploySvc, connMgr, redisClient, logger)
+	deployH := handler.NewDeployHandler(queries, deploySvc, connMgr, redisClient, containerLogSvc, logger)
+	containerTermH := handler.NewContainerTerminalHandler(queries, connMgr, redisClient, logger)
 
 	mux := http.NewServeMux()
 
@@ -226,6 +229,25 @@ func NewRouter(
 	protected.HandleFunc("POST /api/v1/apps/{appId}/rollback", deployH.Rollback)
 	protected.HandleFunc("GET /api/v1/apps/{appId}/logs", deployH.ContainerLogs)
 	protected.HandleFunc("POST /api/v1/apps/{appId}/cleanup", deployH.CleanupDeployments)
+
+	// Container lifecycle + inspect
+	protected.HandleFunc("GET /api/v1/apps/{appId}/replicas", deployH.ListReplicas)
+	protected.HandleFunc("POST /api/v1/apps/{appId}/containers/{containerName}/restart", deployH.RestartContainer)
+	protected.HandleFunc("POST /api/v1/apps/{appId}/containers/{containerName}/stop", deployH.StopContainer)
+	protected.HandleFunc("GET /api/v1/apps/{appId}/containers/{containerName}/inspect", deployH.InspectContainer)
+
+	// Historical logs + search
+	protected.HandleFunc("GET /api/v1/apps/{appId}/logs/search", deployH.SearchLogs)
+	protected.HandleFunc("GET /api/v1/apps/{appId}/logs/history", deployH.HistoricalLogs)
+
+	// Resource limits
+	protected.HandleFunc("PUT /api/v1/apps/{appId}/resources", appH.UpdateResources)
+
+	// Container terminal (WebSocket)
+	protected.HandleFunc("GET /api/v1/apps/{appId}/terminal", containerTermH.Connect)
+
+	// Server logs (SSE)
+	protected.HandleFunc("GET /api/v1/teams/{id}/servers/{serverId}/logs", deployH.ServerLogs)
 
 	// Discovery
 	protected.HandleFunc("POST /api/v1/discover", discoverH.Discover)

@@ -53,6 +53,8 @@ type App struct {
 	CreatedAt            time.Time   `json:"created_at"`
 	UpdatedAt            time.Time   `json:"updated_at"`
 	Domains              []string    `json:"domains"`
+	MemoryLimitMb        int32       `json:"memory_limit_mb"`
+	CpuLimitMillicores   int32       `json:"cpu_limit_millicores"`
 }
 
 type AuditLog struct {
@@ -109,6 +111,19 @@ type ClusterMember struct {
 	WireguardEndpoint  string     `json:"wireguard_endpoint"`
 	ListenPort         int32      `json:"listen_port"`
 	JoinedAt           time.Time  `json:"joined_at"`
+}
+
+type ContainerLog struct {
+	ID            int64       `json:"id"`
+	AppID         uuid.UUID   `json:"app_id"`
+	DeploymentID  pgtype.UUID `json:"deployment_id"`
+	ServerID      uuid.UUID   `json:"server_id"`
+	ContainerName string      `json:"container_name"`
+	ReplicaIndex  int32       `json:"replica_index"`
+	Line          string      `json:"line"`
+	Stream        string      `json:"stream"`
+	LoggedAt      time.Time   `json:"logged_at"`
+	IngestedAt    time.Time   `json:"ingested_at"`
 }
 
 type Deployment struct {
@@ -344,6 +359,21 @@ type TeamMembership struct {
 	UserID    uuid.UUID `json:"user_id"`
 	Role      string    `json:"role"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type TerminalSession struct {
+	ID              uuid.UUID          `json:"id"`
+	TeamID          uuid.UUID          `json:"team_id"`
+	UserID          uuid.UUID          `json:"user_id"`
+	AppID           pgtype.UUID        `json:"app_id"`
+	ServerID        uuid.UUID          `json:"server_id"`
+	ContainerName   *string            `json:"container_name"`
+	ReplicaIndex    *int32             `json:"replica_index"`
+	SessionType     string             `json:"session_type"`
+	StartedAt       time.Time          `json:"started_at"`
+	EndedAt         pgtype.Timestamptz `json:"ended_at"`
+	DurationSeconds *int32             `json:"duration_seconds"`
+	ClientIp        *netip.Addr        `json:"client_ip"`
 }
 
 type User struct {

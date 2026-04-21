@@ -24,6 +24,7 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/build"
 	"github.com/othmanhaba/nixway-core/internal/cluster"
 	"github.com/othmanhaba/nixway-core/internal/config"
+	"github.com/othmanhaba/nixway-core/internal/containerlog"
 	"github.com/othmanhaba/nixway-core/internal/deploy"
 	githubsvc "github.com/othmanhaba/nixway-core/internal/github"
 	"github.com/othmanhaba/nixway-core/internal/mesh"
@@ -216,7 +217,8 @@ func SetupTestEnv(t *testing.T) *TestEnv {
 
 	// --- Create API router and test server ---
 	// Use TLS server so that Secure cookies are preserved by the cookie jar.
-	router := api.NewRouter(queries, sessionMgr, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc, provisionSvc, clusterSvc, connMgr, meshMgr, githubService, secretSvc, projectSvc, appService, buildSvc, deploySvc)
+	containerLogSvc := containerlog.NewService(queries, logger)
+	router := api.NewRouter(queries, sessionMgr, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc, provisionSvc, clusterSvc, connMgr, meshMgr, githubService, secretSvc, projectSvc, appService, buildSvc, deploySvc, containerLogSvc)
 	ts := httptest.NewTLSServer(router)
 	t.Cleanup(func() {
 		ts.Close()

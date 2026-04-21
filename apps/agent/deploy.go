@@ -79,6 +79,15 @@ func HandleDeployCommand(ctx context.Context, cmd *agentv1.DeployCommand, stream
 	// Always set PORT env var
 	args = append(args, "-e", fmt.Sprintf("PORT=%d", cmd.Port))
 
+	// Resource limits
+	if cmd.MemoryLimitMb > 0 {
+		args = append(args, "--memory", fmt.Sprintf("%dm", cmd.MemoryLimitMb))
+	}
+	if cmd.CpuLimitMillicores > 0 {
+		cpus := float64(cmd.CpuLimitMillicores) / 1000.0
+		args = append(args, "--cpus", fmt.Sprintf("%.2f", cpus))
+	}
+
 	args = append(args, cmd.ImageTag)
 
 	out, err := exec.CommandContext(ctx, "docker", args...).CombinedOutput()

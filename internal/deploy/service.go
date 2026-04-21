@@ -231,6 +231,8 @@ func (s *Service) dispatchDeploy(ctx context.Context, deployment db.Deployment, 
 			Tls:     false,
 			Port:    app.Port,
 		},
+		MemoryLimitMb:      app.MemoryLimitMb,
+		CpuLimitMillicores: app.CpuLimitMillicores,
 	}
 
 	// Publish log

@@ -21,6 +21,7 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/email"
 	appsvc "github.com/othmanhaba/nixway-core/internal/app"
 	"github.com/othmanhaba/nixway-core/internal/build"
+	"github.com/othmanhaba/nixway-core/internal/containerlog"
 	"github.com/othmanhaba/nixway-core/internal/deploy"
 	githubsvc "github.com/othmanhaba/nixway-core/internal/github"
 	"github.com/othmanhaba/nixway-core/internal/mesh"
@@ -151,13 +152,15 @@ func main() {
 	appService := appsvc.NewService(queries, logger)
 	buildSvc := build.NewService(queries, redisClient, connMgr, githubService, masterKey, logger)
 	deploySvc := deploy.NewService(queries, redisClient, connMgr, secretSvc, logger)
+	containerLogSvc := containerlog.NewService(queries, logger)
+	containerLogSvc.StartRetentionLoop(ctx, 7)
 
 	// Wire deploy triggerer into agent server and build service (for auto-deploy after build)
 	agentSrv.SetDeployTriggerer(deploySvc)
 	buildSvc.SetDeployTriggerer(deploySvc)
 
 	// Router & Server
-	router := api.NewRouter(queries, sessions, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc, provisionSvc, clusterSvc, connMgr, meshMgr, githubService, secretSvc, projectSvc, appService, buildSvc, deploySvc)
+	router := api.NewRouter(queries, sessions, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc, provisionSvc, clusterSvc, connMgr, meshMgr, githubService, secretSvc, projectSvc, appService, buildSvc, deploySvc, containerLogSvc)
 	srv := api.NewServer(router, cfg.Server.Host, cfg.Server.Port, logger)
 
 	if err := srv.Start(); err != nil {
