@@ -378,6 +378,36 @@ export interface ScalingEvent {
   created_at: string
 }
 
+export interface AutoscalingRule {
+  id: string
+  app_id: string
+  name: string
+  metric_name: string
+  comparison: 'gt' | 'gte' | 'lt' | 'lte'
+  threshold: number
+  duration_seconds: number
+  action_type: 'scale_by' | 'scale_to'
+  action_value: number
+  min_replicas: number
+  max_replicas: number
+  cooldown_up_seconds: number
+  cooldown_down_seconds: number
+  enabled: boolean
+  last_triggered_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AutoscaleEvaluation {
+  rule_id: string
+  rule_name: string
+  metric_name: string
+  metric_value: number
+  triggered: boolean
+  message: string
+  event?: ScalingEvent
+}
+
 export interface ContainerInspect {
   request_id: string
   container_name: string

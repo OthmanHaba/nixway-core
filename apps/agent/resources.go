@@ -15,6 +15,8 @@ import (
 	agentv1 "github.com/othmanhaba/nixway-core/internal/agent/proto/agent/v1"
 )
 
+var lastCPUIdle, lastCPUTotal uint64
+
 func collectResources() *agentv1.ResourceReport {
 	report := &agentv1.ResourceReport{}
 
@@ -47,6 +49,62 @@ func collectResources() *agentv1.ResourceReport {
 	report.NetworkInterfaces = collectNetworkInterfaces()
 
 	return report
+}
+
+func collectHealth() *agentv1.HealthReport {
+	total, available, _ := readMemInfo()
+	return &agentv1.HealthReport{
+		CpuPercent:  readCPUPercent(),
+		MemoryTotal: total,
+		MemoryUsed:  total - available,
+		Disks:       collectDisks(),
+	}
+}
+
+func readCPUPercent() float64 {
+	idle, total, err := readCPUStat()
+	if err != nil {
+		return 0
+	}
+	if lastCPUTotal == 0 {
+		lastCPUIdle, lastCPUTotal = idle, total
+		return 0
+	}
+	idleDelta := idle - lastCPUIdle
+	totalDelta := total - lastCPUTotal
+	lastCPUIdle, lastCPUTotal = idle, total
+	if totalDelta == 0 {
+		return 0
+	}
+	return (1 - float64(idleDelta)/float64(totalDelta)) * 100
+}
+
+func readCPUStat() (idle, total uint64, err error) {
+	f, err := os.Open("/proc/stat")
+	if err != nil {
+		return 0, 0, err
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	if !scanner.Scan() {
+		return 0, 0, scanner.Err()
+	}
+	fields := strings.Fields(scanner.Text())
+	if len(fields) < 5 || fields[0] != "cpu" {
+		return 0, 0, fmt.Errorf("unexpected /proc/stat cpu line")
+	}
+	var values []uint64
+	for _, field := range fields[1:] {
+		var value uint64
+		fmt.Sscanf(field, "%d", &value)
+		values = append(values, value)
+		total += value
+	}
+	idle = values[3]
+	if len(values) > 4 {
+		idle += values[4]
+	}
+	return idle, total, nil
 }
 
 func readCPUModel() (string, error) {

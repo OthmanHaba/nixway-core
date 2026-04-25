@@ -12,17 +12,17 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/agent"
 	agentv1 "github.com/othmanhaba/nixway-core/internal/agent/proto/agent/v1"
 	"github.com/othmanhaba/nixway-core/internal/api"
+	appsvc "github.com/othmanhaba/nixway-core/internal/app"
 	"github.com/othmanhaba/nixway-core/internal/audit"
 	"github.com/othmanhaba/nixway-core/internal/auth"
+	"github.com/othmanhaba/nixway-core/internal/build"
+	"github.com/othmanhaba/nixway-core/internal/cluster"
 	"github.com/othmanhaba/nixway-core/internal/config"
+	"github.com/othmanhaba/nixway-core/internal/containerlog"
 	"github.com/othmanhaba/nixway-core/internal/crypto"
 	"github.com/othmanhaba/nixway-core/internal/db"
-	"github.com/othmanhaba/nixway-core/internal/cluster"
-	"github.com/othmanhaba/nixway-core/internal/email"
-	appsvc "github.com/othmanhaba/nixway-core/internal/app"
-	"github.com/othmanhaba/nixway-core/internal/build"
-	"github.com/othmanhaba/nixway-core/internal/containerlog"
 	"github.com/othmanhaba/nixway-core/internal/deploy"
+	"github.com/othmanhaba/nixway-core/internal/email"
 	githubsvc "github.com/othmanhaba/nixway-core/internal/github"
 	"github.com/othmanhaba/nixway-core/internal/mesh"
 	"github.com/othmanhaba/nixway-core/internal/project"
@@ -152,6 +152,7 @@ func main() {
 	appService := appsvc.NewService(queries, logger)
 	buildSvc := build.NewService(queries, redisClient, connMgr, githubService, masterKey, logger)
 	deploySvc := deploy.NewService(queries, redisClient, connMgr, secretSvc, logger)
+	deploySvc.StartAutoscalerLoop(ctx)
 	containerLogSvc := containerlog.NewService(queries, logger)
 	containerLogSvc.StartRetentionLoop(ctx, 7)
 

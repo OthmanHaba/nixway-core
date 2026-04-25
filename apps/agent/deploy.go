@@ -39,37 +39,14 @@ func HandleDeployCommand(ctx context.Context, cmd *agentv1.DeployCommand, stream
 	sendOutput("starting", "", false, false, "")
 	ensureNetwork(ctx)
 
-	// Build docker run args — on nixway network, Traefik routes via Docker provider
+	// Build docker run args. Traefik is enabled only after the container passes
+	// health checks, so unhealthy replicas never enter the backend pool.
 	args := []string{
 		"run", "-d",
 		"--name", cmd.ContainerName,
 		"--network", "nixway",
 		"--restart", "unless-stopped",
-	}
-
-	// Add Traefik labels for automatic routing
-	if cmd.Traefik != nil {
-		args = append(args,
-			"-l", "traefik.enable=true",
-			"-l", fmt.Sprintf("traefik.http.routers.%s.entrypoints=web", cmd.Traefik.AppSlug),
-			"-l", fmt.Sprintf("traefik.http.services.%s.loadbalancer.server.port=%d", cmd.Traefik.AppSlug, cmd.Port),
-		)
-
-		// Build host rule from domains
-		var rules []string
-		for _, domain := range cmd.Traefik.Domains {
-			rules = append(rules, fmt.Sprintf("Host(`%s`)", domain))
-		}
-		if len(rules) > 0 {
-			args = append(args, "-l", fmt.Sprintf("traefik.http.routers.%s.rule=%s", cmd.Traefik.AppSlug, strings.Join(rules, " || ")))
-		}
-
-		if cmd.Traefik.Tls {
-			args = append(args, "-l", fmt.Sprintf("traefik.http.routers.%s.tls.certresolver=letsencrypt", cmd.Traefik.AppSlug))
-		}
-
-		// Also write file-provider config for dynamic domain updates
-		writeTraefikConfig(cmd.Traefik, cmd.Port, cmd.ContainerName)
+		"-l", "traefik.enable=false",
 	}
 
 	// Add environment variables
@@ -149,6 +126,9 @@ func HandleDeployCommand(ctx context.Context, cmd *agentv1.DeployCommand, stream
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode >= 200 && resp.StatusCode < 400 {
+				if cmd.Traefik != nil {
+					writeTraefikConfig(cmd.Traefik, cmd.Port, cmd.ContainerName)
+				}
 				sendOutput("healthy", containerID, true, true, "")
 				return
 			}
@@ -287,6 +267,16 @@ func HandleStopContainerCommand(ctx context.Context, cmd *agentv1.StopContainerC
 		timeout = 10
 	}
 
+	if cmd.RemoveTraefik && cmd.AppSlug != "" {
+		os.Remove(filepath.Join(traefikDynamicDir, cmd.AppSlug+".yml"))
+		drain := 30 * time.Second
+		if timeout > 0 && timeout < 30 {
+			drain = time.Duration(timeout) * time.Second
+		}
+		logger.Info("removed Traefik route, draining before stop", "app", cmd.AppSlug, "container", cmd.ContainerName, "drain", drain)
+		time.Sleep(drain)
+	}
+
 	// Stop
 	out, err := exec.CommandContext(ctx, "docker", "stop", "-t", fmt.Sprintf("%d", timeout), cmd.ContainerName).CombinedOutput()
 	if err != nil {
@@ -295,11 +285,6 @@ func HandleStopContainerCommand(ctx context.Context, cmd *agentv1.StopContainerC
 
 	// Remove
 	exec.CommandContext(ctx, "docker", "rm", "-f", cmd.ContainerName).Run()
-
-	// Remove Traefik config if requested
-	if cmd.RemoveTraefik && cmd.AppSlug != "" {
-		os.Remove(filepath.Join(traefikDynamicDir, cmd.AppSlug+".yml"))
-	}
 
 	stream.Send(&agentv1.AgentMessage{
 		Payload: &agentv1.AgentMessage_StopContainerResult{

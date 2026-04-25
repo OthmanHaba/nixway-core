@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -88,30 +89,36 @@ func Schedule(req Requirements, candidates []Candidate) ([]Assignment, error) {
 
 	eligible := make([]Candidate, 0, len(candidates))
 	pinned := pinnedSet(req.PinnedServerIDs)
+	rejections := map[string]int{}
 	for _, candidate := range candidates {
 		if candidate.Status != "online" {
+			rejections["offline"]++
 			continue
 		}
 		if req.Strategy == StrategyPinned && !pinned[candidate.ServerID] {
+			rejections["not pinned"]++
 			continue
 		}
 		if !matchesConstraints(candidate.Tags, req.Constraints) {
+			rejections["tag constraints"]++
 			continue
 		}
 		if req.MemoryLimitMB > 0 && candidate.HasMemoryData && candidate.MemoryAvailable < int64(req.MemoryLimitMB)*1024*1024 {
+			rejections["memory"]++
 			continue
 		}
 		if req.CPULimitMillicores > 0 && candidate.HasCPUData && candidate.CPUCapacity < req.CPULimitMillicores {
+			rejections["cpu"]++
 			continue
 		}
 		eligible = append(eligible, candidate)
 	}
 
 	if len(eligible) == 0 {
-		return nil, fmt.Errorf("no eligible servers match placement strategy %q and constraints", req.Strategy)
+		return nil, fmt.Errorf("no eligible servers match placement strategy %q: %s", req.Strategy, rejectionSummary(rejections))
 	}
 	if int(req.Replicas) > len(eligible) {
-		return nil, fmt.Errorf("insufficient eligible servers: need %d, have %d", req.Replicas, len(eligible))
+		return nil, fmt.Errorf("insufficient eligible servers: need %d, have %d (%s)", req.Replicas, len(eligible), rejectionSummary(rejections))
 	}
 
 	switch req.Strategy {
@@ -152,6 +159,22 @@ func Schedule(req Requirements, candidates []Candidate) ([]Assignment, error) {
 		})
 	}
 	return assignments, nil
+}
+
+func rejectionSummary(rejections map[string]int) string {
+	if len(rejections) == 0 {
+		return "no rejection details"
+	}
+	keys := make([]string, 0, len(rejections))
+	for key := range rejections {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%d", key, rejections[key]))
+	}
+	return strings.Join(parts, ", ")
 }
 
 func pinnedSet(ids []uuid.UUID) map[uuid.UUID]bool {

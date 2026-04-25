@@ -22,6 +22,7 @@ import (
 // DeployTriggerer triggers a deploy after a successful build.
 type DeployTriggerer interface {
 	TriggerDeploy(ctx context.Context, appID, envID, buildID uuid.UUID, targetServerID ...*uuid.UUID) (db.Deployment, error)
+	StopSupersededContainers(ctx context.Context, deploymentID uuid.UUID) error
 }
 
 // MeshRegenerator handles mesh lifecycle events with logging.
@@ -137,6 +138,7 @@ func (s *Server) Connect(stream agentv1.AgentService_ConnectServer) error {
 				"mem_used", hr.MemoryUsed,
 				"mem_total", hr.MemoryTotal,
 			)
+			s.handleHealthReport(stream.Context(), agentID, hr)
 
 		case *agentv1.AgentMessage_FileChunk:
 			fc := p.FileChunk
@@ -374,6 +376,23 @@ func (s *Server) linkAgentToServer(ctx context.Context, agentID string) {
 	}
 
 	s.logger.Info("linked agent to server", "agent_id", agentID, "server_id", serverUUID)
+}
+
+func (s *Server) handleHealthReport(ctx context.Context, agentID string, hr *agentv1.HealthReport) {
+	if s.queries == nil {
+		return
+	}
+	srv, err := s.queries.GetServerByAgentID(ctx, &agentID)
+	if err != nil {
+		s.logger.Debug("server not found for health report", "agent_id", agentID, "error", err)
+		return
+	}
+	_ = s.queries.UpsertServerMetrics(ctx, db.UpsertServerMetricsParams{
+		ServerID:    srv.ID,
+		CpuPercent:  hr.GetCpuPercent(),
+		MemoryTotal: int64(hr.GetMemoryTotal()),
+		MemoryUsed:  int64(hr.GetMemoryUsed()),
+	})
 }
 
 func (s *Server) handleResourceReport(ctx context.Context, agentID string, rr *agentv1.ResourceReport) {
@@ -659,13 +678,20 @@ func (s *Server) handleDeployOutput(ctx context.Context, do *agentv1.DeployOutpu
 
 			// Check if all targets are done
 			deployment, err := s.queries.GetDeployment(ctx, did)
-			if err == nil && deployment.ReplicasReady+1 >= deployment.ReplicasDesired {
+			if err == nil && deployment.ReplicasReady >= deployment.ReplicasDesired {
 				_ = s.queries.CompleteDeployment(ctx, db.CompleteDeploymentParams{
 					ID:     did,
 					Status: "healthy",
 				})
 				if s.redis != nil {
 					s.redis.Publish(ctx, "deploy:"+deployID, "__done__")
+				}
+				if s.deployer != nil {
+					go func() {
+						if err := s.deployer.StopSupersededContainers(context.Background(), did); err != nil {
+							s.logger.Warn("failed to stop superseded containers", "deploy_id", did, "error", err)
+						}
+					}()
 				}
 			}
 		} else {

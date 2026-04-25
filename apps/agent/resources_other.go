@@ -13,3 +13,7 @@ func collectResources() *agentv1.ResourceReport {
 		CpuCores: int32(runtime.NumCPU()),
 	}
 }
+
+func collectHealth() *agentv1.HealthReport {
+	return &agentv1.HealthReport{}
+}

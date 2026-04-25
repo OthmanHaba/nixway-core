@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '@/lib/api'
-import type { App, Build, Deployment, DeploymentTarget, ContainerReplica, ContainerInspect, ContainerLogEntry, ScalingEvent } from '@/lib/types'
+import type { App, Build, Deployment, DeploymentTarget, ContainerReplica, ContainerInspect, ContainerLogEntry, ScalingEvent, AutoscalingRule, AutoscaleEvaluation } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -574,11 +574,20 @@ function ScalingPanel({ app, appId }: { app: App; appId: string }) {
   const [mustNotHave, setMustNotHave] = useState(formatConstraintInput(app.placement_constraints?.must_not_have))
   const [pinnedServers, setPinnedServers] = useState((app.pinned_server_ids || []).join(', '))
   const [error, setError] = useState('')
+  const [ruleName, setRuleName] = useState('CPU scale up')
+  const [threshold, setThreshold] = useState('80')
+  const [maxReplicas, setMaxReplicas] = useState('10')
+  const [evaluation, setEvaluation] = useState<AutoscaleEvaluation[]>([])
 
   const { data: events = [] } = useQuery({
     queryKey: ['apps', appId, 'scaling-events'],
     queryFn: () => api.get<ScalingEvent[]>(`/apps/${appId}/scaling-events`),
     refetchInterval: 15_000,
+  })
+
+  const { data: rules = [] } = useQuery({
+    queryKey: ['apps', appId, 'autoscaling-rules'],
+    queryFn: () => api.get<AutoscalingRule[]>(`/apps/${appId}/autoscaling-rules`),
   })
 
   const scale = useMutation({
@@ -606,9 +615,43 @@ function ScalingPanel({ app, appId }: { app: App; appId: string }) {
     },
   })
 
+  const createRule = useMutation({
+    mutationFn: () => api.post<AutoscalingRule>(`/apps/${appId}/autoscaling-rules`, {
+      name: ruleName,
+      metric_name: 'cpu_percent',
+      comparison: 'gt',
+      threshold: parseFloat(threshold) || 80,
+      duration_seconds: 120,
+      action_type: 'scale_by',
+      action_value: 1,
+      min_replicas: Math.max(1, parseInt(replicas, 10) || 1),
+      max_replicas: parseInt(maxReplicas, 10) || 10,
+      cooldown_up_seconds: 60,
+      cooldown_down_seconds: 300,
+      enabled: true,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['apps', appId, 'autoscaling-rules'] })
+    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : 'Failed to create autoscaling rule'),
+  })
+
+  const evaluateRules = useMutation({
+    mutationFn: () => api.post<AutoscaleEvaluation[]>(`/apps/${appId}/autoscaling/evaluate`),
+    onSuccess: (data) => {
+      setEvaluation(data)
+      queryClient.invalidateQueries({ queryKey: ['apps', appId] })
+      queryClient.invalidateQueries({ queryKey: ['apps', appId, 'deployments'] })
+      queryClient.invalidateQueries({ queryKey: ['apps', appId, 'scaling-events'] })
+      queryClient.invalidateQueries({ queryKey: ['apps', appId, 'autoscaling-rules'] })
+    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : 'Autoscaling evaluation failed'),
+  })
+
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-      <Card>
+    <div className="space-y-4">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm">
             <SlidersHorizontal className="h-4 w-4" />
@@ -661,9 +704,9 @@ function ScalingPanel({ app, appId }: { app: App; appId: string }) {
             Apply Scaling
           </Button>
         </CardContent>
-      </Card>
+        </Card>
 
-      <Card>
+        <Card>
         <CardHeader><CardTitle className="text-sm">Scaling Events</CardTitle></CardHeader>
         <CardContent>
           {events.length === 0 ? (
@@ -678,6 +721,73 @@ function ScalingPanel({ app, appId }: { app: App; appId: string }) {
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">{event.message || event.event_type}</p>
                   <p className="text-xs text-muted-foreground mt-1">{relativeTime(event.created_at)}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Autoscaling</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div>
+              <Label>Rule name</Label>
+              <Input value={ruleName} onChange={(e) => setRuleName(e.target.value)} />
+            </div>
+            <div>
+              <Label>CPU threshold</Label>
+              <Input type="number" value={threshold} onChange={(e) => setThreshold(e.target.value)} />
+            </div>
+            <div>
+              <Label>Max replicas</Label>
+              <Input type="number" value={maxReplicas} onChange={(e) => setMaxReplicas(e.target.value)} />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={() => createRule.mutate()} disabled={createRule.isPending}>
+              {createRule.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Add Rule
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => evaluateRules.mutate()} disabled={evaluateRules.isPending || rules.length === 0}>
+              {evaluateRules.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Evaluate Now
+            </Button>
+          </div>
+
+          {rules.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No autoscaling rules.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Rule</TableHead>
+                  <TableHead>Condition</TableHead>
+                  <TableHead>Action</TableHead>
+                  <TableHead>Last</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rules.map((rule) => (
+                  <TableRow key={rule.id}>
+                    <TableCell className="font-medium">{rule.name}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{rule.metric_name} {rule.comparison} {rule.threshold}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">+{rule.action_value}, max {rule.max_replicas}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{relativeTime(rule.last_triggered_at)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+
+          {evaluation.length > 0 && (
+            <div className="space-y-2">
+              {evaluation.map((item) => (
+                <div key={item.rule_id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                  <span>{item.rule_name}: {item.metric_value.toFixed(1)}%</span>
+                  <Badge variant={item.triggered ? 'default' : 'secondary'}>{item.message}</Badge>
                 </div>
               ))}
             </div>

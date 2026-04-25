@@ -42,6 +42,7 @@ func RunHeartbeat(agentID string, stream agentv1.AgentService_ConnectClient, log
 
 			// ResourceReport — periodically refresh resource data.
 			sendResourceReport(agentID, stream, logger)
+			sendHealthReport(agentID, stream, logger)
 		}
 	}
 }
@@ -58,5 +59,20 @@ func sendResourceReport(agentID string, stream agentv1.AgentService_ConnectClien
 		logger.Warn("resource report send failed", "err", err)
 	} else {
 		logger.Debug("resource report sent", "agent_id", agentID)
+	}
+}
+
+func sendHealthReport(agentID string, stream agentv1.AgentService_ConnectClient, logger *slog.Logger) {
+	report := collectHealth()
+	report.AgentId = agentID
+	msg := &agentv1.AgentMessage{
+		Payload: &agentv1.AgentMessage_HealthReport{
+			HealthReport: report,
+		},
+	}
+	if err := stream.Send(msg); err != nil {
+		logger.Warn("health report send failed", "err", err)
+	} else {
+		logger.Debug("health report sent", "agent_id", agentID)
 	}
 }

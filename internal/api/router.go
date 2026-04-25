@@ -231,6 +231,10 @@ func NewRouter(
 	protected.HandleFunc("POST /api/v1/apps/{appId}/rollback", deployH.Rollback)
 	protected.HandleFunc("POST /api/v1/apps/{appId}/scale", deployH.ScaleApp)
 	protected.HandleFunc("GET /api/v1/apps/{appId}/scaling-events", deployH.ListScalingEvents)
+	protected.HandleFunc("POST /api/v1/apps/{appId}/autoscaling-rules", deployH.CreateAutoscalingRule)
+	protected.HandleFunc("GET /api/v1/apps/{appId}/autoscaling-rules", deployH.ListAutoscalingRules)
+	protected.HandleFunc("DELETE /api/v1/apps/{appId}/autoscaling-rules/{ruleId}", deployH.DeleteAutoscalingRule)
+	protected.HandleFunc("POST /api/v1/apps/{appId}/autoscaling/evaluate", deployH.EvaluateAutoscaling)
 	protected.HandleFunc("GET /api/v1/apps/{appId}/logs", deployH.ContainerLogs)
 	protected.HandleFunc("POST /api/v1/apps/{appId}/cleanup", deployH.CleanupDeployments)
 

@@ -73,6 +73,26 @@ type AuditLog struct {
 	CreatedAt    time.Time       `json:"created_at"`
 }
 
+type AutoscalingRule struct {
+	ID                  uuid.UUID          `json:"id"`
+	AppID               uuid.UUID          `json:"app_id"`
+	Name                string             `json:"name"`
+	MetricName          string             `json:"metric_name"`
+	Comparison          string             `json:"comparison"`
+	Threshold           float64            `json:"threshold"`
+	DurationSeconds     int32              `json:"duration_seconds"`
+	ActionType          string             `json:"action_type"`
+	ActionValue         int32              `json:"action_value"`
+	MinReplicas         int32              `json:"min_replicas"`
+	MaxReplicas         int32              `json:"max_replicas"`
+	CooldownUpSeconds   int32              `json:"cooldown_up_seconds"`
+	CooldownDownSeconds int32              `json:"cooldown_down_seconds"`
+	Enabled             bool               `json:"enabled"`
+	LastTriggeredAt     pgtype.Timestamptz `json:"last_triggered_at"`
+	CreatedAt           time.Time          `json:"created_at"`
+	UpdatedAt           time.Time          `json:"updated_at"`
+}
+
 type Build struct {
 	ID            uuid.UUID          `json:"id"`
 	AppID         uuid.UUID          `json:"app_id"`
@@ -317,6 +337,14 @@ type Server struct {
 	CreatedAt  time.Time          `json:"created_at"`
 	UpdatedAt  time.Time          `json:"updated_at"`
 	ClusterID  pgtype.UUID        `json:"cluster_id"`
+}
+
+type ServerMetric struct {
+	ServerID    uuid.UUID `json:"server_id"`
+	CpuPercent  float64   `json:"cpu_percent"`
+	MemoryTotal int64     `json:"memory_total"`
+	MemoryUsed  int64     `json:"memory_used"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type ServerResource struct {

@@ -37,12 +37,26 @@ type ScaleRequest struct {
 	PinnedServerIDs      []uuid.UUID
 	ActorID              *uuid.UUID
 	ActorType            string
+	EventType            string
+	MetricName           *string
+	MetricValue          *float64
+	RuleName             *string
 }
 
 type ScaleResult struct {
 	App        db.App          `json:"app"`
 	Event      db.ScalingEvent `json:"event"`
 	Deployment *db.Deployment  `json:"deployment,omitempty"`
+}
+
+type AutoscaleEvaluation struct {
+	RuleID      uuid.UUID        `json:"rule_id"`
+	RuleName    string           `json:"rule_name"`
+	MetricName  string           `json:"metric_name"`
+	MetricValue float64          `json:"metric_value"`
+	Triggered   bool             `json:"triggered"`
+	Event       *db.ScalingEvent `json:"event,omitempty"`
+	Message     string           `json:"message"`
 }
 
 func NewService(queries *db.Queries, redisClient *redis.Client, connMgr *agent.ConnManager, secretSvc *secret.Service, logger *slog.Logger) *Service {
@@ -53,6 +67,30 @@ func NewService(queries *db.Queries, redisClient *redis.Client, connMgr *agent.C
 		secretSvc: secretSvc,
 		logger:    logger,
 	}
+}
+
+func (s *Service) StartAutoscalerLoop(ctx context.Context) {
+	ticker := time.NewTicker(30 * time.Second)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				appIDs, err := s.queries.ListAppsWithEnabledAutoscaling(ctx)
+				if err != nil {
+					s.logger.Warn("autoscaler: list apps failed", "error", err)
+					continue
+				}
+				for _, appID := range appIDs {
+					if _, err := s.EvaluateAutoscaling(ctx, appID); err != nil {
+						s.logger.Debug("autoscaler: evaluation skipped", "app_id", appID, "error", err)
+					}
+				}
+			}
+		}
+	}()
 }
 
 // TriggerDeploy creates a deployment, targets, and dispatches deploy commands to agents.
@@ -272,6 +310,9 @@ func (s *Service) ScaleApp(ctx context.Context, appID uuid.UUID, req ScaleReques
 	if req.ActorType == "" {
 		req.ActorType = "user"
 	}
+	if req.EventType == "" {
+		req.EventType = "manual_scale"
+	}
 
 	updated, err := s.queries.UpdateAppScaling(ctx, db.UpdateAppScalingParams{
 		ID:                   appID,
@@ -312,10 +353,13 @@ func (s *Service) ScaleApp(ctx context.Context, appID uuid.UUID, req ScaleReques
 		DeploymentID:      deploymentUUID(deployment),
 		ActorID:           actorUUID(req.ActorID),
 		ActorType:         req.ActorType,
-		EventType:         "manual_scale",
+		EventType:         req.EventType,
 		FromReplicas:      current.Replicas,
 		ToReplicas:        req.Replicas,
 		PlacementStrategy: req.PlacementStrategy,
+		MetricName:        req.MetricName,
+		MetricValue:       req.MetricValue,
+		RuleName:          req.RuleName,
 		Message:           message,
 		Metadata:          []byte(`{}`),
 	})
@@ -362,6 +406,178 @@ func actorUUID(actorID *uuid.UUID) pgtype.UUID {
 		return pgtype.UUID{}
 	}
 	return pgtype.UUID{Bytes: *actorID, Valid: true}
+}
+
+func (s *Service) StopSupersededContainers(ctx context.Context, deploymentID uuid.UUID) error {
+	current, err := s.queries.GetDeployment(ctx, deploymentID)
+	if err != nil {
+		return fmt.Errorf("get deployment: %w", err)
+	}
+	app, err := s.queries.GetApp(ctx, current.AppID)
+	if err != nil {
+		return fmt.Errorf("get app: %w", err)
+	}
+	currentTargets, err := s.queries.ListDeploymentTargets(ctx, deploymentID)
+	if err != nil {
+		return fmt.Errorf("list current targets: %w", err)
+	}
+	currentServers := make(map[uuid.UUID]bool, len(currentTargets))
+	for _, target := range currentTargets {
+		currentServers[target.ServerID] = true
+	}
+
+	containers, err := s.queries.ListHealthyContainersByApp(ctx, current.AppID)
+	if err != nil {
+		return fmt.Errorf("list healthy containers: %w", err)
+	}
+	for _, container := range containers {
+		if container.DeploymentID == deploymentID || container.ContainerID == nil || container.AgentID == nil {
+			continue
+		}
+		removeTraefik := !currentServers[container.ServerID]
+		if err := s.connMgr.SendToAgent(*container.AgentID, &agentv1.ControlMessage{
+			Payload: &agentv1.ControlMessage_StopContainer{
+				StopContainer: &agentv1.StopContainerCommand{
+					ContainerName:  *container.ContainerID,
+					TimeoutSeconds: 30,
+					RemoveTraefik:  removeTraefik,
+					AppSlug:        app.Slug,
+				},
+			},
+		}); err != nil {
+			s.logger.Warn("failed to stop superseded container", "container", *container.ContainerID, "server", container.ServerID, "error", err)
+			continue
+		}
+		_ = s.queries.UpdateDeploymentTargetStatus(ctx, db.UpdateDeploymentTargetStatusParams{
+			ID:        container.TargetID,
+			Status:    "stopped",
+			StoppedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		})
+	}
+	return nil
+}
+
+func (s *Service) EvaluateAutoscaling(ctx context.Context, appID uuid.UUID) ([]AutoscaleEvaluation, error) {
+	app, err := s.queries.GetApp(ctx, appID)
+	if err != nil {
+		return nil, fmt.Errorf("get app: %w", err)
+	}
+	rules, err := s.queries.ListEnabledAutoscalingRulesByApp(ctx, appID)
+	if err != nil {
+		return nil, fmt.Errorf("list autoscaling rules: %w", err)
+	}
+	metrics, err := s.queries.GetAverageMetricsForApp(ctx, appID)
+	if err != nil {
+		return nil, fmt.Errorf("get metrics: %w", err)
+	}
+
+	results := make([]AutoscaleEvaluation, 0, len(rules))
+	for _, rule := range rules {
+		value, ok := metricValue(rule.MetricName, metrics)
+		result := AutoscaleEvaluation{
+			RuleID:      rule.ID,
+			RuleName:    rule.Name,
+			MetricName:  rule.MetricName,
+			MetricValue: value,
+		}
+		if !ok || metrics.SampleCount == 0 {
+			result.Message = "waiting for fresh agent metrics"
+			results = append(results, result)
+			continue
+		}
+		if !comparisonMatches(value, rule.Comparison, rule.Threshold) {
+			result.Message = "condition not met"
+			results = append(results, result)
+			continue
+		}
+
+		target := autoscaleTarget(app.Replicas, rule)
+		if target == app.Replicas {
+			result.Message = "already at scaling bound"
+			results = append(results, result)
+			continue
+		}
+		if rule.LastTriggeredAt.Valid {
+			cooldown := time.Duration(rule.CooldownUpSeconds) * time.Second
+			if target < app.Replicas {
+				cooldown = time.Duration(rule.CooldownDownSeconds) * time.Second
+			}
+			if time.Since(rule.LastTriggeredAt.Time) < cooldown {
+				result.Message = "cooldown active"
+				results = append(results, result)
+				continue
+			}
+		}
+
+		metricName := rule.MetricName
+		ruleName := rule.Name
+		scale, err := s.ScaleApp(ctx, appID, ScaleRequest{
+			Replicas:             target,
+			PlacementStrategy:    app.PlacementStrategy,
+			PlacementConstraints: scheduler.ParseConstraints(app.PlacementConstraints),
+			PinnedServerIDs:      app.PinnedServerIds,
+			ActorType:            "autoscaler",
+			EventType:            "autoscale",
+			MetricName:           &metricName,
+			MetricValue:          &value,
+			RuleName:             &ruleName,
+		})
+		if err != nil {
+			result.Message = err.Error()
+			results = append(results, result)
+			continue
+		}
+		_ = s.queries.MarkAutoscalingRuleTriggered(ctx, rule.ID)
+		result.Triggered = true
+		result.Event = &scale.Event
+		result.Message = fmt.Sprintf("scaled from %d to %d", app.Replicas, target)
+		results = append(results, result)
+		app.Replicas = target
+	}
+	return results, nil
+}
+
+func metricValue(name string, metrics db.GetAverageMetricsForAppRow) (float64, bool) {
+	switch name {
+	case "cpu_percent":
+		return metrics.CpuPercent, true
+	case "memory_percent":
+		return metrics.MemoryPercent, true
+	default:
+		return 0, false
+	}
+}
+
+func comparisonMatches(value float64, comparison string, threshold float64) bool {
+	switch comparison {
+	case "gt":
+		return value > threshold
+	case "gte":
+		return value >= threshold
+	case "lt":
+		return value < threshold
+	case "lte":
+		return value <= threshold
+	default:
+		return false
+	}
+}
+
+func autoscaleTarget(current int32, rule db.AutoscalingRule) int32 {
+	target := current
+	switch rule.ActionType {
+	case "scale_to":
+		target = rule.ActionValue
+	default:
+		target = current + rule.ActionValue
+	}
+	if target < rule.MinReplicas {
+		target = rule.MinReplicas
+	}
+	if target > rule.MaxReplicas {
+		target = rule.MaxReplicas
+	}
+	return target
 }
 
 func (s *Service) dispatchDeploy(ctx context.Context, deployment db.Deployment, target db.DeploymentTarget, build db.Build, app db.App, project db.Project, member db.ListClusterMembersRow, envVars map[string]string) {
@@ -419,9 +635,6 @@ func (s *Service) dispatchDeploy(ctx context.Context, deployment db.Deployment, 
 	envVars["ENVIRONMENT"] = deployment.EnvironmentID.String()
 	envVars["DEPLOY_ID"] = deployID
 	envVars["GIT_SHA"] = build.CommitSha
-
-	// Stop old containers from previous deployments on this server
-	s.stopOldContainers(ctx, deployment, app, member)
 
 	cmd := &agentv1.DeployCommand{
 		DeployId:                   deployID,

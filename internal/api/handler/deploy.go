@@ -328,6 +328,154 @@ func (h *DeployHandler) ListScalingEvents(w http.ResponseWriter, r *http.Request
 	respond.JSON(w, http.StatusOK, events)
 }
 
+type createAutoscalingRuleRequest struct {
+	Name                string  `json:"name"`
+	MetricName          string  `json:"metric_name"`
+	Comparison          string  `json:"comparison"`
+	Threshold           float64 `json:"threshold"`
+	DurationSeconds     int32   `json:"duration_seconds"`
+	ActionType          string  `json:"action_type"`
+	ActionValue         int32   `json:"action_value"`
+	MinReplicas         int32   `json:"min_replicas"`
+	MaxReplicas         int32   `json:"max_replicas"`
+	CooldownUpSeconds   int32   `json:"cooldown_up_seconds"`
+	CooldownDownSeconds int32   `json:"cooldown_down_seconds"`
+	Enabled             *bool   `json:"enabled"`
+}
+
+func (h *DeployHandler) CreateAutoscalingRule(w http.ResponseWriter, r *http.Request) {
+	authCtx := middleware.GetAuthContext(r)
+	if authCtx == nil {
+		respond.Error(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	appID, err := uuid.Parse(r.PathValue("appId"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid app ID")
+		return
+	}
+	var req createAutoscalingRuleRequest
+	if err := respond.DecodeJSON(r, &req); err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Name == "" {
+		req.Name = "CPU autoscale"
+	}
+	if req.MetricName == "" {
+		req.MetricName = "cpu_percent"
+	}
+	if req.Comparison == "" {
+		req.Comparison = "gt"
+	}
+	if req.DurationSeconds == 0 {
+		req.DurationSeconds = 120
+	}
+	if req.ActionType == "" {
+		req.ActionType = "scale_by"
+	}
+	if req.ActionValue == 0 {
+		req.ActionValue = 1
+	}
+	if req.MinReplicas == 0 {
+		req.MinReplicas = 1
+	}
+	if req.MaxReplicas == 0 {
+		req.MaxReplicas = 10
+	}
+	if req.CooldownUpSeconds == 0 {
+		req.CooldownUpSeconds = 60
+	}
+	if req.CooldownDownSeconds == 0 {
+		req.CooldownDownSeconds = 300
+	}
+	enabled := true
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+	rule, err := h.queries.CreateAutoscalingRule(r.Context(), db.CreateAutoscalingRuleParams{
+		AppID:               appID,
+		Name:                req.Name,
+		MetricName:          req.MetricName,
+		Comparison:          req.Comparison,
+		Threshold:           req.Threshold,
+		DurationSeconds:     req.DurationSeconds,
+		ActionType:          req.ActionType,
+		ActionValue:         req.ActionValue,
+		MinReplicas:         req.MinReplicas,
+		MaxReplicas:         req.MaxReplicas,
+		CooldownUpSeconds:   req.CooldownUpSeconds,
+		CooldownDownSeconds: req.CooldownDownSeconds,
+		Enabled:             enabled,
+	})
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	respond.JSON(w, http.StatusCreated, rule)
+}
+
+func (h *DeployHandler) ListAutoscalingRules(w http.ResponseWriter, r *http.Request) {
+	authCtx := middleware.GetAuthContext(r)
+	if authCtx == nil {
+		respond.Error(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	appID, err := uuid.Parse(r.PathValue("appId"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid app ID")
+		return
+	}
+	rules, err := h.queries.ListAutoscalingRulesByApp(r.Context(), appID)
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "failed to list autoscaling rules")
+		return
+	}
+	respond.JSON(w, http.StatusOK, rules)
+}
+
+func (h *DeployHandler) DeleteAutoscalingRule(w http.ResponseWriter, r *http.Request) {
+	authCtx := middleware.GetAuthContext(r)
+	if authCtx == nil {
+		respond.Error(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	appID, err := uuid.Parse(r.PathValue("appId"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid app ID")
+		return
+	}
+	ruleID, err := uuid.Parse(r.PathValue("ruleId"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid rule ID")
+		return
+	}
+	if err := h.queries.DeleteAutoscalingRule(r.Context(), db.DeleteAutoscalingRuleParams{ID: ruleID, AppID: appID}); err != nil {
+		respond.Error(w, http.StatusInternalServerError, "failed to delete autoscaling rule")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *DeployHandler) EvaluateAutoscaling(w http.ResponseWriter, r *http.Request) {
+	authCtx := middleware.GetAuthContext(r)
+	if authCtx == nil {
+		respond.Error(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	appID, err := uuid.Parse(r.PathValue("appId"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid app ID")
+		return
+	}
+	results, err := h.deploySvc.EvaluateAutoscaling(r.Context(), appID)
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	respond.JSON(w, http.StatusOK, results)
+}
+
 // StreamLogs handles GET /api/v1/apps/{appId}/deployments/{deployId}/logs (SSE)
 func (h *DeployHandler) StreamLogs(w http.ResponseWriter, r *http.Request) {
 	deployID, err := uuid.Parse(r.PathValue("deployId"))
