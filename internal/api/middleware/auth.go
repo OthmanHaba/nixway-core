@@ -53,12 +53,13 @@ func authenticate(r *http.Request, queries *db.Queries, sessions *auth.SessionMa
 		}, true
 	}
 
-	// Try session cookie or query param (for WebSocket connections)
+	// Try session cookie or websocket-only query param.
 	var sessionToken string
 	cookie, err := r.Cookie("session")
 	if err == nil {
 		sessionToken = cookie.Value
-	} else if token := r.URL.Query().Get("session_token"); token != "" {
+	} else if isWebSocketUpgrade(r) {
+		token := r.URL.Query().Get("session_token")
 		sessionToken = token
 	}
 	if sessionToken == "" {
@@ -71,6 +72,10 @@ func authenticate(r *http.Request, queries *db.Queries, sessions *auth.SessionMa
 	return &model.AuthContext{
 		UserID: session.UserID,
 	}, true
+}
+
+func isWebSocketUpgrade(r *http.Request) bool {
+	return strings.EqualFold(r.Header.Get("Upgrade"), "websocket")
 }
 
 func GetAuthContext(r *http.Request) *model.AuthContext {

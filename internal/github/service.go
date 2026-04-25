@@ -61,12 +61,12 @@ func NewService(baseURL, apiURL, webhookURL, redirectURL string, logger *slog.Lo
 }
 
 // GenerateManifest returns a JSON-serializable GitHub App manifest for the given team.
-func (s *Service) GenerateManifest(teamSlug string) map[string]any {
+func (s *Service) GenerateManifest(teamID, teamSlug string) map[string]any {
 	return map[string]any{
 		"name": "nixway-" + teamSlug,
 		"url":  s.webhookURL,
 		"hook_attributes": map[string]any{
-			"url": s.webhookURL + "/api/v1/webhooks/github",
+			"url": s.webhookURL + "/api/v1/webhooks/github/team/" + teamID,
 		},
 		"redirect_url": s.redirectURL + "/github/callback",
 		"public":       false,
@@ -74,6 +74,7 @@ func (s *Service) GenerateManifest(teamSlug string) map[string]any {
 			"contents":      "read",
 			"metadata":      "read",
 			"pull_requests": "read",
+			"webhooks":      "write",
 		},
 		"default_events": []string{"push", "pull_request", "create"},
 	}
@@ -163,12 +164,12 @@ func (s *Service) GetInstallationToken(ctx context.Context, appID int64, install
 
 // Installation represents a GitHub App installation.
 type Installation struct {
-	ID      int64  `json:"id"`
+	ID      int64 `json:"id"`
 	Account struct {
 		Login string `json:"login"`
 		Type  string `json:"type"`
 	} `json:"account"`
-	TargetType        string `json:"target_type"`
+	TargetType          string `json:"target_type"`
 	RepositorySelection string `json:"repository_selection"`
 }
 

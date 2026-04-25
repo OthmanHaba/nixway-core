@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/othmanhaba/nixway-core/internal/api/respond"
 	"github.com/othmanhaba/nixway-core/internal/api/middleware"
+	"github.com/othmanhaba/nixway-core/internal/api/respond"
 	"github.com/othmanhaba/nixway-core/internal/db"
 	"github.com/othmanhaba/nixway-core/internal/model"
 )
@@ -30,7 +30,7 @@ func (h *AuditLogHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleAdmin); !ok {
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleAdmin, model.ScopeAuditRead); !ok {
 		return
 	}
 

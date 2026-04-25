@@ -60,6 +60,47 @@ type APITokenWithPlain struct {
 	PlainToken string `json:"token"`
 }
 
+const (
+	ScopeAll          = "*"
+	ScopeTeamsRead    = "teams:read"
+	ScopeTeamsWrite   = "teams:write"
+	ScopeMembersRead  = "members:read"
+	ScopeMembersWrite = "members:write"
+	ScopeInvitesRead  = "invites:read"
+	ScopeInvitesWrite = "invites:write"
+	ScopeTokensRead   = "tokens:read"
+	ScopeTokensWrite  = "tokens:write"
+	ScopeAuditRead    = "audit:read"
+	ScopeServersRead  = "servers:read"
+	ScopeServersWrite = "servers:write"
+)
+
+var validTokenScopes = map[string]struct{}{
+	ScopeAll:          {},
+	"teams:*":         {},
+	"members:*":       {},
+	"invites:*":       {},
+	"tokens:*":        {},
+	"audit:*":         {},
+	"servers:*":       {},
+	ScopeTeamsRead:    {},
+	ScopeTeamsWrite:   {},
+	ScopeMembersRead:  {},
+	ScopeMembersWrite: {},
+	ScopeInvitesRead:  {},
+	ScopeInvitesWrite: {},
+	ScopeTokensRead:   {},
+	ScopeTokensWrite:  {},
+	ScopeAuditRead:    {},
+	ScopeServersRead:  {},
+	ScopeServersWrite: {},
+}
+
+func ValidTokenScope(scope string) bool {
+	_, ok := validTokenScopes[scope]
+	return ok
+}
+
 type AuditLog struct {
 	ID           uuid.UUID  `json:"id"`
 	TeamID       *uuid.UUID `json:"team_id"`

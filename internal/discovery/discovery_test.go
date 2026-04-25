@@ -24,7 +24,7 @@ func TestDiscover_Dockerfile(t *testing.T) {
 	candidates, err := Discover(dir)
 	require.NoError(t, err)
 	require.NotEmpty(t, candidates)
-	assert.Equal(t, "docker", candidates[0].Builder)
+	assert.Equal(t, "dockerfile", candidates[0].Builder)
 	assert.Equal(t, 1.0, candidates[0].Confidence)
 }
 
@@ -86,7 +86,7 @@ func TestDiscover_DockerfileAndPackageJSON(t *testing.T) {
 	candidates, err := Discover(dir)
 	require.NoError(t, err)
 	require.Len(t, candidates, 2)
-	assert.Equal(t, "docker", candidates[0].Builder)
+	assert.Equal(t, "dockerfile", candidates[0].Builder)
 	assert.Equal(t, 1.0, candidates[0].Confidence)
 	assert.Equal(t, "nixpacks", candidates[1].Builder)
 }

@@ -14,11 +14,28 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
-import { Plus, Loader2, Copy, Trash2 } from 'lucide-react'
+import { Plus, Loader2, Copy, Trash2, ShieldCheck } from 'lucide-react'
 
 export const Route = createFileRoute('/_app/teams/$teamId/tokens')({
   component: TokensPage,
 })
+
+const READ_SCOPES = ['teams:read', 'members:read', 'invites:read', 'tokens:read', 'audit:read', 'servers:read']
+const DEPLOY_SCOPES = ['teams:read', 'servers:read', 'servers:write']
+
+const TOKEN_SCOPE_OPTIONS = [
+  { value: 'teams:read', label: 'Read teams' },
+  { value: 'teams:write', label: 'Manage teams' },
+  { value: 'members:read', label: 'Read members' },
+  { value: 'members:write', label: 'Manage members' },
+  { value: 'invites:read', label: 'Read invites' },
+  { value: 'invites:write', label: 'Manage invites' },
+  { value: 'tokens:read', label: 'Read tokens' },
+  { value: 'tokens:write', label: 'Manage tokens' },
+  { value: 'audit:read', label: 'Read audit logs' },
+  { value: 'servers:read', label: 'Read servers' },
+  { value: 'servers:write', label: 'Manage servers' },
+]
 
 function TokensPage() {
   const { teamId } = Route.useParams()
@@ -26,6 +43,7 @@ function TokensPage() {
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [tokenName, setTokenName] = useState('')
+  const [selectedScopes, setSelectedScopes] = useState<string[]>(READ_SCOPES)
   const [newToken, setNewToken] = useState<string | null>(null)
   const [error, setError] = useState('')
 
@@ -41,6 +59,7 @@ function TokensPage() {
       queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'tokens'] })
       setNewToken(data.token || null)
       setTokenName('')
+      setSelectedScopes(READ_SCOPES)
       setError('')
     },
     onError: (err) => {
@@ -107,7 +126,11 @@ function TokensPage() {
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    createToken.mutate({ name: tokenName, scopes: ['*'] })
+    if (selectedScopes.length === 0) {
+      setError('Select at least one scope.')
+      return
+    }
+    createToken.mutate({ name: tokenName, scopes: selectedScopes })
   }
 
   const handleCopyToken = () => {
@@ -122,7 +145,18 @@ function TokensPage() {
     if (!isOpen) {
       setNewToken(null)
       setError('')
+      setSelectedScopes(READ_SCOPES)
     }
+  }
+
+  const toggleScope = (scope: string) => {
+    setSelectedScopes((prev) => {
+      const withoutFullAccess = prev.filter((s) => s !== '*')
+      if (withoutFullAccess.includes(scope)) {
+        return withoutFullAccess.filter((s) => s !== scope)
+      }
+      return [...withoutFullAccess, scope]
+    })
   }
 
   return (
@@ -139,7 +173,7 @@ function TokensPage() {
               Create Token
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-2xl">
             {newToken ? (
               <>
                 <DialogHeader>
@@ -164,7 +198,7 @@ function TokensPage() {
               <form onSubmit={handleCreate}>
                 <DialogHeader>
                   <DialogTitle>Create API Token</DialogTitle>
-                  <DialogDescription>Create a new token for API access.</DialogDescription>
+                  <DialogDescription>Create a new token with only the permissions it needs.</DialogDescription>
                 </DialogHeader>
                 <div className="py-4 space-y-4">
                   {error && (
@@ -179,6 +213,46 @@ function TokensPage() {
                       placeholder="e.g., CI/CD Pipeline"
                       required
                     />
+                  </div>
+                  <div className="space-y-3">
+                    <Label>Scopes</Label>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={() => setSelectedScopes(READ_SCOPES)}>
+                        Read-only
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" onClick={() => setSelectedScopes(DEPLOY_SCOPES)}>
+                        Server deploy
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" onClick={() => setSelectedScopes(['*'])}>
+                        <ShieldCheck className="mr-2 h-4 w-4" />
+                        Full access
+                      </Button>
+                    </div>
+                    {selectedScopes.includes('*') ? (
+                      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                        This token will have full access to this team.
+                      </div>
+                    ) : (
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {TOKEN_SCOPE_OPTIONS.map((scope) => (
+                          <label
+                            key={scope.value}
+                            className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedScopes.includes(scope.value)}
+                              onChange={() => toggleScope(scope.value)}
+                              className="h-4 w-4"
+                            />
+                            <span>
+                              <span className="font-medium">{scope.label}</span>
+                              <span className="ml-2 font-mono text-xs text-muted-foreground">{scope.value}</span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <DialogFooter>

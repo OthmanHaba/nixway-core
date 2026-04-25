@@ -227,6 +227,43 @@ func (q *Queries) UpdateServerAgentID(ctx context.Context, arg UpdateServerAgent
 	return err
 }
 
+const updateServerName = `-- name: UpdateServerName :one
+UPDATE servers
+SET name = $3, updated_at = now()
+WHERE id = $1 AND team_id = $2
+RETURNING id, team_id, agent_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status, last_seen_at, created_at, updated_at, cluster_id
+`
+
+type UpdateServerNameParams struct {
+	ID     uuid.UUID `json:"id"`
+	TeamID uuid.UUID `json:"team_id"`
+	Name   string    `json:"name"`
+}
+
+func (q *Queries) UpdateServerName(ctx context.Context, arg UpdateServerNameParams) (Server, error) {
+	row := q.db.QueryRow(ctx, updateServerName, arg.ID, arg.TeamID, arg.Name)
+	var i Server
+	err := row.Scan(
+		&i.ID,
+		&i.TeamID,
+		&i.AgentID,
+		&i.Name,
+		&i.Hostname,
+		&i.PublicIp,
+		&i.SshPort,
+		&i.SshUser,
+		&i.Os,
+		&i.OsVersion,
+		&i.Arch,
+		&i.Status,
+		&i.LastSeenAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ClusterID,
+	)
+	return i, err
+}
+
 const updateServerOS = `-- name: UpdateServerOS :exec
 UPDATE servers SET os = $2, os_version = $3, arch = $4, updated_at = now() WHERE id = $1
 `

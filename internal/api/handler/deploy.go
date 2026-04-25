@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
 	"github.com/othmanhaba/nixway-core/internal/agent"
 	agentv1 "github.com/othmanhaba/nixway-core/internal/agent/proto/agent/v1"
 	"github.com/othmanhaba/nixway-core/internal/api/middleware"
@@ -18,6 +17,7 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/containerlog"
 	"github.com/othmanhaba/nixway-core/internal/db"
 	"github.com/othmanhaba/nixway-core/internal/deploy"
+	"github.com/redis/go-redis/v9"
 )
 
 type DeployHandler struct {
@@ -320,6 +320,8 @@ func (h *DeployHandler) ContainerLogs(w http.ResponseWriter, r *http.Request) {
 
 	containerName := r.URL.Query().Get("container")
 	agentID := ""
+	var serverID uuid.UUID
+	var deploymentID *uuid.UUID
 
 	if containerName == "" {
 		// Find latest deployment's container by name pattern
@@ -350,6 +352,9 @@ func (h *DeployHandler) ContainerLogs(w http.ResponseWriter, r *http.Request) {
 					// Use deterministic container name: nixway-{slug}-{deploy-short}
 					containerName = fmt.Sprintf("nixway-%s-%s", app.Slug, d.ID.String()[:8])
 					agentID = sid
+					serverID = t.ServerID
+					depID := d.ID
+					deploymentID = &depID
 					break
 				}
 			}
@@ -362,8 +367,9 @@ func (h *DeployHandler) ContainerLogs(w http.ResponseWriter, r *http.Request) {
 		containers, err := h.queries.ListActiveContainersByApp(r.Context(), appID)
 		if err == nil {
 			for _, c := range containers {
-				if c.AgentID != nil {
+				if c.AgentID != nil && c.ContainerID != nil && *c.ContainerID == containerName {
 					agentID = *c.AgentID
+					serverID = c.ServerID
 					break
 				}
 			}
@@ -426,6 +432,14 @@ func (h *DeployHandler) ContainerLogs(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "event: done\ndata: done\n\n")
 				flusher.Flush()
 				return
+			}
+			if h.containerLog != nil && serverID != uuid.Nil {
+				for _, line := range strings.Split(strings.TrimSuffix(msg.Payload, "\n"), "\n") {
+					if line == "" {
+						continue
+					}
+					h.containerLog.Ingest(r.Context(), appID, serverID, deploymentID, containerName, 0, line, "stdout", time.Now())
+				}
 			}
 			fmt.Fprintf(w, "data: %s\n\n", msg.Payload)
 			flusher.Flush()

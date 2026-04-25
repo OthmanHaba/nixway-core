@@ -16,7 +16,7 @@ func Discover(repoPath string) ([]BuilderCandidate, error) {
 
 	if fileExists(repoPath, "Dockerfile") {
 		candidates = append(candidates, BuilderCandidate{
-			Builder: "docker", Confidence: 1.0, Reason: "Dockerfile found at root",
+			Builder: "dockerfile", Confidence: 1.0, Reason: "Dockerfile found at root",
 		})
 	}
 

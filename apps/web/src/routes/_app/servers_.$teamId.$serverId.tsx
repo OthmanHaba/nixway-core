@@ -16,7 +16,7 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { useSSE } from '@/hooks/use-sse'
 import { Terminal } from '@/components/terminal'
-import { Loader2, Trash2, Plus, Cpu, HardDrive, Network, MemoryStick } from 'lucide-react'
+import { Loader2, Trash2, Plus, Cpu, HardDrive, Network, MemoryStick, Pencil, AlertTriangle, DownloadCloud } from 'lucide-react'
 
 export const Route = createFileRoute('/_app/servers_/$teamId/$serverId')({
   component: ServerDetailPage,
@@ -26,6 +26,13 @@ interface ServerDetail extends Server {
   resources?: ServerResources
   tags?: ServerTag[]
   latest_job?: ProvisioningJob
+}
+
+interface ServerCleanupResult {
+  request_id: string
+  success: boolean
+  output: string
+  error: string
 }
 
 const PROVISION_COMPONENTS = ['docker', 'traefik', 'nixpacks', 'buildpacks', 'railpack']
@@ -175,6 +182,9 @@ function ServerDetailPage() {
   const { toast } = useToast()
 
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [serverName, setServerName] = useState('')
+  const [renameError, setRenameError] = useState('')
   const [selectedComponents, setSelectedComponents] = useState<string[]>([])
   const [sseUrl, setSseUrl] = useState<string | null>(null)
   const { messages: logMessages, connected: sseConnected, clear: clearLogs } = useSSE(sseUrl)
@@ -182,6 +192,14 @@ function ServerDetailPage() {
 
   const [tagKey, setTagKey] = useState('')
   const [tagValue, setTagValue] = useState('')
+  const [cleanupOptions, setCleanupOptions] = useState({
+    remove_stopped_containers: true,
+    remove_unused_images: false,
+    remove_unused_networks: false,
+    remove_build_cache: false,
+    remove_volumes: false,
+    older_than_hours: 24,
+  })
 
   // Relative time ticker
   const [tick, setTick] = useState(0)
@@ -208,6 +226,10 @@ function ServerDetailPage() {
   })
 
   useEffect(() => {
+    if (server) setServerName(server.name)
+  }, [server])
+
+  useEffect(() => {
     if (latestJob && latestJob.status === 'running' && !sseUrl) {
       setSseUrl(`/api/v1/teams/${teamId}/servers/${serverId}/provision/${latestJob.id}/logs`)
     }
@@ -222,6 +244,20 @@ function ServerDetailPage() {
     },
     onError: (err) => {
       toast({ title: 'Error', description: err instanceof ApiError ? err.message : 'Failed to delete' })
+    },
+  })
+
+  const renameServer = useMutation({
+    mutationFn: (name: string) => api.put<Server>(`/teams/${teamId}/servers/${serverId}`, { name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'servers'] })
+      queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'servers', serverId] })
+      setRenameOpen(false)
+      setRenameError('')
+      toast({ title: 'Server renamed' })
+    },
+    onError: (err) => {
+      setRenameError(err instanceof ApiError ? err.message : 'Failed to rename server')
     },
   })
 
@@ -261,6 +297,32 @@ function ServerDetailPage() {
     },
   })
 
+  const cleanupServer = useMutation({
+    mutationFn: () =>
+      api.post<ServerCleanupResult>(`/teams/${teamId}/servers/${serverId}/cleanup`, cleanupOptions),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'servers', serverId] })
+      toast({ title: 'Server cleanup finished' })
+    },
+    onError: (err) => {
+      toast({ title: 'Cleanup failed', description: err instanceof ApiError ? err.message : 'Failed to clean server' })
+    },
+  })
+
+  const updateAgent = useMutation({
+    mutationFn: () =>
+      api.post<ProvisioningJob>(`/teams/${teamId}/servers/${serverId}/provision`, { components: ['agent'] }),
+    onSuccess: (job) => {
+      queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'servers', serverId, 'latest-job'] })
+      clearLogs()
+      setSseUrl(`/api/v1/teams/${teamId}/servers/${serverId}/provision/${job.id}/logs`)
+      toast({ title: 'Agent update started' })
+    },
+    onError: (err) => {
+      toast({ title: 'Agent update failed', description: err instanceof ApiError ? err.message : 'Failed to update agent' })
+    },
+  })
+
   useEffect(() => {
     if (logRef.current) {
       logRef.current.scrollTop = logRef.current.scrollHeight
@@ -286,10 +348,18 @@ function ServerDetailPage() {
   }
 
   const resources = server.resources
+  const latestLogs = (() => {
+    const dbLogs = latestJob?.logs || ''
+    const liveLogs = logMessages.join('\n')
+    return liveLogs ? (dbLogs ? dbLogs + '\n' + liveLogs : liveLogs) : dbLogs
+  })()
+  const isAgentUpdateJob = latestJob?.components.length === 1 && latestJob.components[0] === 'agent'
+  const jobStatusVariant = latestJob?.status === 'completed' ? 'default' :
+    latestJob?.status === 'failed' ? 'destructive' : 'secondary'
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <StatusDot status={server.status} />
           <div>
@@ -297,11 +367,63 @@ function ServerDetailPage() {
             <p className="text-muted-foreground text-sm">{server.hostname}</p>
           </div>
         </div>
-        <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
-          <Trash2 className="mr-2 h-4 w-4" />
-          Delete Server
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setRenameOpen(true)}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Rename
+          </Button>
+          <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete Server
+          </Button>
+        </div>
       </div>
+
+      <Dialog open={renameOpen} onOpenChange={(isOpen) => {
+        setRenameOpen(isOpen)
+        if (!isOpen) {
+          setServerName(server.name)
+          setRenameError('')
+        }
+      }}>
+        <DialogContent>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              const nextName = serverName.trim()
+              if (!nextName) {
+                setRenameError('Server name is required.')
+                return
+              }
+              renameServer.mutate(nextName)
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Rename Server</DialogTitle>
+              <DialogDescription>Update the display name used in this team.</DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-2">
+              {renameError && (
+                <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{renameError}</div>
+              )}
+              <Label htmlFor="server-name">Server name</Label>
+              <Input
+                id="server-name"
+                value={serverName}
+                onChange={(e) => setServerName(e.target.value)}
+                placeholder="Production server"
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setRenameOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={renameServer.isPending || serverName.trim() === ''}>
+                {renameServer.isPending ? 'Saving...' : 'Save'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>
@@ -321,13 +443,14 @@ function ServerDetailPage() {
       </Dialog>
 
       <Tabs defaultValue="overview">
-        <TabsList>
+        <TabsList className="h-auto flex-wrap justify-start">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="resources">Resources</TabsTrigger>
           <TabsTrigger value="terminal">Terminal</TabsTrigger>
           <TabsTrigger value="provisioning">Provisioning</TabsTrigger>
           <TabsTrigger value="tags">Tags</TabsTrigger>
           <TabsTrigger value="server-logs">Server Logs</TabsTrigger>
+          <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -529,10 +652,7 @@ function ServerDetailPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   Latest Job
-                  <Badge variant={
-                    latestJob.status === 'completed' ? 'default' :
-                    latestJob.status === 'failed' ? 'destructive' : 'secondary'
-                  }>
+                  <Badge variant={jobStatusVariant}>
                     {latestJob.status}
                   </Badge>
                 </CardTitle>
@@ -566,12 +686,7 @@ function ServerDetailPage() {
                   ref={logRef}
                   className="bg-muted rounded-md p-4 text-xs font-mono overflow-auto max-h-96 whitespace-pre-wrap"
                 >
-                  {(() => {
-                    const dbLogs = latestJob.logs || ''
-                    const liveLogs = logMessages.join('\n')
-                    const allLogs = liveLogs ? (dbLogs ? dbLogs + '\n' + liveLogs : liveLogs) : dbLogs
-                    return allLogs || 'Waiting for logs...'
-                  })()}
+                  {latestLogs || 'Waiting for logs...'}
                 </pre>
               </CardContent>
             </Card>
@@ -661,6 +776,132 @@ function ServerDetailPage() {
         {/* Server Logs Tab */}
         <TabsContent value="server-logs" className="mt-4 space-y-4">
           <ServerLogsPanel teamId={teamId} serverId={serverId} />
+        </TabsContent>
+
+        {/* Maintenance Tab */}
+        <TabsContent value="maintenance" className="mt-4 space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <DownloadCloud className="h-4 w-4" />
+                Agent Update
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={updateAgent.isPending}
+                onClick={() => updateAgent.mutate()}
+              >
+                {updateAgent.isPending ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Starting...</>
+                ) : 'Update Agent'}
+              </Button>
+              {isAgentUpdateJob && latestJob && (
+                <div className="space-y-3 rounded-md border p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">Latest agent update</span>
+                      <Badge variant={jobStatusVariant}>{latestJob.status}</Badge>
+                    </div>
+                    {sseConnected && latestJob.status === 'running' && (
+                      <span className="flex items-center gap-1 text-xs text-green-600">
+                        <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                        Live
+                      </span>
+                    )}
+                  </div>
+                  {latestJob.error && (
+                    <p className="text-sm text-destructive">{latestJob.error}</p>
+                  )}
+                  <pre
+                    ref={logRef}
+                    className="max-h-80 overflow-auto rounded-md bg-muted p-4 text-xs font-mono whitespace-pre-wrap"
+                  >
+                    {latestLogs || 'Waiting for logs...'}
+                  </pre>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Trash2 className="h-4 w-4" />
+                Docker Cleanup
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form
+                className="space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  cleanupServer.mutate()
+                }}
+              >
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[
+                    ['remove_stopped_containers', 'Stopped containers'],
+                    ['remove_unused_images', 'Unused images'],
+                    ['remove_unused_networks', 'Unused networks'],
+                    ['remove_build_cache', 'Build cache'],
+                    ['remove_volumes', 'Unused volumes'],
+                  ].map(([key, label]) => (
+                    <label key={key} className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(cleanupOptions[key as keyof typeof cleanupOptions])}
+                        onChange={(e) => setCleanupOptions((prev) => ({ ...prev, [key]: e.target.checked }))}
+                        className="h-4 w-4"
+                      />
+                      <span className="font-medium">{label}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="grid gap-2 sm:max-w-xs">
+                  <Label htmlFor="cleanup-age">Older than hours</Label>
+                  <Input
+                    id="cleanup-age"
+                    type="number"
+                    min={0}
+                    value={cleanupOptions.older_than_hours}
+                    onChange={(e) => setCleanupOptions((prev) => ({
+                      ...prev,
+                      older_than_hours: Math.max(0, Number(e.target.value) || 0),
+                    }))}
+                  />
+                </div>
+                {cleanupOptions.remove_volumes && (
+                  <div className="flex gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>Unused Docker volumes can contain data that is no longer attached to a container.</span>
+                  </div>
+                )}
+                <Button
+                  type="submit"
+                  variant="destructive"
+                  disabled={cleanupServer.isPending || !Object.entries(cleanupOptions).some(([key, value]) => key !== 'older_than_hours' && value)}
+                >
+                  {cleanupServer.isPending ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Cleaning...</>
+                  ) : 'Run Cleanup'}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          {cleanupServer.data && (
+            <Card>
+              <CardHeader><CardTitle className="text-base">Cleanup Output</CardTitle></CardHeader>
+              <CardContent>
+                <pre className="max-h-96 overflow-auto rounded-md bg-muted p-4 text-xs font-mono whitespace-pre-wrap">
+                  {cleanupServer.data.output || 'Cleanup completed.'}
+                </pre>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>

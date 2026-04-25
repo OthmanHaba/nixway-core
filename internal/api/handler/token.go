@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/othmanhaba/nixway-core/internal/api/respond"
 	"github.com/othmanhaba/nixway-core/internal/api/middleware"
+	"github.com/othmanhaba/nixway-core/internal/api/respond"
 	"github.com/othmanhaba/nixway-core/internal/audit"
 	"github.com/othmanhaba/nixway-core/internal/auth"
 	"github.com/othmanhaba/nixway-core/internal/config"
@@ -49,7 +49,7 @@ func (h *TokenHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleAdmin); !ok {
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleAdmin, model.ScopeTokensWrite); !ok {
 		return
 	}
 
@@ -61,6 +61,12 @@ func (h *TokenHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if req.Name == "" {
 		respond.Error(w, http.StatusBadRequest, "name is required")
 		return
+	}
+	for _, scope := range req.Scopes {
+		if !model.ValidTokenScope(scope) {
+			respond.Error(w, http.StatusBadRequest, "unknown token scope: "+scope)
+			return
+		}
 	}
 
 	plain, hash, err := auth.GenerateAPIToken(h.config.Auth.TokenLength)
@@ -131,7 +137,7 @@ func (h *TokenHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleMember); !ok {
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleMember, model.ScopeTokensRead); !ok {
 		return
 	}
 
@@ -172,7 +178,7 @@ func (h *TokenHandler) Revoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleAdmin); !ok {
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleAdmin, model.ScopeTokensWrite); !ok {
 		return
 	}
 

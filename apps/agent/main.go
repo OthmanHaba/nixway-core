@@ -195,6 +195,12 @@ func receiveLoop(
 			)
 			go HandleServerLogsCommand(ctx, p.ServerLogs, stream, logger)
 
+		case *agentv1.ControlMessage_ServerCleanup:
+			logger.Info("server cleanup command received",
+				"request_id", p.ServerCleanup.RequestId,
+			)
+			go HandleServerCleanupCommand(ctx, p.ServerCleanup, stream, logger)
+
 		default:
 			logger.Warn("unknown control message payload")
 		}

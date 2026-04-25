@@ -103,6 +103,28 @@ func (q *Queries) GetClusterByID(ctx context.Context, arg GetClusterByIDParams) 
 	return i, err
 }
 
+const getClusterByIDAnyTeam = `-- name: GetClusterByIDAnyTeam :one
+SELECT id, team_id, name, slug, description, region, cidr, status, created_at, updated_at FROM clusters WHERE id = $1
+`
+
+func (q *Queries) GetClusterByIDAnyTeam(ctx context.Context, id uuid.UUID) (Cluster, error) {
+	row := q.db.QueryRow(ctx, getClusterByIDAnyTeam, id)
+	var i Cluster
+	err := row.Scan(
+		&i.ID,
+		&i.TeamID,
+		&i.Name,
+		&i.Slug,
+		&i.Description,
+		&i.Region,
+		&i.Cidr,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getClusterBySlug = `-- name: GetClusterBySlug :one
 SELECT id, team_id, name, slug, description, region, cidr, status, created_at, updated_at FROM clusters WHERE slug = $1 AND team_id = $2
 `

@@ -30,7 +30,7 @@ func TestAutoDiscovery(t *testing.T) {
 	ReadJSON(t, resp, &candidates)
 
 	require.Len(t, candidates, 1)
-	assert.Equal(t, "docker", candidates[0]["builder"])
+	assert.Equal(t, "dockerfile", candidates[0]["builder"])
 	assert.Equal(t, 1.0, candidates[0]["confidence"])
 }
 
@@ -54,13 +54,13 @@ func TestAutoDiscoveryMultiple(t *testing.T) {
 	var candidates []map[string]any
 	ReadJSON(t, resp, &candidates)
 
-	// Should have docker (1.0) and nixpacks (0.7 for package.json)
+	// Should have dockerfile (1.0) and nixpacks (0.7 for package.json)
 	require.GreaterOrEqual(t, len(candidates), 2)
 
 	builders := make(map[string]float64)
 	for _, c := range candidates {
 		builders[c["builder"].(string)] = c["confidence"].(float64)
 	}
-	assert.Equal(t, 1.0, builders["docker"])
+	assert.Equal(t, 1.0, builders["dockerfile"])
 	assert.Equal(t, 0.7, builders["nixpacks"])
 }

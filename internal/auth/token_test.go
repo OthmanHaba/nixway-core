@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/othmanhaba/nixway-core/internal/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,4 +31,12 @@ func TestGenerateAPIToken_DifferentHashesForDifferentTokens(t *testing.T) {
 
 	assert.NotEqual(t, plain1, plain2, "tokens should differ")
 	assert.NotEqual(t, hash1, hash2, "hashes of different tokens should differ")
+}
+
+func TestValidTokenScope(t *testing.T) {
+	assert.True(t, model.ValidTokenScope(model.ScopeTeamsRead))
+	assert.True(t, model.ValidTokenScope("teams:*"))
+	assert.True(t, model.ValidTokenScope(model.ScopeAll))
+	assert.False(t, model.ValidTokenScope("deploys:write"))
+	assert.False(t, model.ValidTokenScope("teams:delete"))
 }

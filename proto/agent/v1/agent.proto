@@ -47,6 +47,7 @@ message AgentMessage {
     RestartContainerResult restart_container_result = 19;
     ContainerInspectResult container_inspect_result = 20;
     ServerLogsOutput server_logs_output = 21;
+    ServerCleanupResult server_cleanup_result = 22;
   }
 }
 
@@ -71,6 +72,7 @@ message ControlMessage {
     RestartContainerCommand restart_container = 17;
     ContainerInspectCommand container_inspect = 18;
     ServerLogsCommand server_logs = 19;
+    ServerCleanupCommand server_cleanup = 20;
   }
 }
 
@@ -428,5 +430,24 @@ message ServerLogsOutput {
   string request_id = 1;
   bytes output = 2;
   bool finished = 3;
+  string error = 4;
+}
+
+// --- Server Maintenance ---
+
+message ServerCleanupCommand {
+  string request_id = 1;
+  bool remove_stopped_containers = 2;
+  bool remove_unused_images = 3;
+  bool remove_unused_networks = 4;
+  bool remove_build_cache = 5;
+  bool remove_volumes = 6;
+  int32 older_than_hours = 7; // applied where Docker supports an until filter
+}
+
+message ServerCleanupResult {
+  string request_id = 1;
+  bool success = 2;
+  string output = 3;
   string error = 4;
 }

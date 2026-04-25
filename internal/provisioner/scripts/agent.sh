@@ -41,6 +41,6 @@ EOF
 
 systemctl daemon-reload
 systemctl enable nixway-agent
-systemctl start nixway-agent
+systemctl restart nixway-agent
 
 echo "=== Nixway Agent installed and started ==="

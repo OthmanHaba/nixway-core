@@ -57,6 +57,19 @@ func HandleBuildCommand(ctx context.Context, cmd *agentv1.BuildCommand, stream a
 		cleanup(buildDir)
 		return
 	}
+	if cmd.CommitSha != "" {
+		sendOutput("cloning", fmt.Sprintf("Checking out commit %s...\n", cmd.CommitSha), false, false, "", "")
+		fetchOut, fetchErr := runCommandStreaming(ctx, "git", []string{"fetch", "--depth", "1", "origin", cmd.CommitSha}, buildDir, sendOutput, "cloning")
+		if fetchErr != nil {
+			sendOutput("cloning", fetchOut+fmt.Sprintf("Warning: fetch commit failed: %v\n", fetchErr), false, false, "", "")
+		}
+		checkoutOut, checkoutErr := runCommandStreaming(ctx, "git", []string{"checkout", "--detach", cmd.CommitSha}, buildDir, sendOutput, "cloning")
+		if checkoutErr != nil {
+			sendOutput("cloning", checkoutOut, true, false, fmt.Sprintf("checkout commit failed: %v", checkoutErr), "")
+			cleanup(buildDir)
+			return
+		}
+	}
 
 	// Determine working directory (support monorepo root_path)
 	workDir := buildDir
@@ -106,10 +119,7 @@ func HandleBuildCommand(ctx context.Context, cmd *agentv1.BuildCommand, stream a
 		return
 	}
 
-	// Get image ID
-	imageID, _ := exec.CommandContext(ctx, "docker", "inspect", "--format", "{{.Id}}", cmd.ImageTag).Output()
-
-	sendOutput("building", "Build completed successfully.\n", true, true, "", strings.TrimSpace(string(imageID)))
+	sendOutput("building", "Build completed successfully.\n", true, true, "", cmd.ImageTag)
 	cleanup(buildDir)
 }
 

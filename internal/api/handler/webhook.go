@@ -51,6 +51,29 @@ func (h *WebhookHandler) HandleGitHub(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.handleGitHubWithApp(w, r, app)
+}
+
+// HandleGitHubTeam handles POST /api/v1/webhooks/github/team/{teamId}.
+// GitHub App manifests are created before GitHub assigns an app ID, so the
+// manifest webhook URL is team-scoped and resolves the current app by team.
+func (h *WebhookHandler) HandleGitHubTeam(w http.ResponseWriter, r *http.Request) {
+	teamID, err := uuid.Parse(r.PathValue("teamId"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid team ID")
+		return
+	}
+
+	app, err := h.queries.GetGitHubAppByTeam(r.Context(), teamID)
+	if err != nil {
+		respond.Error(w, http.StatusNotFound, "app not found")
+		return
+	}
+
+	h.handleGitHubWithApp(w, r, app)
+}
+
+func (h *WebhookHandler) handleGitHubWithApp(w http.ResponseWriter, r *http.Request, app db.GithubApp) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		respond.Error(w, http.StatusInternalServerError, "failed to read request body")
@@ -86,7 +109,7 @@ func (h *WebhookHandler) HandleGitHub(w http.ResponseWriter, r *http.Request) {
 	var payload struct {
 		Action       *string `json:"action"`
 		Installation *struct {
-			ID      int64  `json:"id"`
+			ID      int64 `json:"id"`
 			Account struct {
 				Login string `json:"login"`
 				Type  string `json:"type"`
@@ -178,7 +201,7 @@ func (h *WebhookHandler) HandleGitHub(w http.ResponseWriter, r *http.Request) {
 	if eventType == "push" && h.buildSvc != nil {
 		var pushPayload struct {
 			Ref        string `json:"ref"`
-			After      string `json:"after"`      // commit SHA
+			After      string `json:"after"` // commit SHA
 			HeadCommit *struct {
 				Message string `json:"message"`
 			} `json:"head_commit"`

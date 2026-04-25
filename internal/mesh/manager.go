@@ -158,6 +158,12 @@ func (m *Manager) RegenerateMesh(ctx context.Context, clusterID uuid.UUID) error
 	}
 
 	if allHaveKeys {
+		cluster, err := m.queries.GetClusterByIDAnyTeam(ctx, clusterID)
+		if err != nil {
+			m.publish(ctx, clusterID, "warning", fmt.Sprintf("Mesh configured but DNS update skipped: cluster lookup failed: %v", err), nil)
+		} else {
+			m.UpdateDNSForCluster(ctx, clusterID, cluster.Slug, memberInfos)
+		}
 		m.publish(ctx, clusterID, "mesh_regenerated", fmt.Sprintf("Mesh regeneration complete — %d nodes configured", len(memberInfos)), nil)
 	} else {
 		m.publish(ctx, clusterID, "info", "Waiting for keygen results before completing mesh setup...", nil)

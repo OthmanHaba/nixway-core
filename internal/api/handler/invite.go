@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/othmanhaba/nixway-core/internal/api/respond"
 	"github.com/othmanhaba/nixway-core/internal/api/middleware"
+	"github.com/othmanhaba/nixway-core/internal/api/respond"
 	"github.com/othmanhaba/nixway-core/internal/audit"
 	"github.com/othmanhaba/nixway-core/internal/auth"
 	"github.com/othmanhaba/nixway-core/internal/db"
@@ -25,7 +25,7 @@ func (h *TeamHandler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleAdmin); !ok {
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleAdmin, model.ScopeInvitesWrite); !ok {
 		return
 	}
 
@@ -92,7 +92,7 @@ func (h *TeamHandler) ListInvites(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleMember); !ok {
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleMember, model.ScopeInvitesRead); !ok {
 		return
 	}
 
@@ -125,7 +125,7 @@ func (h *TeamHandler) CancelInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleAdmin); !ok {
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleAdmin, model.ScopeInvitesWrite); !ok {
 		return
 	}
 

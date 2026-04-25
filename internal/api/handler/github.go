@@ -61,7 +61,7 @@ func (h *GitHubHandler) CreateManifest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	manifest := h.githubSvc.GenerateManifest(team.Slug)
+	manifest := h.githubSvc.GenerateManifest(team.ID.String(), team.Slug)
 
 	manifestJSON, err := json.Marshal(manifest)
 	if err != nil {

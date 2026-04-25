@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/othmanhaba/nixway-core/internal/api/respond"
 	"github.com/othmanhaba/nixway-core/internal/api/middleware"
+	"github.com/othmanhaba/nixway-core/internal/api/respond"
 	"github.com/othmanhaba/nixway-core/internal/audit"
 	"github.com/othmanhaba/nixway-core/internal/config"
 	"github.com/othmanhaba/nixway-core/internal/db"
@@ -60,6 +60,10 @@ func (h *TeamHandler) Create(w http.ResponseWriter, r *http.Request) {
 	authCtx := middleware.GetAuthContext(r)
 	if authCtx == nil {
 		respond.Error(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	if authCtx.TokenID != nil {
+		respond.Error(w, http.StatusForbidden, "api tokens cannot create teams")
 		return
 	}
 
@@ -130,6 +134,16 @@ func (h *TeamHandler) List(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
+	if authCtx.TokenID != nil && authCtx.TeamID != nil {
+		filtered := teams[:0]
+		for _, t := range teams {
+			if t.ID == *authCtx.TeamID {
+				filtered = append(filtered, t)
+				break
+			}
+		}
+		teams = filtered
+	}
 
 	result := make([]model.Team, len(teams))
 	for i, t := range teams {
@@ -151,7 +165,7 @@ func (h *TeamHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleMember); !ok {
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleMember, model.ScopeTeamsRead); !ok {
 		return
 	}
 
@@ -180,7 +194,7 @@ func (h *TeamHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleAdmin); !ok {
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleAdmin, model.ScopeTeamsWrite); !ok {
 		return
 	}
 
@@ -232,7 +246,7 @@ func (h *TeamHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleOwner); !ok {
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleOwner, model.ScopeTeamsWrite); !ok {
 		return
 	}
 

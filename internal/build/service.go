@@ -8,12 +8,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/redis/go-redis/v9"
 	"github.com/othmanhaba/nixway-core/internal/agent"
 	agentv1 "github.com/othmanhaba/nixway-core/internal/agent/proto/agent/v1"
 	"github.com/othmanhaba/nixway-core/internal/crypto"
 	"github.com/othmanhaba/nixway-core/internal/db"
 	githubsvc "github.com/othmanhaba/nixway-core/internal/github"
+	"github.com/redis/go-redis/v9"
 )
 
 // DeployTriggerer triggers a deploy after a successful build.
@@ -121,6 +121,7 @@ func (s *Service) dispatchBuild(ctx context.Context, b db.Build, app db.App) {
 		Builder:        app.Builder,
 		DockerfilePath: app.DockerfilePath,
 		ImageTag:       fmt.Sprintf("nixway/%s:%s", app.Slug, buildID[:8]),
+		CommitSha:      b.CommitSha,
 		Branch:         b.Branch,
 		RootPath:       app.RootPath,
 	}

@@ -1,0 +1,218 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+LAB_DIR="${ROOT_DIR}/.lab"
+KEY_PATH="${LAB_DIR}/id_ed25519"
+VM_PREFIX="${NIXWAY_LAB_PREFIX:-nx-node}"
+DEFAULT_COUNT="${NIXWAY_LAB_COUNT:-2}"
+DEFAULT_CPUS="${NIXWAY_LAB_CPUS:-2}"
+DEFAULT_MEMORY="${NIXWAY_LAB_MEMORY:-3G}"
+DEFAULT_DISK="${NIXWAY_LAB_DISK:-20G}"
+DEFAULT_IMAGE="${NIXWAY_LAB_IMAGE:-24.04}"
+REGISTRY_NAME="${NIXWAY_LAB_REGISTRY_NAME:-nixway-registry}"
+REGISTRY_PORT="${NIXWAY_LAB_REGISTRY_PORT:-5001}"
+
+usage() {
+  cat <<EOF
+Usage: scripts/lab <command> [args]
+
+Commands:
+  up [count]        Create local Ubuntu VM servers with Multipass.
+  bootstrap [count] Install SSH, Docker, and the lab SSH key on each VM.
+  info [count]      Print server connection details for Nixway.
+  status            Show Multipass status for lab VMs.
+  ssh <name>        SSH into a lab VM using the lab key.
+  registry          Start a local Docker registry on localhost:${REGISTRY_PORT}.
+  build-agent       Build Linux agent binaries served by /agent/download/{arch}.
+  down [count]      Stop lab VMs.
+  destroy [count]   Delete and purge lab VMs.
+
+Environment:
+  NIXWAY_LAB_PREFIX=${VM_PREFIX}
+  NIXWAY_LAB_COUNT=${DEFAULT_COUNT}
+  NIXWAY_LAB_CPUS=${DEFAULT_CPUS}
+  NIXWAY_LAB_MEMORY=${DEFAULT_MEMORY}
+  NIXWAY_LAB_DISK=${DEFAULT_DISK}
+  NIXWAY_LAB_IMAGE=${DEFAULT_IMAGE}
+EOF
+}
+
+need_cmd() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "Missing required command: $1" >&2
+    exit 1
+  fi
+}
+
+vm_name() {
+  printf "%s-%s" "${VM_PREFIX}" "$1"
+}
+
+vm_ip() {
+  multipass info "$1" | awk '/IPv4/ { print $2; exit }'
+}
+
+ensure_key() {
+  mkdir -p "${LAB_DIR}"
+  if [[ ! -f "${KEY_PATH}" ]]; then
+    ssh-keygen -t ed25519 -N "" -C "nixway-local-lab" -f "${KEY_PATH}"
+  fi
+}
+
+count_arg() {
+  printf "%s" "${1:-${DEFAULT_COUNT}}"
+}
+
+lab_up() {
+  need_cmd multipass
+  local count
+  count="$(count_arg "${1:-}")"
+  ensure_key
+
+  for i in $(seq 1 "${count}"); do
+    local name
+    name="$(vm_name "${i}")"
+    if multipass info "${name}" >/dev/null 2>&1; then
+      echo "${name} already exists"
+      continue
+    fi
+    echo "Creating ${name}"
+    multipass launch "${DEFAULT_IMAGE}" \
+      --name "${name}" \
+      --cpus "${DEFAULT_CPUS}" \
+      --memory "${DEFAULT_MEMORY}" \
+      --disk "${DEFAULT_DISK}"
+  done
+
+  lab_bootstrap "${count}"
+  lab_info "${count}"
+}
+
+lab_bootstrap() {
+  need_cmd multipass
+  local count
+  count="$(count_arg "${1:-}")"
+  ensure_key
+
+  for i in $(seq 1 "${count}"); do
+    local name
+    name="$(vm_name "${i}")"
+    echo "Bootstrapping ${name}"
+    multipass exec "${name}" -- bash -lc "set -euo pipefail
+      sudo apt-get update
+      sudo apt-get install -y openssh-server docker.io git curl ca-certificates
+      sudo systemctl enable --now ssh docker
+      sudo usermod -aG docker ubuntu
+      mkdir -p ~/.ssh
+      chmod 700 ~/.ssh
+      touch ~/.ssh/authorized_keys
+      grep -qxF '$(cat "${KEY_PATH}.pub")' ~/.ssh/authorized_keys || echo '$(cat "${KEY_PATH}.pub")' >> ~/.ssh/authorized_keys
+      chmod 600 ~/.ssh/authorized_keys
+      sudo mkdir -p /etc/docker
+      if [ ! -f /etc/docker/daemon.json ]; then
+        echo '{}' | sudo tee /etc/docker/daemon.json >/dev/null
+      fi
+    "
+  done
+}
+
+lab_info() {
+  need_cmd multipass
+  local count
+  count="$(count_arg "${1:-}")"
+  ensure_key
+
+  echo
+  echo "Nixway local lab servers"
+  echo "SSH key: ${KEY_PATH}"
+  echo
+  printf "%-14s %-16s %-8s %-6s %s\n" "Name" "Host/IP" "User" "Port" "SSH command"
+  printf "%-14s %-16s %-8s %-6s %s\n" "----" "-------" "----" "----" "-----------"
+  for i in $(seq 1 "${count}"); do
+    local name ip
+    name="$(vm_name "${i}")"
+    ip="$(vm_ip "${name}")"
+    printf "%-14s %-16s %-8s %-6s ssh -i %s ubuntu@%s\n" "${name}" "${ip}" "ubuntu" "22" "${KEY_PATH}" "${ip}"
+  done
+  echo
+  echo "Use these values when adding a Nixway server:"
+  echo "  ssh_user: ubuntu"
+  echo "  ssh_port: 22"
+  echo "  ssh_key:  ${KEY_PATH}.pub / ${KEY_PATH}"
+}
+
+lab_status() {
+  need_cmd multipass
+  multipass list | awk -v prefix="${VM_PREFIX}" 'NR == 1 || $1 ~ "^" prefix "-"'
+}
+
+lab_ssh() {
+  need_cmd ssh
+  need_cmd multipass
+  ensure_key
+  local name="${1:-}"
+  if [[ -z "${name}" ]]; then
+    echo "Usage: scripts/lab ssh <vm-name>" >&2
+    exit 1
+  fi
+  ssh -i "${KEY_PATH}" -o StrictHostKeyChecking=accept-new "ubuntu@$(vm_ip "${name}")"
+}
+
+lab_registry() {
+  need_cmd docker
+  if docker ps --format '{{.Names}}' | grep -qx "${REGISTRY_NAME}"; then
+    echo "Registry already running on localhost:${REGISTRY_PORT}"
+    return
+  fi
+  if docker ps -a --format '{{.Names}}' | grep -qx "${REGISTRY_NAME}"; then
+    docker start "${REGISTRY_NAME}" >/dev/null
+  else
+    docker run -d --name "${REGISTRY_NAME}" -p "${REGISTRY_PORT}:5000" --restart unless-stopped registry:2 >/dev/null
+  fi
+  echo "Registry running on localhost:${REGISTRY_PORT}"
+}
+
+lab_build_agent() {
+  make -C "${ROOT_DIR}" build-agent
+}
+
+lab_down() {
+  need_cmd multipass
+  local count
+  count="$(count_arg "${1:-}")"
+  for i in $(seq 1 "${count}"); do
+    multipass stop "$(vm_name "${i}")" || true
+  done
+}
+
+lab_destroy() {
+  need_cmd multipass
+  local count
+  count="$(count_arg "${1:-}")"
+  for i in $(seq 1 "${count}"); do
+    multipass delete "$(vm_name "${i}")" || true
+  done
+  multipass purge
+}
+
+cmd="${1:-}"
+shift || true
+
+case "${cmd}" in
+  up) lab_up "$@" ;;
+  bootstrap) lab_bootstrap "$@" ;;
+  info) lab_info "$@" ;;
+  status) lab_status ;;
+  ssh) lab_ssh "$@" ;;
+  registry) lab_registry ;;
+  build-agent) lab_build_agent ;;
+  down) lab_down "$@" ;;
+  destroy) lab_destroy "$@" ;;
+  -h|--help|help|"") usage ;;
+  *)
+    echo "Unknown lab command: ${cmd}" >&2
+    usage
+    exit 1
+    ;;
+esac

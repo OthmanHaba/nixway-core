@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/othmanhaba/nixway-core/internal/api/respond"
 	"github.com/othmanhaba/nixway-core/internal/api/middleware"
+	"github.com/othmanhaba/nixway-core/internal/api/respond"
 	"github.com/othmanhaba/nixway-core/internal/audit"
 	"github.com/othmanhaba/nixway-core/internal/db"
 	"github.com/othmanhaba/nixway-core/internal/model"
@@ -17,7 +17,7 @@ func (h *TeamHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleMember); !ok {
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleMember, model.ScopeMembersRead); !ok {
 		return
 	}
 
@@ -54,7 +54,7 @@ func (h *TeamHandler) UpdateMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleOwner); !ok {
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleOwner, model.ScopeMembersWrite); !ok {
 		return
 	}
 
@@ -130,7 +130,7 @@ func (h *TeamHandler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleOwner); !ok {
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleOwner, model.ScopeMembersWrite); !ok {
 		return
 	}
 

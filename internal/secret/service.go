@@ -158,7 +158,7 @@ func (s *Service) BulkResolve(ctx context.Context, teamID uuid.UUID, environment
 			TeamID:    teamID,
 			ActorID:   optionalUUIDToPgtype(actorID),
 			ActorType: actorType,
-			Action:    "bulk_resolve",
+			Action:    "resolve",
 			IpAddress: nil,
 		}); logErr != nil {
 			s.logger.WarnContext(ctx, "failed to log bulk resolve", "secret_id", secret.ID, "key", key, "error", logErr)

@@ -5,6 +5,9 @@ VALUES ($1, $2, $3, $4, $5, $6) RETURNING *;
 -- name: GetClusterByID :one
 SELECT * FROM clusters WHERE id = $1 AND team_id = $2;
 
+-- name: GetClusterByIDAnyTeam :one
+SELECT * FROM clusters WHERE id = $1;
+
 -- name: GetClusterBySlug :one
 SELECT * FROM clusters WHERE slug = $1 AND team_id = $2;
 

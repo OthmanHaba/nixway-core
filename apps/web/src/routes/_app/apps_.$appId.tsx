@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { Loader2, GitBranch, Box, Hammer, Activity, RotateCcw, Play, ChevronRight, Terminal, Search, RefreshCw, Square, Cpu, MemoryStick } from 'lucide-react'
+import { Loader2, GitBranch, Box, Hammer, Activity, RotateCcw, Play, ChevronRight, Search, RefreshCw, Square, Cpu, MemoryStick } from 'lucide-react'
 
 export const Route = createFileRoute('/_app/apps_/$appId')({
   component: AppDetailPage,
@@ -425,6 +425,25 @@ function InspectPanel({ appId }: { appId: string }) {
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
         </Button>
       </div>
+
+      {replicas.length > 0 && (
+        <div className="space-y-2">
+          <Label htmlFor="inspect-container">Inspect replica</Label>
+          <select
+            id="inspect-container"
+            value={selectedContainer}
+            onChange={(e) => setSelectedContainer(e.target.value)}
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+          >
+            <option value="">Latest deployment default</option>
+            {replicas.map((replica) => (
+              <option key={`${replica.server_id}-${replica.container_id ?? 'pending'}`} value={replica.container_id ?? ''}>
+                {replica.server_name}{replica.container_id ? ` - ${replica.container_id}` : ' - pending'}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {inspectData ? (
         <div className="space-y-4">

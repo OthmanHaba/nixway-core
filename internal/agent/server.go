@@ -35,12 +35,12 @@ type MeshRegenerator interface {
 // Server implements agentv1.AgentServiceServer.
 type Server struct {
 	agentv1.UnimplementedAgentServiceServer
-	conn    *ConnManager
-	queries *db.Queries
-	redis   *redis.Client
-	logger    *slog.Logger
-	meshReg   MeshRegenerator
-	deployer  DeployTriggerer
+	conn     *ConnManager
+	queries  *db.Queries
+	redis    *redis.Client
+	logger   *slog.Logger
+	meshReg  MeshRegenerator
+	deployer DeployTriggerer
 }
 
 func NewServer(conn *ConnManager, queries *db.Queries, redisClient *redis.Client, logger *slog.Logger) *Server {
@@ -331,6 +331,18 @@ func (s *Server) Connect(stream agentv1.AgentService_ConnectServer) error {
 				if slo.Finished {
 					s.redis.Publish(stream.Context(), channel, "__done__")
 				}
+			}
+
+		case *agentv1.AgentMessage_ServerCleanupResult:
+			cr := p.ServerCleanupResult
+			s.logger.Info("server cleanup result",
+				"agent_id", agentID,
+				"request_id", cr.RequestId,
+				"success", cr.Success,
+			)
+			if s.redis != nil {
+				data, _ := json.Marshal(cr)
+				s.redis.Publish(stream.Context(), "server-cleanup:"+cr.RequestId, string(data))
 			}
 
 		default:

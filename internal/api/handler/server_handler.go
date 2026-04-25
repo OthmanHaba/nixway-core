@@ -1,30 +1,40 @@
 package handler
 
 import (
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/othmanhaba/nixway-core/internal/agent"
+	agentv1 "github.com/othmanhaba/nixway-core/internal/agent/proto/agent/v1"
 	"github.com/othmanhaba/nixway-core/internal/api/middleware"
 	"github.com/othmanhaba/nixway-core/internal/api/respond"
 	"github.com/othmanhaba/nixway-core/internal/audit"
 	"github.com/othmanhaba/nixway-core/internal/db"
+	"github.com/othmanhaba/nixway-core/internal/model"
 	"github.com/othmanhaba/nixway-core/internal/server"
+	"github.com/redis/go-redis/v9"
 )
 
 type ServerHandler struct {
 	queries    *db.Queries
 	audit      *audit.Writer
 	onboarding *server.OnboardingService
+	connMgr    *agent.ConnManager
+	redis      *redis.Client
 	logger     *slog.Logger
 }
 
-func NewServerHandler(queries *db.Queries, auditWriter *audit.Writer, onboarding *server.OnboardingService, logger *slog.Logger) *ServerHandler {
+func NewServerHandler(queries *db.Queries, auditWriter *audit.Writer, onboarding *server.OnboardingService, connMgr *agent.ConnManager, redisClient *redis.Client, logger *slog.Logger) *ServerHandler {
 	return &ServerHandler{
 		queries:    queries,
 		audit:      auditWriter,
 		onboarding: onboarding,
+		connMgr:    connMgr,
+		redis:      redisClient,
 		logger:     logger,
 	}
 }
@@ -50,6 +60,9 @@ func (h *ServerHandler) Create(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusBadRequest, "invalid team ID")
 		return
 	}
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleAdmin, model.ScopeServersWrite); !ok {
+		return
+	}
 
 	var req createServerRequest
 	if err := respond.DecodeJSON(r, &req); err != nil {
@@ -72,7 +85,7 @@ func (h *ServerHandler) Create(w http.ResponseWriter, r *http.Request) {
 		TeamID:   teamID,
 		Name:     req.Name,
 		Hostname: req.Hostname,
-		PublicIP:  req.PublicIP,
+		PublicIP: req.PublicIP,
 		SSHPort:  req.SSHPort,
 		SSHUser:  req.SSHUser,
 		SSHKeyID: req.SSHKeyID,
@@ -107,6 +120,9 @@ func (h *ServerHandler) List(w http.ResponseWriter, r *http.Request) {
 	teamID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		respond.Error(w, http.StatusBadRequest, "invalid team ID")
+		return
+	}
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleMember, model.ScopeServersRead); !ok {
 		return
 	}
 
@@ -159,6 +175,9 @@ func (h *ServerHandler) Get(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusBadRequest, "invalid team ID")
 		return
 	}
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleMember, model.ScopeServersRead); !ok {
+		return
+	}
 
 	serverID, err := uuid.Parse(r.PathValue("serverId"))
 	if err != nil {
@@ -201,6 +220,9 @@ func (h *ServerHandler) Update(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusBadRequest, "invalid team ID")
 		return
 	}
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleAdmin, model.ScopeServersWrite); !ok {
+		return
+	}
 
 	serverID, err := uuid.Parse(r.PathValue("serverId"))
 	if err != nil {
@@ -219,19 +241,29 @@ func (h *ServerHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify server belongs to team
-	_, err = h.queries.GetServerByID(r.Context(), db.GetServerByIDParams{
+	srv, err := h.queries.UpdateServerName(r.Context(), db.UpdateServerNameParams{
 		ID:     serverID,
 		TeamID: teamID,
+		Name:   req.Name,
 	})
 	if err != nil {
 		respond.Error(w, http.StatusNotFound, "server not found")
 		return
 	}
 
-	// No UpdateServerName query exists in sqlc, so we return the current server.
-	// Name updates would require adding an sqlc query. For now, respond with not implemented.
-	respond.Error(w, http.StatusNotImplemented, "server name update not yet supported — add UpdateServerName sqlc query")
+	ip := parseIP(r)
+	_ = h.audit.Log(r.Context(), audit.Entry{
+		TeamID:       &teamID,
+		ActorID:      &authCtx.UserID,
+		ActorType:    "user",
+		Action:       "server.update",
+		ResourceType: "server",
+		ResourceID:   &serverID,
+		IPAddress:    ip,
+		Metadata:     map[string]string{"name": req.Name},
+	})
+
+	respond.JSON(w, http.StatusOK, srv)
 }
 
 func (h *ServerHandler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -244,6 +276,9 @@ func (h *ServerHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	teamID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		respond.Error(w, http.StatusBadRequest, "invalid team ID")
+		return
+	}
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleAdmin, model.ScopeServersWrite); !ok {
 		return
 	}
 
@@ -275,4 +310,134 @@ func (h *ServerHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	})
 
 	respond.JSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+type cleanupServerRequest struct {
+	RemoveStoppedContainers bool  `json:"remove_stopped_containers"`
+	RemoveUnusedImages      bool  `json:"remove_unused_images"`
+	RemoveUnusedNetworks    bool  `json:"remove_unused_networks"`
+	RemoveBuildCache        bool  `json:"remove_build_cache"`
+	RemoveVolumes           bool  `json:"remove_volumes"`
+	OlderThanHours          int32 `json:"older_than_hours"`
+}
+
+func (req cleanupServerRequest) hasSelection() bool {
+	return req.RemoveStoppedContainers ||
+		req.RemoveUnusedImages ||
+		req.RemoveUnusedNetworks ||
+		req.RemoveBuildCache ||
+		req.RemoveVolumes
+}
+
+// Cleanup handles POST /api/v1/teams/{id}/servers/{serverId}/cleanup.
+func (h *ServerHandler) Cleanup(w http.ResponseWriter, r *http.Request) {
+	authCtx := middleware.GetAuthContext(r)
+	if authCtx == nil {
+		respond.Error(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	teamID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid team ID")
+		return
+	}
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleAdmin, model.ScopeServersWrite); !ok {
+		return
+	}
+
+	serverID, err := uuid.Parse(r.PathValue("serverId"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid server ID")
+		return
+	}
+
+	var req cleanupServerRequest
+	if err := respond.DecodeJSON(r, &req); err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if !req.hasSelection() {
+		respond.Error(w, http.StatusBadRequest, "select at least one cleanup option")
+		return
+	}
+	if req.OlderThanHours < 0 {
+		respond.Error(w, http.StatusBadRequest, "older_than_hours cannot be negative")
+		return
+	}
+
+	srv, err := h.queries.GetServerByID(r.Context(), db.GetServerByIDParams{
+		ID:     serverID,
+		TeamID: teamID,
+	})
+	if err != nil {
+		respond.Error(w, http.StatusNotFound, "server not found")
+		return
+	}
+
+	agentID := serverID.String()
+	if srv.AgentID != nil && *srv.AgentID != "" {
+		agentID = *srv.AgentID
+	}
+	if state := h.connMgr.GetState(agentID); state == nil || state.Status != "online" {
+		respond.Error(w, http.StatusNotFound, "server agent not online")
+		return
+	}
+	if h.redis == nil {
+		respond.Error(w, http.StatusInternalServerError, "cleanup result bus unavailable")
+		return
+	}
+
+	requestID := uuid.New().String()
+	channel := "server-cleanup:" + requestID
+	sub := h.redis.Subscribe(r.Context(), channel)
+	defer sub.Close()
+
+	if err := h.connMgr.SendToAgent(agentID, &agentv1.ControlMessage{
+		Payload: &agentv1.ControlMessage_ServerCleanup{
+			ServerCleanup: &agentv1.ServerCleanupCommand{
+				RequestId:               requestID,
+				RemoveStoppedContainers: req.RemoveStoppedContainers,
+				RemoveUnusedImages:      req.RemoveUnusedImages,
+				RemoveUnusedNetworks:    req.RemoveUnusedNetworks,
+				RemoveBuildCache:        req.RemoveBuildCache,
+				RemoveVolumes:           req.RemoveVolumes,
+				OlderThanHours:          req.OlderThanHours,
+			},
+		},
+	}); err != nil {
+		respond.Error(w, http.StatusInternalServerError, "failed to send cleanup command")
+		return
+	}
+
+	ch := sub.Channel()
+	select {
+	case msg := <-ch:
+		var result agentv1.ServerCleanupResult
+		if err := json.Unmarshal([]byte(msg.Payload), &result); err != nil {
+			respond.Error(w, http.StatusInternalServerError, "failed to parse cleanup result")
+			return
+		}
+		if !result.Success {
+			respond.Error(w, http.StatusInternalServerError, result.Error)
+			return
+		}
+
+		ip := parseIP(r)
+		_ = h.audit.Log(r.Context(), audit.Entry{
+			TeamID:       &teamID,
+			ActorID:      &authCtx.UserID,
+			ActorType:    "user",
+			Action:       "server.cleanup",
+			ResourceType: "server",
+			ResourceID:   &serverID,
+			IPAddress:    ip,
+		})
+
+		respond.JSON(w, http.StatusOK, &result)
+	case <-time.After(60 * time.Second):
+		respond.Error(w, http.StatusGatewayTimeout, "cleanup timed out")
+	case <-r.Context().Done():
+		return
+	}
 }

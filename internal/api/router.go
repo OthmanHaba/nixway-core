@@ -6,10 +6,10 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"github.com/othmanhaba/nixway-core/internal/agent"
 	"github.com/othmanhaba/nixway-core/internal/api/handler"
 	"github.com/othmanhaba/nixway-core/internal/api/middleware"
 	"github.com/othmanhaba/nixway-core/internal/api/respond"
-	"github.com/othmanhaba/nixway-core/internal/agent"
 	"github.com/othmanhaba/nixway-core/internal/app"
 	"github.com/othmanhaba/nixway-core/internal/audit"
 	"github.com/othmanhaba/nixway-core/internal/auth"
@@ -17,11 +17,11 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/cluster"
 	"github.com/othmanhaba/nixway-core/internal/config"
 	"github.com/othmanhaba/nixway-core/internal/containerlog"
+	"github.com/othmanhaba/nixway-core/internal/db"
 	"github.com/othmanhaba/nixway-core/internal/deploy"
+	"github.com/othmanhaba/nixway-core/internal/email"
 	githubsvc "github.com/othmanhaba/nixway-core/internal/github"
 	"github.com/othmanhaba/nixway-core/internal/mesh"
-	"github.com/othmanhaba/nixway-core/internal/db"
-	"github.com/othmanhaba/nixway-core/internal/email"
 	"github.com/othmanhaba/nixway-core/internal/project"
 	"github.com/othmanhaba/nixway-core/internal/provisioner"
 	"github.com/othmanhaba/nixway-core/internal/registry"
@@ -56,7 +56,7 @@ func NewRouter(
 	tokenH := handler.NewTokenHandler(queries, auditWriter, cfg, logger)
 	auditH := handler.NewAuditLogHandler(queries, logger)
 	sshKeyH := handler.NewSSHKeyHandler(queries, auditWriter, logger, masterKey)
-	serverH := handler.NewServerHandler(queries, auditWriter, onboardingSvc, logger)
+	serverH := handler.NewServerHandler(queries, auditWriter, onboardingSvc, connMgr, redisClient, logger)
 	tagH := handler.NewTagHandler(queries, logger)
 	provisionH := handler.NewProvisionHandler(queries, redisClient, auditWriter, provisionSvc, logger)
 	discoverH := handler.NewDiscoveryHandler(logger)
@@ -85,6 +85,7 @@ func NewRouter(
 
 	// Public webhook route (no auth)
 	mux.HandleFunc("POST /api/v1/webhooks/github/{appId}", webhookH.HandleGitHub)
+	mux.HandleFunc("POST /api/v1/webhooks/github/team/{teamId}", webhookH.HandleGitHubTeam)
 
 	// Protected routes — use a separate mux wrapped with auth middleware
 	protected := http.NewServeMux()
@@ -133,6 +134,7 @@ func NewRouter(
 	protected.HandleFunc("GET /api/v1/teams/{id}/servers/{serverId}", serverH.Get)
 	protected.HandleFunc("PUT /api/v1/teams/{id}/servers/{serverId}", serverH.Update)
 	protected.HandleFunc("DELETE /api/v1/teams/{id}/servers/{serverId}", serverH.Delete)
+	protected.HandleFunc("POST /api/v1/teams/{id}/servers/{serverId}/cleanup", serverH.Cleanup)
 
 	// Server tags
 	protected.HandleFunc("GET /api/v1/teams/{id}/servers/{serverId}/tags", tagH.List)

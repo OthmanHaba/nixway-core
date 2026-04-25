@@ -13,6 +13,7 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/api/respond"
 	"github.com/othmanhaba/nixway-core/internal/audit"
 	"github.com/othmanhaba/nixway-core/internal/db"
+	"github.com/othmanhaba/nixway-core/internal/model"
 	"github.com/othmanhaba/nixway-core/internal/provisioner"
 )
 
@@ -48,6 +49,9 @@ func (h *ProvisionHandler) Start(w http.ResponseWriter, r *http.Request) {
 	teamID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		respond.Error(w, http.StatusBadRequest, "invalid team ID")
+		return
+	}
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleAdmin, model.ScopeServersWrite); !ok {
 		return
 	}
 
@@ -121,9 +125,26 @@ func (h *ProvisionHandler) Status(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	teamID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid team ID")
+		return
+	}
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleMember, model.ScopeServersRead); !ok {
+		return
+	}
+
 	serverID, err := uuid.Parse(r.PathValue("serverId"))
 	if err != nil {
 		respond.Error(w, http.StatusBadRequest, "invalid server ID")
+		return
+	}
+
+	if _, err := h.queries.GetServerByID(r.Context(), db.GetServerByIDParams{
+		ID:     serverID,
+		TeamID: teamID,
+	}); err != nil {
+		respond.Error(w, http.StatusNotFound, "server not found")
 		return
 	}
 
@@ -139,6 +160,27 @@ func (h *ProvisionHandler) Status(w http.ResponseWriter, r *http.Request) {
 func (h *ProvisionHandler) StreamLogs(w http.ResponseWriter, r *http.Request) {
 	rc := http.NewResponseController(w)
 
+	authCtx := middleware.GetAuthContext(r)
+	if authCtx == nil {
+		respond.Error(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	teamID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid team ID")
+		return
+	}
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleMember, model.ScopeServersRead); !ok {
+		return
+	}
+
+	serverID, err := uuid.Parse(r.PathValue("serverId"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid server ID")
+		return
+	}
+
 	jobID, err := uuid.Parse(r.PathValue("jobId"))
 	if err != nil {
 		respond.Error(w, http.StatusBadRequest, "invalid job ID")
@@ -146,9 +188,20 @@ func (h *ProvisionHandler) StreamLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify the job exists
-	_, err = h.queries.GetProvisioningJob(r.Context(), jobID)
+	job, err := h.queries.GetProvisioningJob(r.Context(), jobID)
 	if err != nil {
 		respond.Error(w, http.StatusNotFound, "provisioning job not found")
+		return
+	}
+	if job.ServerID != serverID {
+		respond.Error(w, http.StatusNotFound, "provisioning job not found")
+		return
+	}
+	if _, err := h.queries.GetServerByID(r.Context(), db.GetServerByIDParams{
+		ID:     serverID,
+		TeamID: teamID,
+	}); err != nil {
+		respond.Error(w, http.StatusNotFound, "server not found")
 		return
 	}
 
@@ -187,6 +240,9 @@ func (h *ProvisionHandler) Retry(w http.ResponseWriter, r *http.Request) {
 	teamID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		respond.Error(w, http.StatusBadRequest, "invalid team ID")
+		return
+	}
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleAdmin, model.ScopeServersWrite); !ok {
 		return
 	}
 
