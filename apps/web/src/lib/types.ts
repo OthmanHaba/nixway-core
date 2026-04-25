@@ -57,7 +57,7 @@ export interface AuditLog {
   action: string
   resource_type: string
   resource_id: string | null
-  metadata: Record<string, unknown>
+  metadata: unknown
   ip_address: string
   created_at: string
 }
@@ -282,6 +282,12 @@ export interface App {
   health_check_interval: number
   health_check_timeout: number
   replicas: number
+  placement_strategy: 'spread' | 'binpack' | 'pinned'
+  placement_constraints: {
+    must_have?: Record<string, string>
+    must_not_have?: Record<string, string>
+  }
+  pinned_server_ids: string[]
   subdomain: string | null
   custom_domain: string | null
   domain_verified: boolean
@@ -351,6 +357,25 @@ export interface ContainerReplica {
   server_id: string
   server_name: string
   agent_id: string | null
+}
+
+export interface ScalingEvent {
+  id: string
+  app_id: string
+  environment_id: string | null
+  deployment_id: string | null
+  actor_id: string | null
+  actor_type: string
+  event_type: string
+  from_replicas: number
+  to_replicas: number
+  placement_strategy: string
+  metric_name: string | null
+  metric_value: number | null
+  rule_name: string | null
+  message: string
+  metadata: Record<string, unknown>
+  created_at: string
 }
 
 export interface ContainerInspect {

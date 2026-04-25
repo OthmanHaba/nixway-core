@@ -9,11 +9,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/redis/go-redis/v9"
 	"github.com/othmanhaba/nixway-core/internal/agent"
 	agentv1 "github.com/othmanhaba/nixway-core/internal/agent/proto/agent/v1"
 	"github.com/othmanhaba/nixway-core/internal/db"
+	"github.com/othmanhaba/nixway-core/internal/scheduler"
 	"github.com/othmanhaba/nixway-core/internal/secret"
+	"github.com/redis/go-redis/v9"
 )
 
 type Service struct {
@@ -22,6 +23,26 @@ type Service struct {
 	connMgr   *agent.ConnManager
 	secretSvc *secret.Service
 	logger    *slog.Logger
+}
+
+type scheduledTarget struct {
+	member db.ListClusterMembersRow
+	reason string
+}
+
+type ScaleRequest struct {
+	Replicas             int32
+	PlacementStrategy    string
+	PlacementConstraints scheduler.Constraints
+	PinnedServerIDs      []uuid.UUID
+	ActorID              *uuid.UUID
+	ActorType            string
+}
+
+type ScaleResult struct {
+	App        db.App          `json:"app"`
+	Event      db.ScalingEvent `json:"event"`
+	Deployment *db.Deployment  `json:"deployment,omitempty"`
 }
 
 func NewService(queries *db.Queries, redisClient *redis.Client, connMgr *agent.ConnManager, secretSvc *secret.Service, logger *slog.Logger) *Service {
@@ -78,12 +99,20 @@ func (s *Service) TriggerDeploy(ctx context.Context, appID, envID, buildID uuid.
 		}
 	}
 
-	replicas := int(app.Replicas)
+	var targets []scheduledTarget
 	if specificServer != nil {
-		replicas = 1
-	} else if replicas > len(members) {
-		replicas = len(members)
+		target, err := targetForSpecificServer(*specificServer, members)
+		if err != nil {
+			return db.Deployment{}, err
+		}
+		targets = []scheduledTarget{target}
+	} else {
+		targets, err = s.scheduleTargets(ctx, app, project, members)
+		if err != nil {
+			return db.Deployment{}, err
+		}
 	}
+	replicas := len(targets)
 
 	// Resolve secrets for this environment
 	env, err := s.queries.GetEnvironment(ctx, envID)
@@ -121,18 +150,8 @@ func (s *Service) TriggerDeploy(ctx context.Context, appID, envID, buildID uuid.
 	}
 
 	// Create targets and dispatch
-	for i := 0; i < replicas; i++ {
-		var member db.ListClusterMembersRow
-		if specificServer != nil {
-			for _, m := range members {
-				if m.ServerID == *specificServer {
-					member = m
-					break
-				}
-			}
-		} else {
-			member = members[i%len(members)]
-		}
+	for _, scheduled := range targets {
+		member := scheduled.member
 		target, err := s.queries.CreateDeploymentTarget(ctx, db.CreateDeploymentTargetParams{
 			DeploymentID: deployment.ID,
 			ServerID:     member.ServerID,
@@ -142,6 +161,7 @@ func (s *Service) TriggerDeploy(ctx context.Context, appID, envID, buildID uuid.
 		}
 
 		// Dispatch deploy command to agent
+		s.PublishLog(ctx, deployment.ID, fmt.Sprintf("Scheduler: %s\n", scheduled.reason))
 		go s.dispatchDeploy(context.Background(), deployment, target, build, app, project, member, envVars)
 	}
 
@@ -154,6 +174,194 @@ func (s *Service) TriggerDeploy(ctx context.Context, appID, envID, buildID uuid.
 
 	s.logger.Info("deployment triggered", "deploy_id", deployment.ID, "app_id", appID, "replicas", replicas)
 	return deployment, nil
+}
+
+func targetForSpecificServer(serverID uuid.UUID, members []db.ListClusterMembersRow) (scheduledTarget, error) {
+	for _, member := range members {
+		if member.ServerID == serverID {
+			return scheduledTarget{
+				member: member,
+				reason: fmt.Sprintf("manual server target selected %s", member.ServerName),
+			}, nil
+		}
+	}
+	return scheduledTarget{}, fmt.Errorf("server not found in cluster")
+}
+
+func (s *Service) scheduleTargets(ctx context.Context, app db.App, project db.Project, members []db.ListClusterMembersRow) ([]scheduledTarget, error) {
+	memberByServer := make(map[uuid.UUID]db.ListClusterMembersRow, len(members))
+	for _, member := range members {
+		memberByServer[member.ServerID] = member
+	}
+
+	rows, err := s.queries.ListClusterMembersForScheduling(ctx, project.ClusterID)
+	if err != nil {
+		return nil, fmt.Errorf("load scheduler candidates: %w", err)
+	}
+
+	candidates := make([]scheduler.Candidate, 0, len(rows))
+	for _, row := range rows {
+		tags := map[string]string{}
+		serverTags, err := s.queries.ListServerTags(ctx, row.ServerID)
+		if err == nil {
+			for _, tag := range serverTags {
+				tags[tag.Key] = tag.Value
+			}
+		}
+
+		candidate := scheduler.Candidate{
+			ServerID:        row.ServerID,
+			ServerName:      row.ServerName,
+			Status:          row.ServerStatus,
+			Tags:            tags,
+			RunningReplicas: row.RunningReplicas,
+		}
+		if row.CpuCores != nil {
+			candidate.CPUCapacity = *row.CpuCores * 1000
+			candidate.HasCPUData = true
+		}
+		if row.MemoryAvailable != nil {
+			candidate.MemoryAvailable = *row.MemoryAvailable
+			candidate.HasMemoryData = true
+		}
+		candidates = append(candidates, candidate)
+	}
+
+	assignments, err := scheduler.Schedule(scheduler.Requirements{
+		Replicas:           app.Replicas,
+		Strategy:           app.PlacementStrategy,
+		PinnedServerIDs:    app.PinnedServerIds,
+		Constraints:        scheduler.ParseConstraints(app.PlacementConstraints),
+		MemoryLimitMB:      app.MemoryLimitMb,
+		CPULimitMillicores: app.CpuLimitMillicores,
+	}, candidates)
+	if err != nil {
+		return nil, err
+	}
+
+	targets := make([]scheduledTarget, 0, len(assignments))
+	for _, assignment := range assignments {
+		member, ok := memberByServer[assignment.ServerID]
+		if !ok {
+			return nil, fmt.Errorf("scheduled server %s is not a cluster member", assignment.ServerID)
+		}
+		targets = append(targets, scheduledTarget{
+			member: member,
+			reason: assignment.Reason,
+		})
+	}
+	return targets, nil
+}
+
+func (s *Service) ScaleApp(ctx context.Context, appID uuid.UUID, req ScaleRequest) (ScaleResult, error) {
+	current, err := s.queries.GetApp(ctx, appID)
+	if err != nil {
+		return ScaleResult{}, fmt.Errorf("get app: %w", err)
+	}
+	if req.Replicas <= 0 {
+		return ScaleResult{}, fmt.Errorf("replicas must be greater than zero")
+	}
+	if req.PlacementStrategy == "" {
+		req.PlacementStrategy = current.PlacementStrategy
+	}
+	switch req.PlacementStrategy {
+	case scheduler.StrategySpread, scheduler.StrategyBinpack, scheduler.StrategyPinned:
+	default:
+		return ScaleResult{}, fmt.Errorf("unknown placement strategy %q", req.PlacementStrategy)
+	}
+	if req.ActorType == "" {
+		req.ActorType = "user"
+	}
+
+	updated, err := s.queries.UpdateAppScaling(ctx, db.UpdateAppScalingParams{
+		ID:                   appID,
+		Replicas:             req.Replicas,
+		PlacementStrategy:    req.PlacementStrategy,
+		PlacementConstraints: scheduler.EncodeConstraints(req.PlacementConstraints),
+		PinnedServerIds:      req.PinnedServerIDs,
+	})
+	if err != nil {
+		return ScaleResult{}, fmt.Errorf("update app scaling: %w", err)
+	}
+
+	envID, err := s.productionEnvironment(ctx, updated.ProjectID)
+	if err != nil {
+		return ScaleResult{}, err
+	}
+
+	var deployment *db.Deployment
+	message := "Scaling settings saved"
+	lastHealthy, err := s.queries.GetLastHealthyDeployment(ctx, db.GetLastHealthyDeploymentParams{
+		AppID:         appID,
+		EnvironmentID: envID,
+	})
+	if err == nil {
+		next, err := s.TriggerDeploy(ctx, appID, envID, lastHealthy.BuildID, nil)
+		if err != nil {
+			return ScaleResult{}, err
+		}
+		deployment = &next
+		message = fmt.Sprintf("Scaling from %d to %d replicas", current.Replicas, req.Replicas)
+	} else {
+		message = "Scaling settings saved; deploy a build to apply them"
+	}
+
+	event, err := s.createScalingEvent(ctx, db.CreateScalingEventParams{
+		AppID:             appID,
+		EnvironmentID:     pgtype.UUID{Bytes: envID, Valid: true},
+		DeploymentID:      deploymentUUID(deployment),
+		ActorID:           actorUUID(req.ActorID),
+		ActorType:         req.ActorType,
+		EventType:         "manual_scale",
+		FromReplicas:      current.Replicas,
+		ToReplicas:        req.Replicas,
+		PlacementStrategy: req.PlacementStrategy,
+		Message:           message,
+		Metadata:          []byte(`{}`),
+	})
+	if err != nil {
+		return ScaleResult{}, err
+	}
+
+	return ScaleResult{App: updated, Event: event, Deployment: deployment}, nil
+}
+
+func (s *Service) productionEnvironment(ctx context.Context, projectID uuid.UUID) (uuid.UUID, error) {
+	envs, err := s.queries.ListEnvironmentsByProject(ctx, projectID)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("list environments: %w", err)
+	}
+	if len(envs) == 0 {
+		return uuid.Nil, fmt.Errorf("no environments found")
+	}
+	for _, env := range envs {
+		if env.IsProduction {
+			return env.ID, nil
+		}
+	}
+	return envs[0].ID, nil
+}
+
+func (s *Service) createScalingEvent(ctx context.Context, params db.CreateScalingEventParams) (db.ScalingEvent, error) {
+	event, err := s.queries.CreateScalingEvent(ctx, params)
+	if err != nil {
+		return db.ScalingEvent{}, fmt.Errorf("create scaling event: %w", err)
+	}
+	return event, nil
+}
+
+func deploymentUUID(deployment *db.Deployment) pgtype.UUID {
+	if deployment == nil {
+		return pgtype.UUID{}
+	}
+	return pgtype.UUID{Bytes: deployment.ID, Valid: true}
+}
+
+func actorUUID(actorID *uuid.UUID) pgtype.UUID {
+	if actorID == nil {
+		return pgtype.UUID{}
+	}
+	return pgtype.UUID{Bytes: *actorID, Valid: true}
 }
 
 func (s *Service) dispatchDeploy(ctx context.Context, deployment db.Deployment, target db.DeploymentTarget, build db.Build, app db.App, project db.Project, member db.ListClusterMembersRow, envVars map[string]string) {
@@ -216,15 +424,15 @@ func (s *Service) dispatchDeploy(ctx context.Context, deployment db.Deployment, 
 	s.stopOldContainers(ctx, deployment, app, member)
 
 	cmd := &agentv1.DeployCommand{
-		DeployId:                    deployID,
-		TargetId:                    targetID,
-		ImageTag:                    build.ImageTag,
-		ContainerName:               containerName,
-		Port:                        app.Port,
-		Env:                         envVars,
-		HealthCheckPath:             app.HealthCheckPath,
-		HealthCheckIntervalSeconds:  app.HealthCheckInterval,
-		HealthCheckTimeoutSeconds:   app.HealthCheckTimeout,
+		DeployId:                   deployID,
+		TargetId:                   targetID,
+		ImageTag:                   build.ImageTag,
+		ContainerName:              containerName,
+		Port:                       app.Port,
+		Env:                        envVars,
+		HealthCheckPath:            app.HealthCheckPath,
+		HealthCheckIntervalSeconds: app.HealthCheckInterval,
+		HealthCheckTimeoutSeconds:  app.HealthCheckTimeout,
 		Traefik: &agentv1.TraefikConfig{
 			AppSlug: app.Slug,
 			Domains: domains,
@@ -275,7 +483,7 @@ func (s *Service) stopOldContainers(ctx context.Context, currentDeploy db.Deploy
 		_ = s.connMgr.SendToAgent(agentID, &agentv1.ControlMessage{
 			Payload: &agentv1.ControlMessage_StopContainer{
 				StopContainer: &agentv1.StopContainerCommand{
-					ContainerName: *c.ContainerID,
+					ContainerName:  *c.ContainerID,
 					TimeoutSeconds: 10,
 				},
 			},

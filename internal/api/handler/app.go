@@ -12,6 +12,7 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/app"
 	"github.com/othmanhaba/nixway-core/internal/audit"
 	"github.com/othmanhaba/nixway-core/internal/db"
+	"github.com/othmanhaba/nixway-core/internal/scheduler"
 )
 
 type AppHandler struct {
@@ -31,23 +32,26 @@ func NewAppHandler(queries *db.Queries, auditWriter *audit.Writer, appSvc *app.S
 }
 
 type createAppRequest struct {
-	Name                 string  `json:"name"`
-	SourceType           string  `json:"source_type"`
-	GithubInstallationID *string `json:"github_installation_id"`
-	RepoFullName         *string `json:"repo_full_name"`
-	Branch               *string `json:"branch"`
-	RootPath             string  `json:"root_path"`
-	AutoDeploy           *bool   `json:"auto_deploy"`
-	DockerImage          *string `json:"docker_image"`
-	RegistryCredentialID *string `json:"registry_credential_id"`
-	Builder              string  `json:"builder"`
-	DockerfilePath       string  `json:"dockerfile_path"`
-	Port                 int32   `json:"port"`
-	HealthCheckPath      string  `json:"health_check_path"`
-	HealthCheckInterval  int32   `json:"health_check_interval"`
-	HealthCheckTimeout   int32   `json:"health_check_timeout"`
-	Replicas             int32   `json:"replicas"`
-	Subdomain            *string `json:"subdomain"`
+	Name                 string                `json:"name"`
+	SourceType           string                `json:"source_type"`
+	GithubInstallationID *string               `json:"github_installation_id"`
+	RepoFullName         *string               `json:"repo_full_name"`
+	Branch               *string               `json:"branch"`
+	RootPath             string                `json:"root_path"`
+	AutoDeploy           *bool                 `json:"auto_deploy"`
+	DockerImage          *string               `json:"docker_image"`
+	RegistryCredentialID *string               `json:"registry_credential_id"`
+	Builder              string                `json:"builder"`
+	DockerfilePath       string                `json:"dockerfile_path"`
+	Port                 int32                 `json:"port"`
+	HealthCheckPath      string                `json:"health_check_path"`
+	HealthCheckInterval  int32                 `json:"health_check_interval"`
+	HealthCheckTimeout   int32                 `json:"health_check_timeout"`
+	Replicas             int32                 `json:"replicas"`
+	Subdomain            *string               `json:"subdomain"`
+	PlacementStrategy    string                `json:"placement_strategy"`
+	PlacementConstraints scheduler.Constraints `json:"placement_constraints"`
+	PinnedServerIDs      []string              `json:"pinned_server_ids"`
 }
 
 // Create handles POST /api/v1/projects/{projectId}/apps
@@ -110,22 +114,24 @@ func (h *AppHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := app.CreateParams{
-		ProjectID:      projectID,
-		Name:           req.Name,
-		SourceType:     req.SourceType,
-		RepoFullName:   req.RepoFullName,
-		Branch:         req.Branch,
-		RootPath:       req.RootPath,
-		AutoDeploy:     autoDeploy,
-		DockerImage:    req.DockerImage,
-		Builder:        req.Builder,
-		DockerfilePath: req.DockerfilePath,
-		Port:           req.Port,
-		HealthCheckPath:     req.HealthCheckPath,
-		HealthCheckInterval: req.HealthCheckInterval,
-		HealthCheckTimeout:  req.HealthCheckTimeout,
-		Replicas:       req.Replicas,
-		Subdomain:      req.Subdomain,
+		ProjectID:            projectID,
+		Name:                 req.Name,
+		SourceType:           req.SourceType,
+		RepoFullName:         req.RepoFullName,
+		Branch:               req.Branch,
+		RootPath:             req.RootPath,
+		AutoDeploy:           autoDeploy,
+		DockerImage:          req.DockerImage,
+		Builder:              req.Builder,
+		DockerfilePath:       req.DockerfilePath,
+		Port:                 req.Port,
+		HealthCheckPath:      req.HealthCheckPath,
+		HealthCheckInterval:  req.HealthCheckInterval,
+		HealthCheckTimeout:   req.HealthCheckTimeout,
+		Replicas:             req.Replicas,
+		Subdomain:            req.Subdomain,
+		PlacementStrategy:    req.PlacementStrategy,
+		PlacementConstraints: req.PlacementConstraints,
 	}
 
 	if req.GithubInstallationID != nil {
@@ -143,6 +149,14 @@ func (h *AppHandler) Create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		params.RegistryCredentialID = &id
+	}
+	if len(req.PinnedServerIDs) > 0 {
+		ids, err := parseUUIDList(req.PinnedServerIDs)
+		if err != nil {
+			respond.Error(w, http.StatusBadRequest, "invalid pinned_server_ids")
+			return
+		}
+		params.PinnedServerIDs = ids
 	}
 
 	a, err := h.appSvc.Create(r.Context(), params)
@@ -226,20 +240,23 @@ func (h *AppHandler) GetDirect(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateAppRequest struct {
-	Name                string  `json:"name"`
-	Branch              *string `json:"branch"`
-	RootPath            string  `json:"root_path"`
-	AutoDeploy          bool    `json:"auto_deploy"`
-	Builder             string  `json:"builder"`
-	DockerfilePath      string  `json:"dockerfile_path"`
-	Port                int32   `json:"port"`
-	HealthCheckPath     string  `json:"health_check_path"`
-	HealthCheckInterval int32   `json:"health_check_interval"`
-	HealthCheckTimeout  int32   `json:"health_check_timeout"`
-	Replicas            int32   `json:"replicas"`
-	Subdomain           *string `json:"subdomain"`
-	CustomDomain        *string `json:"custom_domain"`
-	Status              string  `json:"status"`
+	Name                 string                `json:"name"`
+	Branch               *string               `json:"branch"`
+	RootPath             string                `json:"root_path"`
+	AutoDeploy           bool                  `json:"auto_deploy"`
+	Builder              string                `json:"builder"`
+	DockerfilePath       string                `json:"dockerfile_path"`
+	Port                 int32                 `json:"port"`
+	HealthCheckPath      string                `json:"health_check_path"`
+	HealthCheckInterval  int32                 `json:"health_check_interval"`
+	HealthCheckTimeout   int32                 `json:"health_check_timeout"`
+	Replicas             int32                 `json:"replicas"`
+	Subdomain            *string               `json:"subdomain"`
+	CustomDomain         *string               `json:"custom_domain"`
+	Status               string                `json:"status"`
+	PlacementStrategy    string                `json:"placement_strategy"`
+	PlacementConstraints scheduler.Constraints `json:"placement_constraints"`
+	PinnedServerIDs      []string              `json:"pinned_server_ids"`
 }
 
 // Update handles PUT /api/v1/projects/{projectId}/apps/{appId}
@@ -266,21 +283,46 @@ func (h *AppHandler) Update(w http.ResponseWriter, r *http.Request) {
 		req.Status = "active"
 	}
 
+	current, err := h.appSvc.Get(r.Context(), appID)
+	if err != nil {
+		respond.Error(w, http.StatusNotFound, "app not found")
+		return
+	}
+	placementStrategy := req.PlacementStrategy
+	if placementStrategy == "" {
+		placementStrategy = current.PlacementStrategy
+	}
+	placementConstraints := scheduler.ParseConstraints(current.PlacementConstraints)
+	if req.PlacementConstraints.MustHave != nil || req.PlacementConstraints.MustNotHave != nil {
+		placementConstraints = req.PlacementConstraints
+	}
+	pinnedServerIDs := current.PinnedServerIds
+	if req.PinnedServerIDs != nil {
+		pinnedServerIDs, err = parseUUIDList(req.PinnedServerIDs)
+		if err != nil {
+			respond.Error(w, http.StatusBadRequest, "invalid pinned_server_ids")
+			return
+		}
+	}
+
 	a, err := h.appSvc.Update(r.Context(), appID, app.UpdateParams{
-		Name:                req.Name,
-		Branch:              req.Branch,
-		RootPath:            req.RootPath,
-		AutoDeploy:          req.AutoDeploy,
-		Builder:             req.Builder,
-		DockerfilePath:      req.DockerfilePath,
-		Port:                req.Port,
-		HealthCheckPath:     req.HealthCheckPath,
-		HealthCheckInterval: req.HealthCheckInterval,
-		HealthCheckTimeout:  req.HealthCheckTimeout,
-		Replicas:            req.Replicas,
-		Subdomain:           req.Subdomain,
-		CustomDomain:        req.CustomDomain,
-		Status:              req.Status,
+		Name:                 req.Name,
+		Branch:               req.Branch,
+		RootPath:             req.RootPath,
+		AutoDeploy:           req.AutoDeploy,
+		Builder:              req.Builder,
+		DockerfilePath:       req.DockerfilePath,
+		Port:                 req.Port,
+		HealthCheckPath:      req.HealthCheckPath,
+		HealthCheckInterval:  req.HealthCheckInterval,
+		HealthCheckTimeout:   req.HealthCheckTimeout,
+		Replicas:             req.Replicas,
+		Subdomain:            req.Subdomain,
+		CustomDomain:         req.CustomDomain,
+		Status:               req.Status,
+		PlacementStrategy:    placementStrategy,
+		PlacementConstraints: placementConstraints,
+		PinnedServerIDs:      pinnedServerIDs,
 	})
 	if err != nil {
 		h.logger.Error("failed to update app", "error", err)
@@ -357,20 +399,23 @@ func (h *AppHandler) SetDomain(w http.ResponseWriter, r *http.Request) {
 	}
 
 	a, err = h.appSvc.Update(r.Context(), appID, app.UpdateParams{
-		Name:                a.Name,
-		Branch:              a.Branch,
-		RootPath:            a.RootPath,
-		AutoDeploy:          a.AutoDeploy,
-		Builder:             a.Builder,
-		DockerfilePath:      a.DockerfilePath,
-		Port:                a.Port,
-		HealthCheckPath:     a.HealthCheckPath,
-		HealthCheckInterval: a.HealthCheckInterval,
-		HealthCheckTimeout:  a.HealthCheckTimeout,
-		Replicas:            a.Replicas,
-		Subdomain:           a.Subdomain,
-		CustomDomain:        &req.CustomDomain,
-		Status:              a.Status,
+		Name:                 a.Name,
+		Branch:               a.Branch,
+		RootPath:             a.RootPath,
+		AutoDeploy:           a.AutoDeploy,
+		Builder:              a.Builder,
+		DockerfilePath:       a.DockerfilePath,
+		Port:                 a.Port,
+		HealthCheckPath:      a.HealthCheckPath,
+		HealthCheckInterval:  a.HealthCheckInterval,
+		HealthCheckTimeout:   a.HealthCheckTimeout,
+		Replicas:             a.Replicas,
+		Subdomain:            a.Subdomain,
+		CustomDomain:         &req.CustomDomain,
+		Status:               a.Status,
+		PlacementStrategy:    a.PlacementStrategy,
+		PlacementConstraints: scheduler.ParseConstraints(a.PlacementConstraints),
+		PinnedServerIDs:      a.PinnedServerIds,
 	})
 	if err != nil {
 		respond.Error(w, http.StatusInternalServerError, "failed to update domain")
@@ -378,6 +423,21 @@ func (h *AppHandler) SetDomain(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respond.JSON(w, http.StatusOK, a)
+}
+
+func parseUUIDList(values []string) ([]uuid.UUID, error) {
+	ids := make([]uuid.UUID, 0, len(values))
+	for _, value := range values {
+		if value == "" {
+			continue
+		}
+		id, err := uuid.Parse(value)
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }
 
 // UpdateResources handles PUT /api/v1/apps/{appId}/resources

@@ -5,9 +5,9 @@ INSERT INTO apps (
     docker_image, registry_credential_id,
     builder, dockerfile_path,
     port, health_check_path, health_check_interval, health_check_timeout, replicas,
-    subdomain
+    subdomain, placement_strategy, placement_constraints, pinned_server_ids
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
 RETURNING *;
 
 -- name: GetApp :one
@@ -25,7 +25,8 @@ SET name = $2, branch = $3, root_path = $4, auto_deploy = $5,
     port = $8, health_check_path = $9, health_check_interval = $10,
     health_check_timeout = $11, replicas = $12,
     subdomain = $13, custom_domain = $14,
-    status = $15, updated_at = now()
+    status = $15, placement_strategy = $16, placement_constraints = $17,
+    pinned_server_ids = $18, updated_at = now()
 WHERE id = $1
 RETURNING *;
 
@@ -50,5 +51,15 @@ SELECT id, domains FROM apps WHERE id = $1;
 -- name: UpdateAppResources :one
 UPDATE apps
 SET memory_limit_mb = $2, cpu_limit_millicores = $3, updated_at = now()
+WHERE id = $1
+RETURNING *;
+
+-- name: UpdateAppScaling :one
+UPDATE apps
+SET replicas = $2,
+    placement_strategy = $3,
+    placement_constraints = $4,
+    pinned_server_ids = $5,
+    updated_at = now()
 WHERE id = $1
 RETURNING *;

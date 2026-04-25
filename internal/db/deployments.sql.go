@@ -119,6 +119,72 @@ func (q *Queries) CreateDeploymentTarget(ctx context.Context, arg CreateDeployme
 	return i, err
 }
 
+const createScalingEvent = `-- name: CreateScalingEvent :one
+INSERT INTO scaling_events (
+    app_id, environment_id, deployment_id, actor_id, actor_type, event_type,
+    from_replicas, to_replicas, placement_strategy, metric_name, metric_value,
+    rule_name, message, metadata
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+RETURNING id, app_id, environment_id, deployment_id, actor_id, actor_type, event_type, from_replicas, to_replicas, placement_strategy, metric_name, metric_value, rule_name, message, metadata, created_at
+`
+
+type CreateScalingEventParams struct {
+	AppID             uuid.UUID   `json:"app_id"`
+	EnvironmentID     pgtype.UUID `json:"environment_id"`
+	DeploymentID      pgtype.UUID `json:"deployment_id"`
+	ActorID           pgtype.UUID `json:"actor_id"`
+	ActorType         string      `json:"actor_type"`
+	EventType         string      `json:"event_type"`
+	FromReplicas      int32       `json:"from_replicas"`
+	ToReplicas        int32       `json:"to_replicas"`
+	PlacementStrategy string      `json:"placement_strategy"`
+	MetricName        *string     `json:"metric_name"`
+	MetricValue       *float64    `json:"metric_value"`
+	RuleName          *string     `json:"rule_name"`
+	Message           string      `json:"message"`
+	Metadata          []byte      `json:"metadata"`
+}
+
+func (q *Queries) CreateScalingEvent(ctx context.Context, arg CreateScalingEventParams) (ScalingEvent, error) {
+	row := q.db.QueryRow(ctx, createScalingEvent,
+		arg.AppID,
+		arg.EnvironmentID,
+		arg.DeploymentID,
+		arg.ActorID,
+		arg.ActorType,
+		arg.EventType,
+		arg.FromReplicas,
+		arg.ToReplicas,
+		arg.PlacementStrategy,
+		arg.MetricName,
+		arg.MetricValue,
+		arg.RuleName,
+		arg.Message,
+		arg.Metadata,
+	)
+	var i ScalingEvent
+	err := row.Scan(
+		&i.ID,
+		&i.AppID,
+		&i.EnvironmentID,
+		&i.DeploymentID,
+		&i.ActorID,
+		&i.ActorType,
+		&i.EventType,
+		&i.FromReplicas,
+		&i.ToReplicas,
+		&i.PlacementStrategy,
+		&i.MetricName,
+		&i.MetricValue,
+		&i.RuleName,
+		&i.Message,
+		&i.Metadata,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getActiveDeployment = `-- name: GetActiveDeployment :one
 SELECT id, app_id, environment_id, build_id, strategy, replicas_desired, replicas_ready, env_snapshot, status, started_at, completed_at, error, created_at, logs, platform_domain FROM deployments
 WHERE app_id = $1 AND environment_id = $2 AND status = 'healthy'
@@ -287,6 +353,73 @@ func (q *Queries) ListActiveContainersByApp(ctx context.Context, appID uuid.UUID
 	return items, nil
 }
 
+const listClusterMembersForScheduling = `-- name: ListClusterMembersForScheduling :many
+SELECT
+    cm.server_id,
+    cm.wireguard_ip,
+    s.name AS server_name,
+    s.status AS server_status,
+    s.public_ip,
+    s.agent_id,
+    sr.cpu_cores,
+    sr.memory_total,
+    sr.memory_available,
+    COALESCE(COUNT(d.id) FILTER (WHERE dt.status = 'healthy'), 0)::INT AS running_replicas
+FROM cluster_members cm
+JOIN servers s ON s.id = cm.server_id
+LEFT JOIN server_resources sr ON sr.server_id = s.id
+LEFT JOIN deployment_targets dt ON dt.server_id = s.id
+LEFT JOIN deployments d ON d.id = dt.deployment_id AND d.status = 'healthy'
+WHERE cm.cluster_id = $1
+GROUP BY cm.server_id, cm.wireguard_ip, s.name, s.status, s.public_ip, s.agent_id,
+         sr.cpu_cores, sr.memory_total, sr.memory_available
+ORDER BY s.name
+`
+
+type ListClusterMembersForSchedulingRow struct {
+	ServerID        uuid.UUID  `json:"server_id"`
+	WireguardIp     netip.Addr `json:"wireguard_ip"`
+	ServerName      string     `json:"server_name"`
+	ServerStatus    string     `json:"server_status"`
+	PublicIp        netip.Addr `json:"public_ip"`
+	AgentID         *string    `json:"agent_id"`
+	CpuCores        *int32     `json:"cpu_cores"`
+	MemoryTotal     *int64     `json:"memory_total"`
+	MemoryAvailable *int64     `json:"memory_available"`
+	RunningReplicas int32      `json:"running_replicas"`
+}
+
+func (q *Queries) ListClusterMembersForScheduling(ctx context.Context, clusterID uuid.UUID) ([]ListClusterMembersForSchedulingRow, error) {
+	rows, err := q.db.Query(ctx, listClusterMembersForScheduling, clusterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListClusterMembersForSchedulingRow{}
+	for rows.Next() {
+		var i ListClusterMembersForSchedulingRow
+		if err := rows.Scan(
+			&i.ServerID,
+			&i.WireguardIp,
+			&i.ServerName,
+			&i.ServerStatus,
+			&i.PublicIp,
+			&i.AgentID,
+			&i.CpuCores,
+			&i.MemoryTotal,
+			&i.MemoryAvailable,
+			&i.RunningReplicas,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDeploymentTargets = `-- name: ListDeploymentTargets :many
 SELECT dt.id, dt.deployment_id, dt.server_id, dt.container_id, dt.status, dt.health_check_attempts, dt.started_at, dt.healthy_at, dt.stopped_at, dt.error, s.name AS server_name, s.public_ip
 FROM deployment_targets dt
@@ -407,6 +540,56 @@ func (q *Queries) ListDeploymentsByApp(ctx context.Context, arg ListDeploymentsB
 			&i.CommitSha,
 			&i.CommitMessage,
 			&i.ImageTag,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listScalingEventsByApp = `-- name: ListScalingEventsByApp :many
+SELECT id, app_id, environment_id, deployment_id, actor_id, actor_type, event_type, from_replicas, to_replicas, placement_strategy, metric_name, metric_value, rule_name, message, metadata, created_at FROM scaling_events
+WHERE app_id = $1
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListScalingEventsByAppParams struct {
+	AppID  uuid.UUID `json:"app_id"`
+	Limit  int32     `json:"limit"`
+	Offset int32     `json:"offset"`
+}
+
+func (q *Queries) ListScalingEventsByApp(ctx context.Context, arg ListScalingEventsByAppParams) ([]ScalingEvent, error) {
+	rows, err := q.db.Query(ctx, listScalingEventsByApp, arg.AppID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ScalingEvent{}
+	for rows.Next() {
+		var i ScalingEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.AppID,
+			&i.EnvironmentID,
+			&i.DeploymentID,
+			&i.ActorID,
+			&i.ActorType,
+			&i.EventType,
+			&i.FromReplicas,
+			&i.ToReplicas,
+			&i.PlacementStrategy,
+			&i.MetricName,
+			&i.MetricValue,
+			&i.RuleName,
+			&i.Message,
+			&i.Metadata,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}

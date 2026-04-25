@@ -17,6 +17,7 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/containerlog"
 	"github.com/othmanhaba/nixway-core/internal/db"
 	"github.com/othmanhaba/nixway-core/internal/deploy"
+	"github.com/othmanhaba/nixway-core/internal/scheduler"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -217,6 +218,114 @@ func (h *DeployHandler) Rollback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respond.JSON(w, http.StatusCreated, d)
+}
+
+type scaleAppRequest struct {
+	Replicas             int32                 `json:"replicas"`
+	PlacementStrategy    string                `json:"placement_strategy"`
+	PlacementConstraints scheduler.Constraints `json:"placement_constraints"`
+	PinnedServerIDs      []string              `json:"pinned_server_ids"`
+}
+
+// ScaleApp handles POST /api/v1/apps/{appId}/scale.
+func (h *DeployHandler) ScaleApp(w http.ResponseWriter, r *http.Request) {
+	authCtx := middleware.GetAuthContext(r)
+	if authCtx == nil {
+		respond.Error(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	appID, err := uuid.Parse(r.PathValue("appId"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid app ID")
+		return
+	}
+
+	app, err := h.queries.GetApp(r.Context(), appID)
+	if err != nil {
+		respond.Error(w, http.StatusNotFound, "app not found")
+		return
+	}
+
+	var req scaleAppRequest
+	if err := respond.DecodeJSON(r, &req); err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Replicas <= 0 {
+		respond.Error(w, http.StatusBadRequest, "replicas must be greater than zero")
+		return
+	}
+	if req.PlacementStrategy == "" {
+		req.PlacementStrategy = app.PlacementStrategy
+	}
+	constraints := scheduler.ParseConstraints(app.PlacementConstraints)
+	if req.PlacementConstraints.MustHave != nil || req.PlacementConstraints.MustNotHave != nil {
+		constraints = req.PlacementConstraints
+	}
+	pinnedServerIDs := app.PinnedServerIds
+	if req.PinnedServerIDs != nil {
+		pinnedServerIDs, err = parseUUIDStrings(req.PinnedServerIDs)
+		if err != nil {
+			respond.Error(w, http.StatusBadRequest, "invalid pinned_server_ids")
+			return
+		}
+	}
+
+	result, err := h.deploySvc.ScaleApp(r.Context(), appID, deploy.ScaleRequest{
+		Replicas:             req.Replicas,
+		PlacementStrategy:    req.PlacementStrategy,
+		PlacementConstraints: constraints,
+		PinnedServerIDs:      pinnedServerIDs,
+		ActorID:              &authCtx.UserID,
+		ActorType:            "user",
+	})
+	if err != nil {
+		h.logger.Error("failed to scale app", "error", err)
+		respond.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	respond.JSON(w, http.StatusAccepted, result)
+}
+
+// ListScalingEvents handles GET /api/v1/apps/{appId}/scaling-events.
+func (h *DeployHandler) ListScalingEvents(w http.ResponseWriter, r *http.Request) {
+	authCtx := middleware.GetAuthContext(r)
+	if authCtx == nil {
+		respond.Error(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	appID, err := uuid.Parse(r.PathValue("appId"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid app ID")
+		return
+	}
+
+	limit := int32(20)
+	offset := int32(0)
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 && v <= 100 {
+			limit = int32(v)
+		}
+	}
+	if o := r.URL.Query().Get("offset"); o != "" {
+		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
+			offset = int32(v)
+		}
+	}
+
+	events, err := h.queries.ListScalingEventsByApp(r.Context(), db.ListScalingEventsByAppParams{
+		AppID:  appID,
+		Limit:  limit,
+		Offset: offset,
+	})
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "failed to list scaling events")
+		return
+	}
+	respond.JSON(w, http.StatusOK, events)
 }
 
 // StreamLogs handles GET /api/v1/apps/{appId}/deployments/{deployId}/logs (SSE)
@@ -858,4 +967,19 @@ func (h *DeployHandler) findAgentForApp(r *http.Request, appID uuid.UUID) string
 		}
 	}
 	return ""
+}
+
+func parseUUIDStrings(values []string) ([]uuid.UUID, error) {
+	ids := make([]uuid.UUID, 0, len(values))
+	for _, value := range values {
+		if value == "" {
+			continue
+		}
+		id, err := uuid.Parse(value)
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }

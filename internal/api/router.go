@@ -229,6 +229,8 @@ func NewRouter(
 	protected.HandleFunc("GET /api/v1/apps/{appId}/deployments/{deployId}/logs", deployH.StreamLogs)
 	protected.HandleFunc("GET /api/v1/apps/{appId}/deployments/{deployId}/targets", deployH.ListTargets)
 	protected.HandleFunc("POST /api/v1/apps/{appId}/rollback", deployH.Rollback)
+	protected.HandleFunc("POST /api/v1/apps/{appId}/scale", deployH.ScaleApp)
+	protected.HandleFunc("GET /api/v1/apps/{appId}/scaling-events", deployH.ListScalingEvents)
 	protected.HandleFunc("GET /api/v1/apps/{appId}/logs", deployH.ContainerLogs)
 	protected.HandleFunc("POST /api/v1/apps/{appId}/cleanup", deployH.CleanupDeployments)
 

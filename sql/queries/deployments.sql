@@ -74,3 +74,40 @@ FROM deployment_targets dt
 JOIN deployments d ON d.id = dt.deployment_id
 JOIN servers s ON s.id = dt.server_id
 WHERE d.app_id = $1 AND d.status = 'healthy' AND dt.status = 'healthy';
+
+-- name: ListClusterMembersForScheduling :many
+SELECT
+    cm.server_id,
+    cm.wireguard_ip,
+    s.name AS server_name,
+    s.status AS server_status,
+    s.public_ip,
+    s.agent_id,
+    sr.cpu_cores,
+    sr.memory_total,
+    sr.memory_available,
+    COALESCE(COUNT(d.id) FILTER (WHERE dt.status = 'healthy'), 0)::INT AS running_replicas
+FROM cluster_members cm
+JOIN servers s ON s.id = cm.server_id
+LEFT JOIN server_resources sr ON sr.server_id = s.id
+LEFT JOIN deployment_targets dt ON dt.server_id = s.id
+LEFT JOIN deployments d ON d.id = dt.deployment_id AND d.status = 'healthy'
+WHERE cm.cluster_id = $1
+GROUP BY cm.server_id, cm.wireguard_ip, s.name, s.status, s.public_ip, s.agent_id,
+         sr.cpu_cores, sr.memory_total, sr.memory_available
+ORDER BY s.name;
+
+-- name: CreateScalingEvent :one
+INSERT INTO scaling_events (
+    app_id, environment_id, deployment_id, actor_id, actor_type, event_type,
+    from_replicas, to_replicas, placement_strategy, metric_name, metric_value,
+    rule_name, message, metadata
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+RETURNING *;
+
+-- name: ListScalingEventsByApp :many
+SELECT * FROM scaling_events
+WHERE app_id = $1
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3;

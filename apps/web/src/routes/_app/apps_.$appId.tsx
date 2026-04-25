@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '@/lib/api'
-import type { App, Build, Deployment, DeploymentTarget, ContainerReplica, ContainerInspect, ContainerLogEntry } from '@/lib/types'
+import type { App, Build, Deployment, DeploymentTarget, ContainerReplica, ContainerInspect, ContainerLogEntry, ScalingEvent } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { Loader2, GitBranch, Box, Hammer, Activity, RotateCcw, Play, ChevronRight, Search, RefreshCw, Square, Cpu, MemoryStick } from 'lucide-react'
+import { Loader2, GitBranch, Box, Hammer, Activity, RotateCcw, Play, ChevronRight, Search, RefreshCw, Square, Cpu, MemoryStick, SlidersHorizontal, ServerCog } from 'lucide-react'
 
 export const Route = createFileRoute('/_app/apps_/$appId')({
   component: AppDetailPage,
@@ -70,6 +70,24 @@ function relativeTime(dateStr: string | null): string {
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
   if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
   return `${Math.floor(diff / 86_400_000)}d ago`
+}
+
+function formatConstraintInput(values?: Record<string, string>) {
+  return Object.entries(values || {}).map(([key, value]) => `${key}=${value}`).join(', ')
+}
+
+function parseConstraintInput(value: string) {
+  return value
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .reduce<Record<string, string>>((acc, part) => {
+      const [key, ...rest] = part.split('=')
+      const cleanKey = key?.trim()
+      const cleanValue = rest.join('=').trim()
+      if (cleanKey && cleanValue) acc[cleanKey] = cleanValue
+      return acc
+    }, {})
 }
 
 // --- SSE log viewer ---
@@ -468,7 +486,7 @@ function InspectPanel({ appId }: { appId: string }) {
               <dl className="grid grid-cols-2 gap-2 text-sm">
                 <dt className="text-muted-foreground">Memory Usage</dt><dd>{formatBytes(inspectData.memory_usage)}</dd>
                 <dt className="text-muted-foreground">Memory Limit</dt><dd>{formatBytes(inspectData.memory_limit)}</dd>
-                <dt className="text-muted-foreground">CPU</dt><dd>{inspectData.cpu_percent.toFixed(1)}%</dd>
+                <dt className="text-muted-foreground">CPU</dt><dd>{inspectData.cpu_percent}%</dd>
               </dl>
             </CardContent>
           </Card>
@@ -543,6 +561,130 @@ function ResourceLimitsPanel({ app, appId }: { app: App; appId: string }) {
         </Button>
       </CardContent>
     </Card>
+  )
+}
+
+// --- Scaling Panel ---
+
+function ScalingPanel({ app, appId }: { app: App; appId: string }) {
+  const queryClient = useQueryClient()
+  const [replicas, setReplicas] = useState(String(app.replicas))
+  const [strategy, setStrategy] = useState(app.placement_strategy || 'spread')
+  const [mustHave, setMustHave] = useState(formatConstraintInput(app.placement_constraints?.must_have))
+  const [mustNotHave, setMustNotHave] = useState(formatConstraintInput(app.placement_constraints?.must_not_have))
+  const [pinnedServers, setPinnedServers] = useState((app.pinned_server_ids || []).join(', '))
+  const [error, setError] = useState('')
+
+  const { data: events = [] } = useQuery({
+    queryKey: ['apps', appId, 'scaling-events'],
+    queryFn: () => api.get<ScalingEvent[]>(`/apps/${appId}/scaling-events`),
+    refetchInterval: 15_000,
+  })
+
+  const scale = useMutation({
+    mutationFn: () => api.post(`/apps/${appId}/scale`, {
+      replicas: parseInt(replicas, 10) || 1,
+      placement_strategy: strategy,
+      placement_constraints: {
+        must_have: parseConstraintInput(mustHave),
+        must_not_have: parseConstraintInput(mustNotHave),
+      },
+      pinned_server_ids: pinnedServers
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean),
+    }),
+    onSuccess: () => {
+      setError('')
+      queryClient.invalidateQueries({ queryKey: ['apps', appId] })
+      queryClient.invalidateQueries({ queryKey: ['apps', appId, 'deployments'] })
+      queryClient.invalidateQueries({ queryKey: ['apps', appId, 'replicas'] })
+      queryClient.invalidateQueries({ queryKey: ['apps', appId, 'scaling-events'] })
+    },
+    onError: (err) => {
+      setError(err instanceof ApiError ? err.message : 'Scaling failed')
+    },
+  })
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <SlidersHorizontal className="h-4 w-4" />
+            Scaling
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {error && <p className="text-sm text-red-500">{error}</p>}
+          <div className="grid gap-4 md:grid-cols-3">
+            <div>
+              <Label>Replicas</Label>
+              <Input type="number" min={1} value={replicas} onChange={(e) => setReplicas(e.target.value)} />
+            </div>
+            <div className="md:col-span-2">
+              <Label>Placement</Label>
+              <Select value={strategy} onValueChange={(value) => setStrategy(value as App['placement_strategy'])}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="spread">Spread</SelectItem>
+                  <SelectItem value="binpack">Binpack</SelectItem>
+                  <SelectItem value="pinned">Pinned</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <Label>Must-have tags</Label>
+              <Input value={mustHave} onChange={(e) => setMustHave(e.target.value)} placeholder="env=prod, gpu=true" />
+            </div>
+            <div>
+              <Label>Must-not-have tags</Label>
+              <Input value={mustNotHave} onChange={(e) => setMustNotHave(e.target.value)} placeholder="role=db" />
+            </div>
+          </div>
+
+          {strategy === 'pinned' && (
+            <div>
+              <Label className="flex items-center gap-1.5">
+                <ServerCog className="h-3.5 w-3.5" />
+                Pinned server IDs
+              </Label>
+              <Input value={pinnedServers} onChange={(e) => setPinnedServers(e.target.value)} placeholder="server-id-1, server-id-2" />
+            </div>
+          )}
+
+          <Button size="sm" onClick={() => scale.mutate()} disabled={scale.isPending}>
+            {scale.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SlidersHorizontal className="mr-2 h-4 w-4" />}
+            Apply Scaling
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Scaling Events</CardTitle></CardHeader>
+        <CardContent>
+          {events.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">No scaling events yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {events.slice(0, 6).map((event) => (
+                <div key={event.id} className="border-l pl-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium">{event.from_replicas} → {event.to_replicas} replicas</span>
+                    <Badge variant="secondary">{event.placement_strategy}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">{event.message || event.event_type}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{relativeTime(event.created_at)}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   )
 }
 
@@ -828,6 +970,9 @@ function EditAppDialog({ app, appId, open, onClose }: { app: App; appId: string;
       subdomain: app.subdomain,
       custom_domain: app.custom_domain,
       status: app.status,
+      placement_strategy: app.placement_strategy,
+      placement_constraints: app.placement_constraints,
+      pinned_server_ids: app.pinned_server_ids,
     })
   }
 
@@ -978,6 +1123,7 @@ function AppDetailPage() {
           <TabsTrigger value="deployments">Deployments ({deployments.length})</TabsTrigger>
           <TabsTrigger value="logs">Logs</TabsTrigger>
           <TabsTrigger value="inspect">Inspect</TabsTrigger>
+          <TabsTrigger value="scaling">Scaling</TabsTrigger>
           <TabsTrigger value="resources">Resources</TabsTrigger>
         </TabsList>
 
@@ -1036,6 +1182,9 @@ function AppDetailPage() {
 
                 <dt className="text-muted-foreground">Health Check</dt>
                 <dd className="font-mono text-xs">{app.health_check_path}</dd>
+
+                <dt className="text-muted-foreground">Placement</dt>
+                <dd>{app.placement_strategy}</dd>
 
                 <dt className="text-muted-foreground">Created</dt>
                 <dd>{new Date(app.created_at).toLocaleString()}</dd>
@@ -1182,6 +1331,11 @@ function AppDetailPage() {
         <TabsContent value="inspect" className="mt-4 space-y-4">
           <LifecycleControls appId={appId} />
           <InspectPanel appId={appId} />
+        </TabsContent>
+
+        {/* Scaling */}
+        <TabsContent value="scaling" className="mt-4">
+          <ScalingPanel app={app} appId={appId} />
         </TabsContent>
 
         {/* Resources */}

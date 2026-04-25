@@ -55,6 +55,9 @@ type App struct {
 	Domains              []string    `json:"domains"`
 	MemoryLimitMb        int32       `json:"memory_limit_mb"`
 	CpuLimitMillicores   int32       `json:"cpu_limit_millicores"`
+	PlacementStrategy    string      `json:"placement_strategy"`
+	PlacementConstraints []byte      `json:"placement_constraints"`
+	PinnedServerIds      []uuid.UUID `json:"pinned_server_ids"`
 }
 
 type AuditLog struct {
@@ -251,6 +254,25 @@ type RegistryCredential struct {
 	ValidatedAt        pgtype.Timestamptz `json:"validated_at"`
 	CreatedAt          time.Time          `json:"created_at"`
 	UpdatedAt          time.Time          `json:"updated_at"`
+}
+
+type ScalingEvent struct {
+	ID                uuid.UUID   `json:"id"`
+	AppID             uuid.UUID   `json:"app_id"`
+	EnvironmentID     pgtype.UUID `json:"environment_id"`
+	DeploymentID      pgtype.UUID `json:"deployment_id"`
+	ActorID           pgtype.UUID `json:"actor_id"`
+	ActorType         string      `json:"actor_type"`
+	EventType         string      `json:"event_type"`
+	FromReplicas      int32       `json:"from_replicas"`
+	ToReplicas        int32       `json:"to_replicas"`
+	PlacementStrategy string      `json:"placement_strategy"`
+	MetricName        *string     `json:"metric_name"`
+	MetricValue       *float64    `json:"metric_value"`
+	RuleName          *string     `json:"rule_name"`
+	Message           string      `json:"message"`
+	Metadata          []byte      `json:"metadata"`
+	CreatedAt         time.Time   `json:"created_at"`
 }
 
 type Secret struct {

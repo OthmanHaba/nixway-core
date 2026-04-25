@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/othmanhaba/nixway-core/internal/db"
+	"github.com/othmanhaba/nixway-core/internal/scheduler"
 )
 
 type Service struct {
@@ -40,29 +41,35 @@ type CreateParams struct {
 	HealthCheckTimeout   int32
 	Replicas             int32
 	Subdomain            *string
+	PlacementStrategy    string
+	PlacementConstraints scheduler.Constraints
+	PinnedServerIDs      []uuid.UUID
 }
 
 func (s *Service) Create(ctx context.Context, p CreateParams) (db.App, error) {
 	slug := generateSlug(p.Name)
 
 	params := db.CreateAppParams{
-		ProjectID:       p.ProjectID,
-		Name:            p.Name,
-		Slug:            slug,
-		SourceType:      p.SourceType,
-		RepoFullName:    p.RepoFullName,
-		Branch:          p.Branch,
-		RootPath:        p.RootPath,
-		AutoDeploy:      p.AutoDeploy,
-		DockerImage:     p.DockerImage,
-		Builder:         p.Builder,
-		DockerfilePath:  p.DockerfilePath,
-		Port:            p.Port,
-		HealthCheckPath: p.HealthCheckPath,
-		HealthCheckInterval: p.HealthCheckInterval,
-		HealthCheckTimeout:  p.HealthCheckTimeout,
-		Replicas:        p.Replicas,
-		Subdomain:       p.Subdomain,
+		ProjectID:            p.ProjectID,
+		Name:                 p.Name,
+		Slug:                 slug,
+		SourceType:           p.SourceType,
+		RepoFullName:         p.RepoFullName,
+		Branch:               p.Branch,
+		RootPath:             p.RootPath,
+		AutoDeploy:           p.AutoDeploy,
+		DockerImage:          p.DockerImage,
+		Builder:              p.Builder,
+		DockerfilePath:       p.DockerfilePath,
+		Port:                 p.Port,
+		HealthCheckPath:      p.HealthCheckPath,
+		HealthCheckInterval:  p.HealthCheckInterval,
+		HealthCheckTimeout:   p.HealthCheckTimeout,
+		Replicas:             p.Replicas,
+		Subdomain:            p.Subdomain,
+		PlacementStrategy:    defaultPlacementStrategy(p.PlacementStrategy),
+		PlacementConstraints: scheduler.EncodeConstraints(p.PlacementConstraints),
+		PinnedServerIds:      p.PinnedServerIDs,
 	}
 
 	if p.GithubInstallationID != nil {
@@ -91,39 +98,45 @@ func (s *Service) List(ctx context.Context, projectID uuid.UUID) ([]db.App, erro
 
 func (s *Service) Update(ctx context.Context, id uuid.UUID, p UpdateParams) (db.App, error) {
 	return s.queries.UpdateApp(ctx, db.UpdateAppParams{
-		ID:                  id,
-		Name:                p.Name,
-		Branch:              p.Branch,
-		RootPath:            p.RootPath,
-		AutoDeploy:          p.AutoDeploy,
-		Builder:             p.Builder,
-		DockerfilePath:      p.DockerfilePath,
-		Port:                p.Port,
-		HealthCheckPath:     p.HealthCheckPath,
-		HealthCheckInterval: p.HealthCheckInterval,
-		HealthCheckTimeout:  p.HealthCheckTimeout,
-		Replicas:            p.Replicas,
-		Subdomain:           p.Subdomain,
-		CustomDomain:        p.CustomDomain,
-		Status:              p.Status,
+		ID:                   id,
+		Name:                 p.Name,
+		Branch:               p.Branch,
+		RootPath:             p.RootPath,
+		AutoDeploy:           p.AutoDeploy,
+		Builder:              p.Builder,
+		DockerfilePath:       p.DockerfilePath,
+		Port:                 p.Port,
+		HealthCheckPath:      p.HealthCheckPath,
+		HealthCheckInterval:  p.HealthCheckInterval,
+		HealthCheckTimeout:   p.HealthCheckTimeout,
+		Replicas:             p.Replicas,
+		Subdomain:            p.Subdomain,
+		CustomDomain:         p.CustomDomain,
+		Status:               p.Status,
+		PlacementStrategy:    defaultPlacementStrategy(p.PlacementStrategy),
+		PlacementConstraints: scheduler.EncodeConstraints(p.PlacementConstraints),
+		PinnedServerIds:      p.PinnedServerIDs,
 	})
 }
 
 type UpdateParams struct {
-	Name                string
-	Branch              *string
-	RootPath            string
-	AutoDeploy          bool
-	Builder             string
-	DockerfilePath      string
-	Port                int32
-	HealthCheckPath     string
-	HealthCheckInterval int32
-	HealthCheckTimeout  int32
-	Replicas            int32
-	Subdomain           *string
-	CustomDomain        *string
-	Status              string
+	Name                 string
+	Branch               *string
+	RootPath             string
+	AutoDeploy           bool
+	Builder              string
+	DockerfilePath       string
+	Port                 int32
+	HealthCheckPath      string
+	HealthCheckInterval  int32
+	HealthCheckTimeout   int32
+	Replicas             int32
+	Subdomain            *string
+	CustomDomain         *string
+	Status               string
+	PlacementStrategy    string
+	PlacementConstraints scheduler.Constraints
+	PinnedServerIDs      []uuid.UUID
 }
 
 func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
@@ -150,4 +163,13 @@ func generateSlug(name string) string {
 		slug = slug[:63]
 	}
 	return slug
+}
+
+func defaultPlacementStrategy(strategy string) string {
+	switch strategy {
+	case scheduler.StrategyBinpack, scheduler.StrategyPinned:
+		return strategy
+	default:
+		return scheduler.StrategySpread
+	}
 }
