@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -165,6 +166,14 @@ func (s *Service) RunProvisioning(ctx context.Context, jobID, serverID, teamID u
 			return
 		}
 
+		if component == "agent" {
+			if err := s.pushAgentBinary(ctx, client, srv.Arch); err != nil {
+				s.publishLine(ctx, channel, fmt.Sprintf("WARN: unable to upload agent binary over SSH, falling back to tunnel download: %v", err))
+			} else {
+				s.publishLine(ctx, channel, ">>> Uploaded agent binary over SSH")
+			}
+		}
+
 		remotePath := fmt.Sprintf("/tmp/nixway-provision-%s.sh", component)
 		if err := client.PushFile(ctx, script, remotePath, "0755"); err != nil {
 			s.logger.Error("failed to push script", "component", component, "error", err)
@@ -206,6 +215,57 @@ func (s *Service) publishLine(ctx context.Context, channel, line string) {
 	if err := s.redis.Publish(ctx, channel, line).Err(); err != nil {
 		s.logger.Warn("failed to publish provision log line", "channel", channel, "error", err)
 	}
+}
+
+func (s *Service) pushAgentBinary(ctx context.Context, client *ssh.Client, serverArch *string) error {
+	arch := normalizeAgentArch("")
+	if serverArch != nil {
+		arch = normalizeAgentArch(*serverArch)
+	}
+	if arch == "" {
+		out, err := client.RunCommand(ctx, "uname -m")
+		if err != nil {
+			return fmt.Errorf("detect remote arch: %w", err)
+		}
+		arch = normalizeAgentArch(out)
+	}
+	if arch == "" {
+		return fmt.Errorf("unsupported remote architecture")
+	}
+
+	path, err := findAgentBinary(arch)
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read agent binary: %w", err)
+	}
+	if len(data) == 0 {
+		return fmt.Errorf("agent binary is empty: %s", path)
+	}
+	return client.PushFile(ctx, data, "/tmp/nixway-agent-uploaded", "0755")
+}
+
+func normalizeAgentArch(raw string) string {
+	switch strings.TrimSpace(raw) {
+	case "amd64", "x86_64":
+		return "amd64"
+	case "arm64", "aarch64":
+		return "arm64"
+	default:
+		return ""
+	}
+}
+
+func findAgentBinary(arch string) (string, error) {
+	name := filepath.Join("apps", "agent", "bin", "agent-linux-"+arch)
+	for _, path := range filePaths(name) {
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			return path, nil
+		}
+	}
+	return "", fmt.Errorf("agent binary not found for %s; build apps/agent/bin/agent-linux-%s", arch, arch)
 }
 
 func (s *Service) failJob(ctx context.Context, jobID uuid.UUID, errMsg string) {

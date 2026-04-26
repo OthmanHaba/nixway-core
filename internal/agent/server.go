@@ -26,6 +26,11 @@ type DeployTriggerer interface {
 	EnsureTrafficForDeployment(ctx context.Context, deploymentID uuid.UUID) error
 }
 
+type ObservabilityRecorder interface {
+	RecordServerHealth(ctx context.Context, serverID uuid.UUID, cpuPercent float64, memoryUsed, memoryTotal int64)
+	RecordMetric(ctx context.Context, scopeType string, scopeID uuid.UUID, name string, value float64, labels map[string]string, sampledAt time.Time)
+}
+
 // MeshRegenerator handles mesh lifecycle events with logging.
 type MeshRegenerator interface {
 	RegenerateMesh(ctx context.Context, clusterID uuid.UUID) error
@@ -43,6 +48,7 @@ type Server struct {
 	logger   *slog.Logger
 	meshReg  MeshRegenerator
 	deployer DeployTriggerer
+	obs      ObservabilityRecorder
 }
 
 func NewServer(conn *ConnManager, queries *db.Queries, redisClient *redis.Client, logger *slog.Logger) *Server {
@@ -57,6 +63,11 @@ func (s *Server) SetMeshRegenerator(mr MeshRegenerator) {
 // SetDeployTriggerer sets the deploy triggerer (called after wiring to avoid circular deps).
 func (s *Server) SetDeployTriggerer(dt DeployTriggerer) {
 	s.deployer = dt
+}
+
+// SetObservabilityRecorder stores health reports as historical metrics.
+func (s *Server) SetObservabilityRecorder(obs ObservabilityRecorder) {
+	s.obs = obs
 }
 
 // Register handles agent registration, issuing an agent ID.
@@ -140,6 +151,14 @@ func (s *Server) Connect(stream agentv1.AgentService_ConnectServer) error {
 				"mem_total", hr.MemoryTotal,
 			)
 			s.handleHealthReport(stream.Context(), agentID, hr)
+
+		case *agentv1.AgentMessage_MetricReport:
+			mr := p.MetricReport
+			if agentID == "" {
+				agentID = mr.AgentId
+			}
+			s.logger.Debug("metric report", "agent_id", agentID, "containers", len(mr.Containers))
+			s.handleMetricReport(stream.Context(), agentID, mr)
 
 		case *agentv1.AgentMessage_FileChunk:
 			fc := p.FileChunk
@@ -407,6 +426,74 @@ func (s *Server) handleHealthReport(ctx context.Context, agentID string, hr *age
 		MemoryTotal: int64(hr.GetMemoryTotal()),
 		MemoryUsed:  int64(hr.GetMemoryUsed()),
 	})
+	if s.obs != nil {
+		s.obs.RecordServerHealth(ctx, srv.ID, hr.GetCpuPercent(), int64(hr.GetMemoryUsed()), int64(hr.GetMemoryTotal()))
+		if member, err := s.queries.GetClusterMemberByServerID(ctx, srv.ID); err == nil {
+			s.obs.RecordMetric(ctx, "cluster", member.ClusterID, "cluster.server_cpu_percent", hr.GetCpuPercent(), map[string]string{"server_id": srv.ID.String()}, time.Now())
+			if hr.GetMemoryTotal() > 0 {
+				memPct := (float64(hr.GetMemoryUsed()) / float64(hr.GetMemoryTotal())) * 100
+				s.obs.RecordMetric(ctx, "cluster", member.ClusterID, "cluster.server_memory_percent", memPct, map[string]string{"server_id": srv.ID.String()}, time.Now())
+			}
+		}
+		for _, disk := range hr.GetDisks() {
+			labels := map[string]string{"mount": disk.GetMountPoint()}
+			s.obs.RecordMetric(ctx, "server", srv.ID, "server.disk_used_bytes", float64(disk.GetUsedBytes()), labels, time.Now())
+			s.obs.RecordMetric(ctx, "server", srv.ID, "server.disk_total_bytes", float64(disk.GetTotalBytes()), labels, time.Now())
+			if disk.GetTotalBytes() > 0 {
+				usedPct := (float64(disk.GetUsedBytes()) / float64(disk.GetTotalBytes())) * 100
+				s.obs.RecordMetric(ctx, "server", srv.ID, "server.disk_percent", usedPct, labels, time.Now())
+			}
+		}
+	}
+}
+
+func (s *Server) handleMetricReport(ctx context.Context, agentID string, mr *agentv1.MetricReport) {
+	if s.queries == nil || s.obs == nil {
+		return
+	}
+	srv, err := s.queries.GetServerByAgentID(ctx, &agentID)
+	if err != nil {
+		s.logger.Debug("server not found for metric report", "agent_id", agentID, "error", err)
+		return
+	}
+
+	for _, metric := range mr.GetContainers() {
+		containerName := metric.GetContainerName()
+		if containerName == "" {
+			continue
+		}
+		target, err := s.queries.GetActiveDeploymentTargetByServerContainer(ctx, db.GetActiveDeploymentTargetByServerContainerParams{
+			ServerID:    srv.ID,
+			ContainerID: &containerName,
+		})
+		if err != nil {
+			s.logger.Debug("active container target not found", "server_id", srv.ID, "container", containerName, "error", err)
+			continue
+		}
+		labels := map[string]string{
+			"server_id":      srv.ID.String(),
+			"container_name": containerName,
+			"deployment_id":  target.DeploymentID.String(),
+		}
+		s.recordContainerMetricSet(ctx, "container", target.TargetID, "container.", metric, labels)
+		s.recordContainerMetricSet(ctx, "app", target.AppID, "app.container_", metric, labels)
+		s.recordContainerMetricSet(ctx, "project", target.ProjectID, "project.container_", metric, labels)
+		s.recordContainerMetricSet(ctx, "cluster", target.ClusterID, "cluster.container_", metric, labels)
+	}
+}
+
+func (s *Server) recordContainerMetricSet(ctx context.Context, scopeType string, scopeID uuid.UUID, prefix string, metric *agentv1.ContainerMetric, labels map[string]string) {
+	now := time.Now()
+	s.obs.RecordMetric(ctx, scopeType, scopeID, prefix+"cpu_percent", metric.GetCpuPercent(), labels, now)
+	s.obs.RecordMetric(ctx, scopeType, scopeID, prefix+"memory_percent", metric.GetMemoryPercent(), labels, now)
+	s.obs.RecordMetric(ctx, scopeType, scopeID, prefix+"memory_used_bytes", float64(metric.GetMemoryUsed()), labels, now)
+	s.obs.RecordMetric(ctx, scopeType, scopeID, prefix+"memory_limit_bytes", float64(metric.GetMemoryLimit()), labels, now)
+	s.obs.RecordMetric(ctx, scopeType, scopeID, prefix+"network_rx_bytes", float64(metric.GetNetworkRxBytes()), labels, now)
+	s.obs.RecordMetric(ctx, scopeType, scopeID, prefix+"network_tx_bytes", float64(metric.GetNetworkTxBytes()), labels, now)
+	s.obs.RecordMetric(ctx, scopeType, scopeID, prefix+"block_read_bytes", float64(metric.GetBlockReadBytes()), labels, now)
+	s.obs.RecordMetric(ctx, scopeType, scopeID, prefix+"block_write_bytes", float64(metric.GetBlockWriteBytes()), labels, now)
+	s.obs.RecordMetric(ctx, scopeType, scopeID, prefix+"restart_count", float64(metric.GetRestartCount()), labels, now)
+	s.obs.RecordMetric(ctx, scopeType, scopeID, prefix+"uptime_seconds", float64(metric.GetUptimeSeconds()), labels, now)
 }
 
 func (s *Server) handleResourceReport(ctx context.Context, agentID string, rr *agentv1.ResourceReport) {
@@ -449,6 +536,10 @@ func (s *Server) handleResourceReport(ctx context.Context, agentID string, rr *a
 		Disks:             disksJSON,
 		NetworkInterfaces: nicsJSON,
 	})
+	if s.obs != nil {
+		s.obs.RecordMetric(ctx, "server", srv.ID, "server.cpu_cores", float64(cpuCores), nil, time.Now())
+		s.obs.RecordMetric(ctx, "server", srv.ID, "server.memory_available_bytes", float64(memAvail), nil, time.Now())
+	}
 }
 
 func (s *Server) handleProvisionOutput(ctx context.Context, po *agentv1.ProvisionOutput) {

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '@/lib/api'
 import type { Project, Environment, App, GitHubApp, GitHubInstallation, GitHubRepository } from '@/lib/types'
+import { ObservabilityPanel } from '@/components/observability-panel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -252,6 +253,16 @@ function ProjectDetailPage() {
           </dl>
         </CardContent>
       </Card>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Observability</h2>
+        <ObservabilityPanel
+          teamId={teamId}
+          scopeType="project"
+          scopeId={projectId}
+          metrics={['project.container_cpu_percent', 'project.container_memory_percent', 'project.container_network_rx_bytes', 'project.container_network_tx_bytes']}
+        />
+      </section>
 
       {/* Environments */}
       <div className="space-y-3">

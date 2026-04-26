@@ -65,7 +65,7 @@ func (x FileTransferRequest_Direction) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use FileTransferRequest_Direction.Descriptor instead.
 func (FileTransferRequest_Direction) EnumDescriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{10, 0}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{12, 0}
 }
 
 type RegisterRequest struct {
@@ -223,6 +223,7 @@ type AgentMessage struct {
 	//	*AgentMessage_ServerLogsOutput
 	//	*AgentMessage_ServerCleanupResult
 	//	*AgentMessage_TrafficRouteResult
+	//	*AgentMessage_MetricReport
 	Payload       isAgentMessage_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -472,6 +473,15 @@ func (x *AgentMessage) GetTrafficRouteResult() *TrafficRouteResult {
 	return nil
 }
 
+func (x *AgentMessage) GetMetricReport() *MetricReport {
+	if x != nil {
+		if x, ok := x.Payload.(*AgentMessage_MetricReport); ok {
+			return x.MetricReport
+		}
+	}
+	return nil
+}
+
 type isAgentMessage_Payload interface {
 	isAgentMessage_Payload()
 }
@@ -568,6 +578,10 @@ type AgentMessage_TrafficRouteResult struct {
 	TrafficRouteResult *TrafficRouteResult `protobuf:"bytes,23,opt,name=traffic_route_result,json=trafficRouteResult,proto3,oneof"`
 }
 
+type AgentMessage_MetricReport struct {
+	MetricReport *MetricReport `protobuf:"bytes,24,opt,name=metric_report,json=metricReport,proto3,oneof"`
+}
+
 func (*AgentMessage_Heartbeat) isAgentMessage_Payload() {}
 
 func (*AgentMessage_ExecOutput) isAgentMessage_Payload() {}
@@ -613,6 +627,8 @@ func (*AgentMessage_ServerLogsOutput) isAgentMessage_Payload() {}
 func (*AgentMessage_ServerCleanupResult) isAgentMessage_Payload() {}
 
 func (*AgentMessage_TrafficRouteResult) isAgentMessage_Payload() {}
+
+func (*AgentMessage_MetricReport) isAgentMessage_Payload() {}
 
 type ControlMessage struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1280,6 +1296,182 @@ func (x *HealthReport) GetDisks() []*DiskInfo {
 	return nil
 }
 
+type MetricReport struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AgentId       string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
+	Containers    []*ContainerMetric     `protobuf:"bytes,2,rep,name=containers,proto3" json:"containers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MetricReport) Reset() {
+	*x = MetricReport{}
+	mi := &file_agent_v1_agent_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MetricReport) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MetricReport) ProtoMessage() {}
+
+func (x *MetricReport) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MetricReport.ProtoReflect.Descriptor instead.
+func (*MetricReport) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *MetricReport) GetAgentId() string {
+	if x != nil {
+		return x.AgentId
+	}
+	return ""
+}
+
+func (x *MetricReport) GetContainers() []*ContainerMetric {
+	if x != nil {
+		return x.Containers
+	}
+	return nil
+}
+
+type ContainerMetric struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	ContainerName   string                 `protobuf:"bytes,1,opt,name=container_name,json=containerName,proto3" json:"container_name,omitempty"`
+	CpuPercent      float64                `protobuf:"fixed64,2,opt,name=cpu_percent,json=cpuPercent,proto3" json:"cpu_percent,omitempty"`
+	MemoryPercent   float64                `protobuf:"fixed64,3,opt,name=memory_percent,json=memoryPercent,proto3" json:"memory_percent,omitempty"`
+	MemoryUsed      uint64                 `protobuf:"varint,4,opt,name=memory_used,json=memoryUsed,proto3" json:"memory_used,omitempty"`
+	MemoryLimit     uint64                 `protobuf:"varint,5,opt,name=memory_limit,json=memoryLimit,proto3" json:"memory_limit,omitempty"`
+	NetworkRxBytes  uint64                 `protobuf:"varint,6,opt,name=network_rx_bytes,json=networkRxBytes,proto3" json:"network_rx_bytes,omitempty"`
+	NetworkTxBytes  uint64                 `protobuf:"varint,7,opt,name=network_tx_bytes,json=networkTxBytes,proto3" json:"network_tx_bytes,omitempty"`
+	BlockReadBytes  uint64                 `protobuf:"varint,8,opt,name=block_read_bytes,json=blockReadBytes,proto3" json:"block_read_bytes,omitempty"`
+	BlockWriteBytes uint64                 `protobuf:"varint,9,opt,name=block_write_bytes,json=blockWriteBytes,proto3" json:"block_write_bytes,omitempty"`
+	RestartCount    int64                  `protobuf:"varint,10,opt,name=restart_count,json=restartCount,proto3" json:"restart_count,omitempty"`
+	UptimeSeconds   int64                  `protobuf:"varint,11,opt,name=uptime_seconds,json=uptimeSeconds,proto3" json:"uptime_seconds,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ContainerMetric) Reset() {
+	*x = ContainerMetric{}
+	mi := &file_agent_v1_agent_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContainerMetric) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContainerMetric) ProtoMessage() {}
+
+func (x *ContainerMetric) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContainerMetric.ProtoReflect.Descriptor instead.
+func (*ContainerMetric) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ContainerMetric) GetContainerName() string {
+	if x != nil {
+		return x.ContainerName
+	}
+	return ""
+}
+
+func (x *ContainerMetric) GetCpuPercent() float64 {
+	if x != nil {
+		return x.CpuPercent
+	}
+	return 0
+}
+
+func (x *ContainerMetric) GetMemoryPercent() float64 {
+	if x != nil {
+		return x.MemoryPercent
+	}
+	return 0
+}
+
+func (x *ContainerMetric) GetMemoryUsed() uint64 {
+	if x != nil {
+		return x.MemoryUsed
+	}
+	return 0
+}
+
+func (x *ContainerMetric) GetMemoryLimit() uint64 {
+	if x != nil {
+		return x.MemoryLimit
+	}
+	return 0
+}
+
+func (x *ContainerMetric) GetNetworkRxBytes() uint64 {
+	if x != nil {
+		return x.NetworkRxBytes
+	}
+	return 0
+}
+
+func (x *ContainerMetric) GetNetworkTxBytes() uint64 {
+	if x != nil {
+		return x.NetworkTxBytes
+	}
+	return 0
+}
+
+func (x *ContainerMetric) GetBlockReadBytes() uint64 {
+	if x != nil {
+		return x.BlockReadBytes
+	}
+	return 0
+}
+
+func (x *ContainerMetric) GetBlockWriteBytes() uint64 {
+	if x != nil {
+		return x.BlockWriteBytes
+	}
+	return 0
+}
+
+func (x *ContainerMetric) GetRestartCount() int64 {
+	if x != nil {
+		return x.RestartCount
+	}
+	return 0
+}
+
+func (x *ContainerMetric) GetUptimeSeconds() int64 {
+	if x != nil {
+		return x.UptimeSeconds
+	}
+	return 0
+}
+
 type DiskInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	MountPoint    string                 `protobuf:"bytes,1,opt,name=mount_point,json=mountPoint,proto3" json:"mount_point,omitempty"`
@@ -1291,7 +1483,7 @@ type DiskInfo struct {
 
 func (x *DiskInfo) Reset() {
 	*x = DiskInfo{}
-	mi := &file_agent_v1_agent_proto_msgTypes[8]
+	mi := &file_agent_v1_agent_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1303,7 +1495,7 @@ func (x *DiskInfo) String() string {
 func (*DiskInfo) ProtoMessage() {}
 
 func (x *DiskInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[8]
+	mi := &file_agent_v1_agent_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1316,7 +1508,7 @@ func (x *DiskInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiskInfo.ProtoReflect.Descriptor instead.
 func (*DiskInfo) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{8}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *DiskInfo) GetMountPoint() string {
@@ -1352,7 +1544,7 @@ type FileChunk struct {
 
 func (x *FileChunk) Reset() {
 	*x = FileChunk{}
-	mi := &file_agent_v1_agent_proto_msgTypes[9]
+	mi := &file_agent_v1_agent_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1364,7 +1556,7 @@ func (x *FileChunk) String() string {
 func (*FileChunk) ProtoMessage() {}
 
 func (x *FileChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[9]
+	mi := &file_agent_v1_agent_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1377,7 +1569,7 @@ func (x *FileChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileChunk.ProtoReflect.Descriptor instead.
 func (*FileChunk) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{9}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *FileChunk) GetTransferId() string {
@@ -1419,7 +1611,7 @@ type FileTransferRequest struct {
 
 func (x *FileTransferRequest) Reset() {
 	*x = FileTransferRequest{}
-	mi := &file_agent_v1_agent_proto_msgTypes[10]
+	mi := &file_agent_v1_agent_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1431,7 +1623,7 @@ func (x *FileTransferRequest) String() string {
 func (*FileTransferRequest) ProtoMessage() {}
 
 func (x *FileTransferRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[10]
+	mi := &file_agent_v1_agent_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1444,7 +1636,7 @@ func (x *FileTransferRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileTransferRequest.ProtoReflect.Descriptor instead.
 func (*FileTransferRequest) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{10}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *FileTransferRequest) GetTransferId() string {
@@ -1477,7 +1669,7 @@ type CertRotation struct {
 
 func (x *CertRotation) Reset() {
 	*x = CertRotation{}
-	mi := &file_agent_v1_agent_proto_msgTypes[11]
+	mi := &file_agent_v1_agent_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1489,7 +1681,7 @@ func (x *CertRotation) String() string {
 func (*CertRotation) ProtoMessage() {}
 
 func (x *CertRotation) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[11]
+	mi := &file_agent_v1_agent_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1502,7 +1694,7 @@ func (x *CertRotation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CertRotation.ProtoReflect.Descriptor instead.
 func (*CertRotation) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{11}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *CertRotation) GetNewCertificate() []byte {
@@ -1522,7 +1714,7 @@ type NetworkInterface struct {
 
 func (x *NetworkInterface) Reset() {
 	*x = NetworkInterface{}
-	mi := &file_agent_v1_agent_proto_msgTypes[12]
+	mi := &file_agent_v1_agent_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1534,7 +1726,7 @@ func (x *NetworkInterface) String() string {
 func (*NetworkInterface) ProtoMessage() {}
 
 func (x *NetworkInterface) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[12]
+	mi := &file_agent_v1_agent_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1547,7 +1739,7 @@ func (x *NetworkInterface) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkInterface.ProtoReflect.Descriptor instead.
 func (*NetworkInterface) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{12}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *NetworkInterface) GetName() string {
@@ -1581,7 +1773,7 @@ type ResourceReport struct {
 
 func (x *ResourceReport) Reset() {
 	*x = ResourceReport{}
-	mi := &file_agent_v1_agent_proto_msgTypes[13]
+	mi := &file_agent_v1_agent_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1593,7 +1785,7 @@ func (x *ResourceReport) String() string {
 func (*ResourceReport) ProtoMessage() {}
 
 func (x *ResourceReport) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[13]
+	mi := &file_agent_v1_agent_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1606,7 +1798,7 @@ func (x *ResourceReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResourceReport.ProtoReflect.Descriptor instead.
 func (*ResourceReport) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{13}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ResourceReport) GetAgentId() string {
@@ -1683,7 +1875,7 @@ type ProvisionCommand struct {
 
 func (x *ProvisionCommand) Reset() {
 	*x = ProvisionCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[14]
+	mi := &file_agent_v1_agent_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1695,7 +1887,7 @@ func (x *ProvisionCommand) String() string {
 func (*ProvisionCommand) ProtoMessage() {}
 
 func (x *ProvisionCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[14]
+	mi := &file_agent_v1_agent_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1708,7 +1900,7 @@ func (x *ProvisionCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProvisionCommand.ProtoReflect.Descriptor instead.
 func (*ProvisionCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{14}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ProvisionCommand) GetJobId() string {
@@ -1746,7 +1938,7 @@ type ProvisionOutput struct {
 
 func (x *ProvisionOutput) Reset() {
 	*x = ProvisionOutput{}
-	mi := &file_agent_v1_agent_proto_msgTypes[15]
+	mi := &file_agent_v1_agent_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1758,7 +1950,7 @@ func (x *ProvisionOutput) String() string {
 func (*ProvisionOutput) ProtoMessage() {}
 
 func (x *ProvisionOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[15]
+	mi := &file_agent_v1_agent_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1771,7 +1963,7 @@ func (x *ProvisionOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProvisionOutput.ProtoReflect.Descriptor instead.
 func (*ProvisionOutput) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{15}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ProvisionOutput) GetJobId() string {
@@ -1826,7 +2018,7 @@ type SSHKeyInstallCommand struct {
 
 func (x *SSHKeyInstallCommand) Reset() {
 	*x = SSHKeyInstallCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[16]
+	mi := &file_agent_v1_agent_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1838,7 +2030,7 @@ func (x *SSHKeyInstallCommand) String() string {
 func (*SSHKeyInstallCommand) ProtoMessage() {}
 
 func (x *SSHKeyInstallCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[16]
+	mi := &file_agent_v1_agent_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1851,7 +2043,7 @@ func (x *SSHKeyInstallCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SSHKeyInstallCommand.ProtoReflect.Descriptor instead.
 func (*SSHKeyInstallCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{16}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *SSHKeyInstallCommand) GetAction() string {
@@ -1878,7 +2070,7 @@ type SSHKeyInstallResult struct {
 
 func (x *SSHKeyInstallResult) Reset() {
 	*x = SSHKeyInstallResult{}
-	mi := &file_agent_v1_agent_proto_msgTypes[17]
+	mi := &file_agent_v1_agent_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1890,7 +2082,7 @@ func (x *SSHKeyInstallResult) String() string {
 func (*SSHKeyInstallResult) ProtoMessage() {}
 
 func (x *SSHKeyInstallResult) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[17]
+	mi := &file_agent_v1_agent_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1903,7 +2095,7 @@ func (x *SSHKeyInstallResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SSHKeyInstallResult.ProtoReflect.Descriptor instead.
 func (*SSHKeyInstallResult) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{17}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *SSHKeyInstallResult) GetSuccess() bool {
@@ -1931,7 +2123,7 @@ type WireGuardKeyGenCommand struct {
 
 func (x *WireGuardKeyGenCommand) Reset() {
 	*x = WireGuardKeyGenCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[18]
+	mi := &file_agent_v1_agent_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1943,7 +2135,7 @@ func (x *WireGuardKeyGenCommand) String() string {
 func (*WireGuardKeyGenCommand) ProtoMessage() {}
 
 func (x *WireGuardKeyGenCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[18]
+	mi := &file_agent_v1_agent_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1956,7 +2148,7 @@ func (x *WireGuardKeyGenCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WireGuardKeyGenCommand.ProtoReflect.Descriptor instead.
 func (*WireGuardKeyGenCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{18}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *WireGuardKeyGenCommand) GetMemberId() string {
@@ -1986,7 +2178,7 @@ type WireGuardKeyGenResult struct {
 
 func (x *WireGuardKeyGenResult) Reset() {
 	*x = WireGuardKeyGenResult{}
-	mi := &file_agent_v1_agent_proto_msgTypes[19]
+	mi := &file_agent_v1_agent_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1998,7 +2190,7 @@ func (x *WireGuardKeyGenResult) String() string {
 func (*WireGuardKeyGenResult) ProtoMessage() {}
 
 func (x *WireGuardKeyGenResult) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[19]
+	mi := &file_agent_v1_agent_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2011,7 +2203,7 @@ func (x *WireGuardKeyGenResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WireGuardKeyGenResult.ProtoReflect.Descriptor instead.
 func (*WireGuardKeyGenResult) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{19}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *WireGuardKeyGenResult) GetMemberId() string {
@@ -2054,7 +2246,7 @@ type WireGuardApplyCommand struct {
 
 func (x *WireGuardApplyCommand) Reset() {
 	*x = WireGuardApplyCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[20]
+	mi := &file_agent_v1_agent_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2066,7 +2258,7 @@ func (x *WireGuardApplyCommand) String() string {
 func (*WireGuardApplyCommand) ProtoMessage() {}
 
 func (x *WireGuardApplyCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[20]
+	mi := &file_agent_v1_agent_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2079,7 +2271,7 @@ func (x *WireGuardApplyCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WireGuardApplyCommand.ProtoReflect.Descriptor instead.
 func (*WireGuardApplyCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{20}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *WireGuardApplyCommand) GetMemberId() string {
@@ -2115,7 +2307,7 @@ type WireGuardApplyResult struct {
 
 func (x *WireGuardApplyResult) Reset() {
 	*x = WireGuardApplyResult{}
-	mi := &file_agent_v1_agent_proto_msgTypes[21]
+	mi := &file_agent_v1_agent_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2127,7 +2319,7 @@ func (x *WireGuardApplyResult) String() string {
 func (*WireGuardApplyResult) ProtoMessage() {}
 
 func (x *WireGuardApplyResult) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[21]
+	mi := &file_agent_v1_agent_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2140,7 +2332,7 @@ func (x *WireGuardApplyResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WireGuardApplyResult.ProtoReflect.Descriptor instead.
 func (*WireGuardApplyResult) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{21}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *WireGuardApplyResult) GetMemberId() string {
@@ -2174,7 +2366,7 @@ type WireGuardTeardownCommand struct {
 
 func (x *WireGuardTeardownCommand) Reset() {
 	*x = WireGuardTeardownCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[22]
+	mi := &file_agent_v1_agent_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2186,7 +2378,7 @@ func (x *WireGuardTeardownCommand) String() string {
 func (*WireGuardTeardownCommand) ProtoMessage() {}
 
 func (x *WireGuardTeardownCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[22]
+	mi := &file_agent_v1_agent_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2199,7 +2391,7 @@ func (x *WireGuardTeardownCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WireGuardTeardownCommand.ProtoReflect.Descriptor instead.
 func (*WireGuardTeardownCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{22}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *WireGuardTeardownCommand) GetMemberId() string {
@@ -2220,7 +2412,7 @@ type WireGuardTeardownResult struct {
 
 func (x *WireGuardTeardownResult) Reset() {
 	*x = WireGuardTeardownResult{}
-	mi := &file_agent_v1_agent_proto_msgTypes[23]
+	mi := &file_agent_v1_agent_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2232,7 +2424,7 @@ func (x *WireGuardTeardownResult) String() string {
 func (*WireGuardTeardownResult) ProtoMessage() {}
 
 func (x *WireGuardTeardownResult) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[23]
+	mi := &file_agent_v1_agent_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2245,7 +2437,7 @@ func (x *WireGuardTeardownResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WireGuardTeardownResult.ProtoReflect.Descriptor instead.
 func (*WireGuardTeardownResult) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{23}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *WireGuardTeardownResult) GetMemberId() string {
@@ -2281,7 +2473,7 @@ type MeshHealthReport struct {
 
 func (x *MeshHealthReport) Reset() {
 	*x = MeshHealthReport{}
-	mi := &file_agent_v1_agent_proto_msgTypes[24]
+	mi := &file_agent_v1_agent_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2293,7 +2485,7 @@ func (x *MeshHealthReport) String() string {
 func (*MeshHealthReport) ProtoMessage() {}
 
 func (x *MeshHealthReport) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[24]
+	mi := &file_agent_v1_agent_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2306,7 +2498,7 @@ func (x *MeshHealthReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MeshHealthReport.ProtoReflect.Descriptor instead.
 func (*MeshHealthReport) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{24}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *MeshHealthReport) GetAgentId() string {
@@ -2343,7 +2535,7 @@ type PeerHealthInfo struct {
 
 func (x *PeerHealthInfo) Reset() {
 	*x = PeerHealthInfo{}
-	mi := &file_agent_v1_agent_proto_msgTypes[25]
+	mi := &file_agent_v1_agent_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2355,7 +2547,7 @@ func (x *PeerHealthInfo) String() string {
 func (*PeerHealthInfo) ProtoMessage() {}
 
 func (x *PeerHealthInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[25]
+	mi := &file_agent_v1_agent_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2368,7 +2560,7 @@ func (x *PeerHealthInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PeerHealthInfo.ProtoReflect.Descriptor instead.
 func (*PeerHealthInfo) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{25}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *PeerHealthInfo) GetPeerMemberId() string {
@@ -2419,7 +2611,7 @@ type DNSUpdateHostsCommand struct {
 
 func (x *DNSUpdateHostsCommand) Reset() {
 	*x = DNSUpdateHostsCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[26]
+	mi := &file_agent_v1_agent_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2431,7 +2623,7 @@ func (x *DNSUpdateHostsCommand) String() string {
 func (*DNSUpdateHostsCommand) ProtoMessage() {}
 
 func (x *DNSUpdateHostsCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[26]
+	mi := &file_agent_v1_agent_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2444,7 +2636,7 @@ func (x *DNSUpdateHostsCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DNSUpdateHostsCommand.ProtoReflect.Descriptor instead.
 func (*DNSUpdateHostsCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{26}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *DNSUpdateHostsCommand) GetClusterSlug() string {
@@ -2485,7 +2677,7 @@ type DNSUpdateResult struct {
 
 func (x *DNSUpdateResult) Reset() {
 	*x = DNSUpdateResult{}
-	mi := &file_agent_v1_agent_proto_msgTypes[27]
+	mi := &file_agent_v1_agent_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2497,7 +2689,7 @@ func (x *DNSUpdateResult) String() string {
 func (*DNSUpdateResult) ProtoMessage() {}
 
 func (x *DNSUpdateResult) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[27]
+	mi := &file_agent_v1_agent_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2510,7 +2702,7 @@ func (x *DNSUpdateResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DNSUpdateResult.ProtoReflect.Descriptor instead.
 func (*DNSUpdateResult) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{27}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *DNSUpdateResult) GetSuccess() bool {
@@ -2545,7 +2737,7 @@ type BuildCommand struct {
 
 func (x *BuildCommand) Reset() {
 	*x = BuildCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[28]
+	mi := &file_agent_v1_agent_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2557,7 +2749,7 @@ func (x *BuildCommand) String() string {
 func (*BuildCommand) ProtoMessage() {}
 
 func (x *BuildCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[28]
+	mi := &file_agent_v1_agent_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2570,7 +2762,7 @@ func (x *BuildCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BuildCommand.ProtoReflect.Descriptor instead.
 func (*BuildCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{28}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *BuildCommand) GetBuildId() string {
@@ -2658,7 +2850,7 @@ type BuildOutput struct {
 
 func (x *BuildOutput) Reset() {
 	*x = BuildOutput{}
-	mi := &file_agent_v1_agent_proto_msgTypes[29]
+	mi := &file_agent_v1_agent_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2670,7 +2862,7 @@ func (x *BuildOutput) String() string {
 func (*BuildOutput) ProtoMessage() {}
 
 func (x *BuildOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[29]
+	mi := &file_agent_v1_agent_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2683,7 +2875,7 @@ func (x *BuildOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BuildOutput.ProtoReflect.Descriptor instead.
 func (*BuildOutput) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{29}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *BuildOutput) GetBuildId() string {
@@ -2755,7 +2947,7 @@ type DeployCommand struct {
 
 func (x *DeployCommand) Reset() {
 	*x = DeployCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[30]
+	mi := &file_agent_v1_agent_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2767,7 +2959,7 @@ func (x *DeployCommand) String() string {
 func (*DeployCommand) ProtoMessage() {}
 
 func (x *DeployCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[30]
+	mi := &file_agent_v1_agent_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2780,7 +2972,7 @@ func (x *DeployCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeployCommand.ProtoReflect.Descriptor instead.
 func (*DeployCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{30}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *DeployCommand) GetDeployId() string {
@@ -2879,7 +3071,7 @@ type TraefikConfig struct {
 
 func (x *TraefikConfig) Reset() {
 	*x = TraefikConfig{}
-	mi := &file_agent_v1_agent_proto_msgTypes[31]
+	mi := &file_agent_v1_agent_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2891,7 +3083,7 @@ func (x *TraefikConfig) String() string {
 func (*TraefikConfig) ProtoMessage() {}
 
 func (x *TraefikConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[31]
+	mi := &file_agent_v1_agent_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2904,7 +3096,7 @@ func (x *TraefikConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TraefikConfig.ProtoReflect.Descriptor instead.
 func (*TraefikConfig) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{31}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *TraefikConfig) GetAppSlug() string {
@@ -2948,7 +3140,7 @@ type TrafficRouteCommand struct {
 
 func (x *TrafficRouteCommand) Reset() {
 	*x = TrafficRouteCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[32]
+	mi := &file_agent_v1_agent_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2960,7 +3152,7 @@ func (x *TrafficRouteCommand) String() string {
 func (*TrafficRouteCommand) ProtoMessage() {}
 
 func (x *TrafficRouteCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[32]
+	mi := &file_agent_v1_agent_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2973,7 +3165,7 @@ func (x *TrafficRouteCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TrafficRouteCommand.ProtoReflect.Descriptor instead.
 func (*TrafficRouteCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{32}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *TrafficRouteCommand) GetRequestId() string {
@@ -3022,7 +3214,7 @@ type TrafficBackendGroup struct {
 
 func (x *TrafficBackendGroup) Reset() {
 	*x = TrafficBackendGroup{}
-	mi := &file_agent_v1_agent_proto_msgTypes[33]
+	mi := &file_agent_v1_agent_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3034,7 +3226,7 @@ func (x *TrafficBackendGroup) String() string {
 func (*TrafficBackendGroup) ProtoMessage() {}
 
 func (x *TrafficBackendGroup) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[33]
+	mi := &file_agent_v1_agent_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3047,7 +3239,7 @@ func (x *TrafficBackendGroup) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TrafficBackendGroup.ProtoReflect.Descriptor instead.
 func (*TrafficBackendGroup) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{33}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *TrafficBackendGroup) GetName() string {
@@ -3083,7 +3275,7 @@ type TrafficRouteResult struct {
 
 func (x *TrafficRouteResult) Reset() {
 	*x = TrafficRouteResult{}
-	mi := &file_agent_v1_agent_proto_msgTypes[34]
+	mi := &file_agent_v1_agent_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3095,7 +3287,7 @@ func (x *TrafficRouteResult) String() string {
 func (*TrafficRouteResult) ProtoMessage() {}
 
 func (x *TrafficRouteResult) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[34]
+	mi := &file_agent_v1_agent_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3108,7 +3300,7 @@ func (x *TrafficRouteResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TrafficRouteResult.ProtoReflect.Descriptor instead.
 func (*TrafficRouteResult) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{34}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *TrafficRouteResult) GetRequestId() string {
@@ -3154,7 +3346,7 @@ type DeployOutput struct {
 
 func (x *DeployOutput) Reset() {
 	*x = DeployOutput{}
-	mi := &file_agent_v1_agent_proto_msgTypes[35]
+	mi := &file_agent_v1_agent_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3166,7 +3358,7 @@ func (x *DeployOutput) String() string {
 func (*DeployOutput) ProtoMessage() {}
 
 func (x *DeployOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[35]
+	mi := &file_agent_v1_agent_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3179,7 +3371,7 @@ func (x *DeployOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeployOutput.ProtoReflect.Descriptor instead.
 func (*DeployOutput) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{35}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *DeployOutput) GetDeployId() string {
@@ -3243,7 +3435,7 @@ type StopContainerCommand struct {
 
 func (x *StopContainerCommand) Reset() {
 	*x = StopContainerCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[36]
+	mi := &file_agent_v1_agent_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3255,7 +3447,7 @@ func (x *StopContainerCommand) String() string {
 func (*StopContainerCommand) ProtoMessage() {}
 
 func (x *StopContainerCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[36]
+	mi := &file_agent_v1_agent_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3268,7 +3460,7 @@ func (x *StopContainerCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopContainerCommand.ProtoReflect.Descriptor instead.
 func (*StopContainerCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{36}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *StopContainerCommand) GetContainerName() string {
@@ -3310,7 +3502,7 @@ type StopContainerResult struct {
 
 func (x *StopContainerResult) Reset() {
 	*x = StopContainerResult{}
-	mi := &file_agent_v1_agent_proto_msgTypes[37]
+	mi := &file_agent_v1_agent_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3322,7 +3514,7 @@ func (x *StopContainerResult) String() string {
 func (*StopContainerResult) ProtoMessage() {}
 
 func (x *StopContainerResult) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[37]
+	mi := &file_agent_v1_agent_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3335,7 +3527,7 @@ func (x *StopContainerResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopContainerResult.ProtoReflect.Descriptor instead.
 func (*StopContainerResult) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{37}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *StopContainerResult) GetContainerName() string {
@@ -3371,7 +3563,7 @@ type ContainerLogsCommand struct {
 
 func (x *ContainerLogsCommand) Reset() {
 	*x = ContainerLogsCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[38]
+	mi := &file_agent_v1_agent_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3383,7 +3575,7 @@ func (x *ContainerLogsCommand) String() string {
 func (*ContainerLogsCommand) ProtoMessage() {}
 
 func (x *ContainerLogsCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[38]
+	mi := &file_agent_v1_agent_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3396,7 +3588,7 @@ func (x *ContainerLogsCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerLogsCommand.ProtoReflect.Descriptor instead.
 func (*ContainerLogsCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{38}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *ContainerLogsCommand) GetRequestId() string {
@@ -3439,7 +3631,7 @@ type ContainerLogsOutput struct {
 
 func (x *ContainerLogsOutput) Reset() {
 	*x = ContainerLogsOutput{}
-	mi := &file_agent_v1_agent_proto_msgTypes[39]
+	mi := &file_agent_v1_agent_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3451,7 +3643,7 @@ func (x *ContainerLogsOutput) String() string {
 func (*ContainerLogsOutput) ProtoMessage() {}
 
 func (x *ContainerLogsOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[39]
+	mi := &file_agent_v1_agent_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3464,7 +3656,7 @@ func (x *ContainerLogsOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerLogsOutput.ProtoReflect.Descriptor instead.
 func (*ContainerLogsOutput) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{39}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *ContainerLogsOutput) GetRequestId() string {
@@ -3506,7 +3698,7 @@ type ImagePullCommand struct {
 
 func (x *ImagePullCommand) Reset() {
 	*x = ImagePullCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[40]
+	mi := &file_agent_v1_agent_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3518,7 +3710,7 @@ func (x *ImagePullCommand) String() string {
 func (*ImagePullCommand) ProtoMessage() {}
 
 func (x *ImagePullCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[40]
+	mi := &file_agent_v1_agent_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3531,7 +3723,7 @@ func (x *ImagePullCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImagePullCommand.ProtoReflect.Descriptor instead.
 func (*ImagePullCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{40}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *ImagePullCommand) GetTransferId() string {
@@ -3566,7 +3758,7 @@ type ImagePullResult struct {
 
 func (x *ImagePullResult) Reset() {
 	*x = ImagePullResult{}
-	mi := &file_agent_v1_agent_proto_msgTypes[41]
+	mi := &file_agent_v1_agent_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3578,7 +3770,7 @@ func (x *ImagePullResult) String() string {
 func (*ImagePullResult) ProtoMessage() {}
 
 func (x *ImagePullResult) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[41]
+	mi := &file_agent_v1_agent_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3591,7 +3783,7 @@ func (x *ImagePullResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImagePullResult.ProtoReflect.Descriptor instead.
 func (*ImagePullResult) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{41}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *ImagePullResult) GetTransferId() string {
@@ -3628,7 +3820,7 @@ type ContainerExecCommand struct {
 
 func (x *ContainerExecCommand) Reset() {
 	*x = ContainerExecCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[42]
+	mi := &file_agent_v1_agent_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3640,7 +3832,7 @@ func (x *ContainerExecCommand) String() string {
 func (*ContainerExecCommand) ProtoMessage() {}
 
 func (x *ContainerExecCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[42]
+	mi := &file_agent_v1_agent_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3653,7 +3845,7 @@ func (x *ContainerExecCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerExecCommand.ProtoReflect.Descriptor instead.
 func (*ContainerExecCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{42}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ContainerExecCommand) GetSessionId() string {
@@ -3704,7 +3896,7 @@ type ContainerExecInput struct {
 
 func (x *ContainerExecInput) Reset() {
 	*x = ContainerExecInput{}
-	mi := &file_agent_v1_agent_proto_msgTypes[43]
+	mi := &file_agent_v1_agent_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3716,7 +3908,7 @@ func (x *ContainerExecInput) String() string {
 func (*ContainerExecInput) ProtoMessage() {}
 
 func (x *ContainerExecInput) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[43]
+	mi := &file_agent_v1_agent_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3729,7 +3921,7 @@ func (x *ContainerExecInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerExecInput.ProtoReflect.Descriptor instead.
 func (*ContainerExecInput) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{43}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ContainerExecInput) GetSessionId() string {
@@ -3780,7 +3972,7 @@ type ContainerExecOutput struct {
 
 func (x *ContainerExecOutput) Reset() {
 	*x = ContainerExecOutput{}
-	mi := &file_agent_v1_agent_proto_msgTypes[44]
+	mi := &file_agent_v1_agent_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3792,7 +3984,7 @@ func (x *ContainerExecOutput) String() string {
 func (*ContainerExecOutput) ProtoMessage() {}
 
 func (x *ContainerExecOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[44]
+	mi := &file_agent_v1_agent_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3805,7 +3997,7 @@ func (x *ContainerExecOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerExecOutput.ProtoReflect.Descriptor instead.
 func (*ContainerExecOutput) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{44}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *ContainerExecOutput) GetSessionId() string {
@@ -3853,7 +4045,7 @@ type RestartContainerCommand struct {
 
 func (x *RestartContainerCommand) Reset() {
 	*x = RestartContainerCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[45]
+	mi := &file_agent_v1_agent_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3865,7 +4057,7 @@ func (x *RestartContainerCommand) String() string {
 func (*RestartContainerCommand) ProtoMessage() {}
 
 func (x *RestartContainerCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[45]
+	mi := &file_agent_v1_agent_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3878,7 +4070,7 @@ func (x *RestartContainerCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestartContainerCommand.ProtoReflect.Descriptor instead.
 func (*RestartContainerCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{45}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *RestartContainerCommand) GetContainerName() string {
@@ -3906,7 +4098,7 @@ type RestartContainerResult struct {
 
 func (x *RestartContainerResult) Reset() {
 	*x = RestartContainerResult{}
-	mi := &file_agent_v1_agent_proto_msgTypes[46]
+	mi := &file_agent_v1_agent_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3918,7 +4110,7 @@ func (x *RestartContainerResult) String() string {
 func (*RestartContainerResult) ProtoMessage() {}
 
 func (x *RestartContainerResult) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[46]
+	mi := &file_agent_v1_agent_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3931,7 +4123,7 @@ func (x *RestartContainerResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestartContainerResult.ProtoReflect.Descriptor instead.
 func (*RestartContainerResult) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{46}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *RestartContainerResult) GetContainerName() string {
@@ -3965,7 +4157,7 @@ type ContainerInspectCommand struct {
 
 func (x *ContainerInspectCommand) Reset() {
 	*x = ContainerInspectCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[47]
+	mi := &file_agent_v1_agent_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3977,7 +4169,7 @@ func (x *ContainerInspectCommand) String() string {
 func (*ContainerInspectCommand) ProtoMessage() {}
 
 func (x *ContainerInspectCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[47]
+	mi := &file_agent_v1_agent_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3990,7 +4182,7 @@ func (x *ContainerInspectCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerInspectCommand.ProtoReflect.Descriptor instead.
 func (*ContainerInspectCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{47}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *ContainerInspectCommand) GetRequestId() string {
@@ -4032,7 +4224,7 @@ type ContainerInspectResult struct {
 
 func (x *ContainerInspectResult) Reset() {
 	*x = ContainerInspectResult{}
-	mi := &file_agent_v1_agent_proto_msgTypes[48]
+	mi := &file_agent_v1_agent_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4044,7 +4236,7 @@ func (x *ContainerInspectResult) String() string {
 func (*ContainerInspectResult) ProtoMessage() {}
 
 func (x *ContainerInspectResult) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[48]
+	mi := &file_agent_v1_agent_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4057,7 +4249,7 @@ func (x *ContainerInspectResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerInspectResult.ProtoReflect.Descriptor instead.
 func (*ContainerInspectResult) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{48}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *ContainerInspectResult) GetRequestId() string {
@@ -4191,7 +4383,7 @@ type ServerLogsCommand struct {
 
 func (x *ServerLogsCommand) Reset() {
 	*x = ServerLogsCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[49]
+	mi := &file_agent_v1_agent_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4203,7 +4395,7 @@ func (x *ServerLogsCommand) String() string {
 func (*ServerLogsCommand) ProtoMessage() {}
 
 func (x *ServerLogsCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[49]
+	mi := &file_agent_v1_agent_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4216,7 +4408,7 @@ func (x *ServerLogsCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerLogsCommand.ProtoReflect.Descriptor instead.
 func (*ServerLogsCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{49}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *ServerLogsCommand) GetRequestId() string {
@@ -4259,7 +4451,7 @@ type ServerLogsOutput struct {
 
 func (x *ServerLogsOutput) Reset() {
 	*x = ServerLogsOutput{}
-	mi := &file_agent_v1_agent_proto_msgTypes[50]
+	mi := &file_agent_v1_agent_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4271,7 +4463,7 @@ func (x *ServerLogsOutput) String() string {
 func (*ServerLogsOutput) ProtoMessage() {}
 
 func (x *ServerLogsOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[50]
+	mi := &file_agent_v1_agent_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4284,7 +4476,7 @@ func (x *ServerLogsOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerLogsOutput.ProtoReflect.Descriptor instead.
 func (*ServerLogsOutput) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{50}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *ServerLogsOutput) GetRequestId() string {
@@ -4330,7 +4522,7 @@ type ServerCleanupCommand struct {
 
 func (x *ServerCleanupCommand) Reset() {
 	*x = ServerCleanupCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[51]
+	mi := &file_agent_v1_agent_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4342,7 +4534,7 @@ func (x *ServerCleanupCommand) String() string {
 func (*ServerCleanupCommand) ProtoMessage() {}
 
 func (x *ServerCleanupCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[51]
+	mi := &file_agent_v1_agent_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4355,7 +4547,7 @@ func (x *ServerCleanupCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerCleanupCommand.ProtoReflect.Descriptor instead.
 func (*ServerCleanupCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{51}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *ServerCleanupCommand) GetRequestId() string {
@@ -4419,7 +4611,7 @@ type ServerCleanupResult struct {
 
 func (x *ServerCleanupResult) Reset() {
 	*x = ServerCleanupResult{}
-	mi := &file_agent_v1_agent_proto_msgTypes[52]
+	mi := &file_agent_v1_agent_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4431,7 +4623,7 @@ func (x *ServerCleanupResult) String() string {
 func (*ServerCleanupResult) ProtoMessage() {}
 
 func (x *ServerCleanupResult) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[52]
+	mi := &file_agent_v1_agent_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4444,7 +4636,7 @@ func (x *ServerCleanupResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerCleanupResult.ProtoReflect.Descriptor instead.
 func (*ServerCleanupResult) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{52}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *ServerCleanupResult) GetRequestId() string {
@@ -4488,7 +4680,7 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"\x10RegisterResponse\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12 \n" +
 	"\vcertificate\x18\x02 \x01(\fR\vcertificate\x12%\n" +
-	"\x0eca_certificate\x18\x03 \x01(\fR\rcaCertificate\"\xeb\r\n" +
+	"\x0eca_certificate\x18\x03 \x01(\fR\rcaCertificate\"\xaa\x0e\n" +
 	"\fAgentMessage\x123\n" +
 	"\theartbeat\x18\x01 \x01(\v2\x13.agent.v1.HeartbeatH\x00R\theartbeat\x127\n" +
 	"\vexec_output\x18\x02 \x01(\v2\x14.agent.v1.ExecOutputH\x00R\n" +
@@ -4515,7 +4707,8 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"\x18container_inspect_result\x18\x14 \x01(\v2 .agent.v1.ContainerInspectResultH\x00R\x16containerInspectResult\x12J\n" +
 	"\x12server_logs_output\x18\x15 \x01(\v2\x1a.agent.v1.ServerLogsOutputH\x00R\x10serverLogsOutput\x12S\n" +
 	"\x15server_cleanup_result\x18\x16 \x01(\v2\x1d.agent.v1.ServerCleanupResultH\x00R\x13serverCleanupResult\x12P\n" +
-	"\x14traffic_route_result\x18\x17 \x01(\v2\x1c.agent.v1.TrafficRouteResultH\x00R\x12trafficRouteResultB\t\n" +
+	"\x14traffic_route_result\x18\x17 \x01(\v2\x1c.agent.v1.TrafficRouteResultH\x00R\x12trafficRouteResult\x12=\n" +
+	"\rmetric_report\x18\x18 \x01(\v2\x16.agent.v1.MetricReportH\x00R\fmetricReportB\t\n" +
 	"\apayload\"\x8c\f\n" +
 	"\x0eControlMessage\x12:\n" +
 	"\fexec_command\x18\x01 \x01(\v2\x15.agent.v1.ExecCommandH\x00R\vexecCommand\x12D\n" +
@@ -4572,7 +4765,27 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"\fmemory_total\x18\x03 \x01(\x04R\vmemoryTotal\x12\x1f\n" +
 	"\vmemory_used\x18\x04 \x01(\x04R\n" +
 	"memoryUsed\x12(\n" +
-	"\x05disks\x18\x05 \x03(\v2\x12.agent.v1.DiskInfoR\x05disks\"k\n" +
+	"\x05disks\x18\x05 \x03(\v2\x12.agent.v1.DiskInfoR\x05disks\"d\n" +
+	"\fMetricReport\x12\x19\n" +
+	"\bagent_id\x18\x01 \x01(\tR\aagentId\x129\n" +
+	"\n" +
+	"containers\x18\x02 \x03(\v2\x19.agent.v1.ContainerMetricR\n" +
+	"containers\"\xba\x03\n" +
+	"\x0fContainerMetric\x12%\n" +
+	"\x0econtainer_name\x18\x01 \x01(\tR\rcontainerName\x12\x1f\n" +
+	"\vcpu_percent\x18\x02 \x01(\x01R\n" +
+	"cpuPercent\x12%\n" +
+	"\x0ememory_percent\x18\x03 \x01(\x01R\rmemoryPercent\x12\x1f\n" +
+	"\vmemory_used\x18\x04 \x01(\x04R\n" +
+	"memoryUsed\x12!\n" +
+	"\fmemory_limit\x18\x05 \x01(\x04R\vmemoryLimit\x12(\n" +
+	"\x10network_rx_bytes\x18\x06 \x01(\x04R\x0enetworkRxBytes\x12(\n" +
+	"\x10network_tx_bytes\x18\a \x01(\x04R\x0enetworkTxBytes\x12(\n" +
+	"\x10block_read_bytes\x18\b \x01(\x04R\x0eblockReadBytes\x12*\n" +
+	"\x11block_write_bytes\x18\t \x01(\x04R\x0fblockWriteBytes\x12#\n" +
+	"\rrestart_count\x18\n" +
+	" \x01(\x03R\frestartCount\x12%\n" +
+	"\x0euptime_seconds\x18\v \x01(\x03R\ruptimeSeconds\"k\n" +
 	"\bDiskInfo\x12\x1f\n" +
 	"\vmount_point\x18\x01 \x01(\tR\n" +
 	"mountPoint\x12\x1f\n" +
@@ -4880,7 +5093,7 @@ func file_agent_v1_agent_proto_rawDescGZIP() []byte {
 }
 
 var file_agent_v1_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 58)
+var file_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 60)
 var file_agent_v1_agent_proto_goTypes = []any{
 	(FileTransferRequest_Direction)(0), // 0: agent.v1.FileTransferRequest.Direction
 	(*RegisterRequest)(nil),            // 1: agent.v1.RegisterRequest
@@ -4891,125 +5104,129 @@ var file_agent_v1_agent_proto_goTypes = []any{
 	(*ExecCommand)(nil),                // 6: agent.v1.ExecCommand
 	(*ExecOutput)(nil),                 // 7: agent.v1.ExecOutput
 	(*HealthReport)(nil),               // 8: agent.v1.HealthReport
-	(*DiskInfo)(nil),                   // 9: agent.v1.DiskInfo
-	(*FileChunk)(nil),                  // 10: agent.v1.FileChunk
-	(*FileTransferRequest)(nil),        // 11: agent.v1.FileTransferRequest
-	(*CertRotation)(nil),               // 12: agent.v1.CertRotation
-	(*NetworkInterface)(nil),           // 13: agent.v1.NetworkInterface
-	(*ResourceReport)(nil),             // 14: agent.v1.ResourceReport
-	(*ProvisionCommand)(nil),           // 15: agent.v1.ProvisionCommand
-	(*ProvisionOutput)(nil),            // 16: agent.v1.ProvisionOutput
-	(*SSHKeyInstallCommand)(nil),       // 17: agent.v1.SSHKeyInstallCommand
-	(*SSHKeyInstallResult)(nil),        // 18: agent.v1.SSHKeyInstallResult
-	(*WireGuardKeyGenCommand)(nil),     // 19: agent.v1.WireGuardKeyGenCommand
-	(*WireGuardKeyGenResult)(nil),      // 20: agent.v1.WireGuardKeyGenResult
-	(*WireGuardApplyCommand)(nil),      // 21: agent.v1.WireGuardApplyCommand
-	(*WireGuardApplyResult)(nil),       // 22: agent.v1.WireGuardApplyResult
-	(*WireGuardTeardownCommand)(nil),   // 23: agent.v1.WireGuardTeardownCommand
-	(*WireGuardTeardownResult)(nil),    // 24: agent.v1.WireGuardTeardownResult
-	(*MeshHealthReport)(nil),           // 25: agent.v1.MeshHealthReport
-	(*PeerHealthInfo)(nil),             // 26: agent.v1.PeerHealthInfo
-	(*DNSUpdateHostsCommand)(nil),      // 27: agent.v1.DNSUpdateHostsCommand
-	(*DNSUpdateResult)(nil),            // 28: agent.v1.DNSUpdateResult
-	(*BuildCommand)(nil),               // 29: agent.v1.BuildCommand
-	(*BuildOutput)(nil),                // 30: agent.v1.BuildOutput
-	(*DeployCommand)(nil),              // 31: agent.v1.DeployCommand
-	(*TraefikConfig)(nil),              // 32: agent.v1.TraefikConfig
-	(*TrafficRouteCommand)(nil),        // 33: agent.v1.TrafficRouteCommand
-	(*TrafficBackendGroup)(nil),        // 34: agent.v1.TrafficBackendGroup
-	(*TrafficRouteResult)(nil),         // 35: agent.v1.TrafficRouteResult
-	(*DeployOutput)(nil),               // 36: agent.v1.DeployOutput
-	(*StopContainerCommand)(nil),       // 37: agent.v1.StopContainerCommand
-	(*StopContainerResult)(nil),        // 38: agent.v1.StopContainerResult
-	(*ContainerLogsCommand)(nil),       // 39: agent.v1.ContainerLogsCommand
-	(*ContainerLogsOutput)(nil),        // 40: agent.v1.ContainerLogsOutput
-	(*ImagePullCommand)(nil),           // 41: agent.v1.ImagePullCommand
-	(*ImagePullResult)(nil),            // 42: agent.v1.ImagePullResult
-	(*ContainerExecCommand)(nil),       // 43: agent.v1.ContainerExecCommand
-	(*ContainerExecInput)(nil),         // 44: agent.v1.ContainerExecInput
-	(*ContainerExecOutput)(nil),        // 45: agent.v1.ContainerExecOutput
-	(*RestartContainerCommand)(nil),    // 46: agent.v1.RestartContainerCommand
-	(*RestartContainerResult)(nil),     // 47: agent.v1.RestartContainerResult
-	(*ContainerInspectCommand)(nil),    // 48: agent.v1.ContainerInspectCommand
-	(*ContainerInspectResult)(nil),     // 49: agent.v1.ContainerInspectResult
-	(*ServerLogsCommand)(nil),          // 50: agent.v1.ServerLogsCommand
-	(*ServerLogsOutput)(nil),           // 51: agent.v1.ServerLogsOutput
-	(*ServerCleanupCommand)(nil),       // 52: agent.v1.ServerCleanupCommand
-	(*ServerCleanupResult)(nil),        // 53: agent.v1.ServerCleanupResult
-	nil,                                // 54: agent.v1.ExecCommand.EnvEntry
-	nil,                                // 55: agent.v1.BuildCommand.BuildArgsEntry
-	nil,                                // 56: agent.v1.DeployCommand.EnvEntry
-	nil,                                // 57: agent.v1.ContainerInspectResult.EnvEntry
-	nil,                                // 58: agent.v1.ContainerInspectResult.LabelsEntry
-	(*timestamppb.Timestamp)(nil),      // 59: google.protobuf.Timestamp
+	(*MetricReport)(nil),               // 9: agent.v1.MetricReport
+	(*ContainerMetric)(nil),            // 10: agent.v1.ContainerMetric
+	(*DiskInfo)(nil),                   // 11: agent.v1.DiskInfo
+	(*FileChunk)(nil),                  // 12: agent.v1.FileChunk
+	(*FileTransferRequest)(nil),        // 13: agent.v1.FileTransferRequest
+	(*CertRotation)(nil),               // 14: agent.v1.CertRotation
+	(*NetworkInterface)(nil),           // 15: agent.v1.NetworkInterface
+	(*ResourceReport)(nil),             // 16: agent.v1.ResourceReport
+	(*ProvisionCommand)(nil),           // 17: agent.v1.ProvisionCommand
+	(*ProvisionOutput)(nil),            // 18: agent.v1.ProvisionOutput
+	(*SSHKeyInstallCommand)(nil),       // 19: agent.v1.SSHKeyInstallCommand
+	(*SSHKeyInstallResult)(nil),        // 20: agent.v1.SSHKeyInstallResult
+	(*WireGuardKeyGenCommand)(nil),     // 21: agent.v1.WireGuardKeyGenCommand
+	(*WireGuardKeyGenResult)(nil),      // 22: agent.v1.WireGuardKeyGenResult
+	(*WireGuardApplyCommand)(nil),      // 23: agent.v1.WireGuardApplyCommand
+	(*WireGuardApplyResult)(nil),       // 24: agent.v1.WireGuardApplyResult
+	(*WireGuardTeardownCommand)(nil),   // 25: agent.v1.WireGuardTeardownCommand
+	(*WireGuardTeardownResult)(nil),    // 26: agent.v1.WireGuardTeardownResult
+	(*MeshHealthReport)(nil),           // 27: agent.v1.MeshHealthReport
+	(*PeerHealthInfo)(nil),             // 28: agent.v1.PeerHealthInfo
+	(*DNSUpdateHostsCommand)(nil),      // 29: agent.v1.DNSUpdateHostsCommand
+	(*DNSUpdateResult)(nil),            // 30: agent.v1.DNSUpdateResult
+	(*BuildCommand)(nil),               // 31: agent.v1.BuildCommand
+	(*BuildOutput)(nil),                // 32: agent.v1.BuildOutput
+	(*DeployCommand)(nil),              // 33: agent.v1.DeployCommand
+	(*TraefikConfig)(nil),              // 34: agent.v1.TraefikConfig
+	(*TrafficRouteCommand)(nil),        // 35: agent.v1.TrafficRouteCommand
+	(*TrafficBackendGroup)(nil),        // 36: agent.v1.TrafficBackendGroup
+	(*TrafficRouteResult)(nil),         // 37: agent.v1.TrafficRouteResult
+	(*DeployOutput)(nil),               // 38: agent.v1.DeployOutput
+	(*StopContainerCommand)(nil),       // 39: agent.v1.StopContainerCommand
+	(*StopContainerResult)(nil),        // 40: agent.v1.StopContainerResult
+	(*ContainerLogsCommand)(nil),       // 41: agent.v1.ContainerLogsCommand
+	(*ContainerLogsOutput)(nil),        // 42: agent.v1.ContainerLogsOutput
+	(*ImagePullCommand)(nil),           // 43: agent.v1.ImagePullCommand
+	(*ImagePullResult)(nil),            // 44: agent.v1.ImagePullResult
+	(*ContainerExecCommand)(nil),       // 45: agent.v1.ContainerExecCommand
+	(*ContainerExecInput)(nil),         // 46: agent.v1.ContainerExecInput
+	(*ContainerExecOutput)(nil),        // 47: agent.v1.ContainerExecOutput
+	(*RestartContainerCommand)(nil),    // 48: agent.v1.RestartContainerCommand
+	(*RestartContainerResult)(nil),     // 49: agent.v1.RestartContainerResult
+	(*ContainerInspectCommand)(nil),    // 50: agent.v1.ContainerInspectCommand
+	(*ContainerInspectResult)(nil),     // 51: agent.v1.ContainerInspectResult
+	(*ServerLogsCommand)(nil),          // 52: agent.v1.ServerLogsCommand
+	(*ServerLogsOutput)(nil),           // 53: agent.v1.ServerLogsOutput
+	(*ServerCleanupCommand)(nil),       // 54: agent.v1.ServerCleanupCommand
+	(*ServerCleanupResult)(nil),        // 55: agent.v1.ServerCleanupResult
+	nil,                                // 56: agent.v1.ExecCommand.EnvEntry
+	nil,                                // 57: agent.v1.BuildCommand.BuildArgsEntry
+	nil,                                // 58: agent.v1.DeployCommand.EnvEntry
+	nil,                                // 59: agent.v1.ContainerInspectResult.EnvEntry
+	nil,                                // 60: agent.v1.ContainerInspectResult.LabelsEntry
+	(*timestamppb.Timestamp)(nil),      // 61: google.protobuf.Timestamp
 }
 var file_agent_v1_agent_proto_depIdxs = []int32{
 	5,  // 0: agent.v1.AgentMessage.heartbeat:type_name -> agent.v1.Heartbeat
 	7,  // 1: agent.v1.AgentMessage.exec_output:type_name -> agent.v1.ExecOutput
 	8,  // 2: agent.v1.AgentMessage.health_report:type_name -> agent.v1.HealthReport
-	10, // 3: agent.v1.AgentMessage.file_chunk:type_name -> agent.v1.FileChunk
-	14, // 4: agent.v1.AgentMessage.resource_report:type_name -> agent.v1.ResourceReport
-	16, // 5: agent.v1.AgentMessage.provision_output:type_name -> agent.v1.ProvisionOutput
-	18, // 6: agent.v1.AgentMessage.ssh_key_result:type_name -> agent.v1.SSHKeyInstallResult
-	20, // 7: agent.v1.AgentMessage.wireguard_keygen_result:type_name -> agent.v1.WireGuardKeyGenResult
-	22, // 8: agent.v1.AgentMessage.wireguard_apply_result:type_name -> agent.v1.WireGuardApplyResult
-	24, // 9: agent.v1.AgentMessage.wireguard_teardown_result:type_name -> agent.v1.WireGuardTeardownResult
-	25, // 10: agent.v1.AgentMessage.mesh_health_report:type_name -> agent.v1.MeshHealthReport
-	28, // 11: agent.v1.AgentMessage.dns_update_result:type_name -> agent.v1.DNSUpdateResult
-	30, // 12: agent.v1.AgentMessage.build_output:type_name -> agent.v1.BuildOutput
-	36, // 13: agent.v1.AgentMessage.deploy_output:type_name -> agent.v1.DeployOutput
-	38, // 14: agent.v1.AgentMessage.stop_container_result:type_name -> agent.v1.StopContainerResult
-	42, // 15: agent.v1.AgentMessage.image_pull_result:type_name -> agent.v1.ImagePullResult
-	40, // 16: agent.v1.AgentMessage.container_logs_output:type_name -> agent.v1.ContainerLogsOutput
-	45, // 17: agent.v1.AgentMessage.container_exec_output:type_name -> agent.v1.ContainerExecOutput
-	47, // 18: agent.v1.AgentMessage.restart_container_result:type_name -> agent.v1.RestartContainerResult
-	49, // 19: agent.v1.AgentMessage.container_inspect_result:type_name -> agent.v1.ContainerInspectResult
-	51, // 20: agent.v1.AgentMessage.server_logs_output:type_name -> agent.v1.ServerLogsOutput
-	53, // 21: agent.v1.AgentMessage.server_cleanup_result:type_name -> agent.v1.ServerCleanupResult
-	35, // 22: agent.v1.AgentMessage.traffic_route_result:type_name -> agent.v1.TrafficRouteResult
-	6,  // 23: agent.v1.ControlMessage.exec_command:type_name -> agent.v1.ExecCommand
-	11, // 24: agent.v1.ControlMessage.file_transfer:type_name -> agent.v1.FileTransferRequest
-	12, // 25: agent.v1.ControlMessage.cert_rotation:type_name -> agent.v1.CertRotation
-	15, // 26: agent.v1.ControlMessage.provision_command:type_name -> agent.v1.ProvisionCommand
-	17, // 27: agent.v1.ControlMessage.ssh_key_install:type_name -> agent.v1.SSHKeyInstallCommand
-	19, // 28: agent.v1.ControlMessage.wireguard_keygen:type_name -> agent.v1.WireGuardKeyGenCommand
-	21, // 29: agent.v1.ControlMessage.wireguard_apply:type_name -> agent.v1.WireGuardApplyCommand
-	23, // 30: agent.v1.ControlMessage.wireguard_teardown:type_name -> agent.v1.WireGuardTeardownCommand
-	27, // 31: agent.v1.ControlMessage.dns_update_hosts:type_name -> agent.v1.DNSUpdateHostsCommand
-	29, // 32: agent.v1.ControlMessage.build_command:type_name -> agent.v1.BuildCommand
-	31, // 33: agent.v1.ControlMessage.deploy_command:type_name -> agent.v1.DeployCommand
-	37, // 34: agent.v1.ControlMessage.stop_container:type_name -> agent.v1.StopContainerCommand
-	41, // 35: agent.v1.ControlMessage.image_pull:type_name -> agent.v1.ImagePullCommand
-	39, // 36: agent.v1.ControlMessage.container_logs:type_name -> agent.v1.ContainerLogsCommand
-	43, // 37: agent.v1.ControlMessage.container_exec:type_name -> agent.v1.ContainerExecCommand
-	44, // 38: agent.v1.ControlMessage.container_exec_input:type_name -> agent.v1.ContainerExecInput
-	46, // 39: agent.v1.ControlMessage.restart_container:type_name -> agent.v1.RestartContainerCommand
-	48, // 40: agent.v1.ControlMessage.container_inspect:type_name -> agent.v1.ContainerInspectCommand
-	50, // 41: agent.v1.ControlMessage.server_logs:type_name -> agent.v1.ServerLogsCommand
-	52, // 42: agent.v1.ControlMessage.server_cleanup:type_name -> agent.v1.ServerCleanupCommand
-	33, // 43: agent.v1.ControlMessage.traffic_route:type_name -> agent.v1.TrafficRouteCommand
-	59, // 44: agent.v1.Heartbeat.timestamp:type_name -> google.protobuf.Timestamp
-	54, // 45: agent.v1.ExecCommand.env:type_name -> agent.v1.ExecCommand.EnvEntry
-	9,  // 46: agent.v1.HealthReport.disks:type_name -> agent.v1.DiskInfo
-	0,  // 47: agent.v1.FileTransferRequest.direction:type_name -> agent.v1.FileTransferRequest.Direction
-	9,  // 48: agent.v1.ResourceReport.disks:type_name -> agent.v1.DiskInfo
-	13, // 49: agent.v1.ResourceReport.network_interfaces:type_name -> agent.v1.NetworkInterface
-	26, // 50: agent.v1.MeshHealthReport.peers:type_name -> agent.v1.PeerHealthInfo
-	55, // 51: agent.v1.BuildCommand.build_args:type_name -> agent.v1.BuildCommand.BuildArgsEntry
-	56, // 52: agent.v1.DeployCommand.env:type_name -> agent.v1.DeployCommand.EnvEntry
-	32, // 53: agent.v1.DeployCommand.traefik:type_name -> agent.v1.TraefikConfig
-	34, // 54: agent.v1.TrafficRouteCommand.groups:type_name -> agent.v1.TrafficBackendGroup
-	57, // 55: agent.v1.ContainerInspectResult.env:type_name -> agent.v1.ContainerInspectResult.EnvEntry
-	58, // 56: agent.v1.ContainerInspectResult.labels:type_name -> agent.v1.ContainerInspectResult.LabelsEntry
-	3,  // 57: agent.v1.AgentService.Connect:input_type -> agent.v1.AgentMessage
-	1,  // 58: agent.v1.AgentService.Register:input_type -> agent.v1.RegisterRequest
-	4,  // 59: agent.v1.AgentService.Connect:output_type -> agent.v1.ControlMessage
-	2,  // 60: agent.v1.AgentService.Register:output_type -> agent.v1.RegisterResponse
-	59, // [59:61] is the sub-list for method output_type
-	57, // [57:59] is the sub-list for method input_type
-	57, // [57:57] is the sub-list for extension type_name
-	57, // [57:57] is the sub-list for extension extendee
-	0,  // [0:57] is the sub-list for field type_name
+	12, // 3: agent.v1.AgentMessage.file_chunk:type_name -> agent.v1.FileChunk
+	16, // 4: agent.v1.AgentMessage.resource_report:type_name -> agent.v1.ResourceReport
+	18, // 5: agent.v1.AgentMessage.provision_output:type_name -> agent.v1.ProvisionOutput
+	20, // 6: agent.v1.AgentMessage.ssh_key_result:type_name -> agent.v1.SSHKeyInstallResult
+	22, // 7: agent.v1.AgentMessage.wireguard_keygen_result:type_name -> agent.v1.WireGuardKeyGenResult
+	24, // 8: agent.v1.AgentMessage.wireguard_apply_result:type_name -> agent.v1.WireGuardApplyResult
+	26, // 9: agent.v1.AgentMessage.wireguard_teardown_result:type_name -> agent.v1.WireGuardTeardownResult
+	27, // 10: agent.v1.AgentMessage.mesh_health_report:type_name -> agent.v1.MeshHealthReport
+	30, // 11: agent.v1.AgentMessage.dns_update_result:type_name -> agent.v1.DNSUpdateResult
+	32, // 12: agent.v1.AgentMessage.build_output:type_name -> agent.v1.BuildOutput
+	38, // 13: agent.v1.AgentMessage.deploy_output:type_name -> agent.v1.DeployOutput
+	40, // 14: agent.v1.AgentMessage.stop_container_result:type_name -> agent.v1.StopContainerResult
+	44, // 15: agent.v1.AgentMessage.image_pull_result:type_name -> agent.v1.ImagePullResult
+	42, // 16: agent.v1.AgentMessage.container_logs_output:type_name -> agent.v1.ContainerLogsOutput
+	47, // 17: agent.v1.AgentMessage.container_exec_output:type_name -> agent.v1.ContainerExecOutput
+	49, // 18: agent.v1.AgentMessage.restart_container_result:type_name -> agent.v1.RestartContainerResult
+	51, // 19: agent.v1.AgentMessage.container_inspect_result:type_name -> agent.v1.ContainerInspectResult
+	53, // 20: agent.v1.AgentMessage.server_logs_output:type_name -> agent.v1.ServerLogsOutput
+	55, // 21: agent.v1.AgentMessage.server_cleanup_result:type_name -> agent.v1.ServerCleanupResult
+	37, // 22: agent.v1.AgentMessage.traffic_route_result:type_name -> agent.v1.TrafficRouteResult
+	9,  // 23: agent.v1.AgentMessage.metric_report:type_name -> agent.v1.MetricReport
+	6,  // 24: agent.v1.ControlMessage.exec_command:type_name -> agent.v1.ExecCommand
+	13, // 25: agent.v1.ControlMessage.file_transfer:type_name -> agent.v1.FileTransferRequest
+	14, // 26: agent.v1.ControlMessage.cert_rotation:type_name -> agent.v1.CertRotation
+	17, // 27: agent.v1.ControlMessage.provision_command:type_name -> agent.v1.ProvisionCommand
+	19, // 28: agent.v1.ControlMessage.ssh_key_install:type_name -> agent.v1.SSHKeyInstallCommand
+	21, // 29: agent.v1.ControlMessage.wireguard_keygen:type_name -> agent.v1.WireGuardKeyGenCommand
+	23, // 30: agent.v1.ControlMessage.wireguard_apply:type_name -> agent.v1.WireGuardApplyCommand
+	25, // 31: agent.v1.ControlMessage.wireguard_teardown:type_name -> agent.v1.WireGuardTeardownCommand
+	29, // 32: agent.v1.ControlMessage.dns_update_hosts:type_name -> agent.v1.DNSUpdateHostsCommand
+	31, // 33: agent.v1.ControlMessage.build_command:type_name -> agent.v1.BuildCommand
+	33, // 34: agent.v1.ControlMessage.deploy_command:type_name -> agent.v1.DeployCommand
+	39, // 35: agent.v1.ControlMessage.stop_container:type_name -> agent.v1.StopContainerCommand
+	43, // 36: agent.v1.ControlMessage.image_pull:type_name -> agent.v1.ImagePullCommand
+	41, // 37: agent.v1.ControlMessage.container_logs:type_name -> agent.v1.ContainerLogsCommand
+	45, // 38: agent.v1.ControlMessage.container_exec:type_name -> agent.v1.ContainerExecCommand
+	46, // 39: agent.v1.ControlMessage.container_exec_input:type_name -> agent.v1.ContainerExecInput
+	48, // 40: agent.v1.ControlMessage.restart_container:type_name -> agent.v1.RestartContainerCommand
+	50, // 41: agent.v1.ControlMessage.container_inspect:type_name -> agent.v1.ContainerInspectCommand
+	52, // 42: agent.v1.ControlMessage.server_logs:type_name -> agent.v1.ServerLogsCommand
+	54, // 43: agent.v1.ControlMessage.server_cleanup:type_name -> agent.v1.ServerCleanupCommand
+	35, // 44: agent.v1.ControlMessage.traffic_route:type_name -> agent.v1.TrafficRouteCommand
+	61, // 45: agent.v1.Heartbeat.timestamp:type_name -> google.protobuf.Timestamp
+	56, // 46: agent.v1.ExecCommand.env:type_name -> agent.v1.ExecCommand.EnvEntry
+	11, // 47: agent.v1.HealthReport.disks:type_name -> agent.v1.DiskInfo
+	10, // 48: agent.v1.MetricReport.containers:type_name -> agent.v1.ContainerMetric
+	0,  // 49: agent.v1.FileTransferRequest.direction:type_name -> agent.v1.FileTransferRequest.Direction
+	11, // 50: agent.v1.ResourceReport.disks:type_name -> agent.v1.DiskInfo
+	15, // 51: agent.v1.ResourceReport.network_interfaces:type_name -> agent.v1.NetworkInterface
+	28, // 52: agent.v1.MeshHealthReport.peers:type_name -> agent.v1.PeerHealthInfo
+	57, // 53: agent.v1.BuildCommand.build_args:type_name -> agent.v1.BuildCommand.BuildArgsEntry
+	58, // 54: agent.v1.DeployCommand.env:type_name -> agent.v1.DeployCommand.EnvEntry
+	34, // 55: agent.v1.DeployCommand.traefik:type_name -> agent.v1.TraefikConfig
+	36, // 56: agent.v1.TrafficRouteCommand.groups:type_name -> agent.v1.TrafficBackendGroup
+	59, // 57: agent.v1.ContainerInspectResult.env:type_name -> agent.v1.ContainerInspectResult.EnvEntry
+	60, // 58: agent.v1.ContainerInspectResult.labels:type_name -> agent.v1.ContainerInspectResult.LabelsEntry
+	3,  // 59: agent.v1.AgentService.Connect:input_type -> agent.v1.AgentMessage
+	1,  // 60: agent.v1.AgentService.Register:input_type -> agent.v1.RegisterRequest
+	4,  // 61: agent.v1.AgentService.Connect:output_type -> agent.v1.ControlMessage
+	2,  // 62: agent.v1.AgentService.Register:output_type -> agent.v1.RegisterResponse
+	61, // [61:63] is the sub-list for method output_type
+	59, // [59:61] is the sub-list for method input_type
+	59, // [59:59] is the sub-list for extension type_name
+	59, // [59:59] is the sub-list for extension extendee
+	0,  // [0:59] is the sub-list for field type_name
 }
 
 func init() { file_agent_v1_agent_proto_init() }
@@ -5041,6 +5258,7 @@ func file_agent_v1_agent_proto_init() {
 		(*AgentMessage_ServerLogsOutput)(nil),
 		(*AgentMessage_ServerCleanupResult)(nil),
 		(*AgentMessage_TrafficRouteResult)(nil),
+		(*AgentMessage_MetricReport)(nil),
 	}
 	file_agent_v1_agent_proto_msgTypes[3].OneofWrappers = []any{
 		(*ControlMessage_ExecCommand)(nil),
@@ -5071,7 +5289,7 @@ func file_agent_v1_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_agent_v1_agent_proto_rawDesc), len(file_agent_v1_agent_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   58,
+			NumMessages:   60,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

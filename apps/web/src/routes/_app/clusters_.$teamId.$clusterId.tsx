@@ -15,6 +15,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { MeshHealthMatrix } from '@/components/mesh-health-matrix'
+import { ObservabilityPanel } from '@/components/observability-panel'
 import { Loader2, Trash2, Plus, Globe, Server as ServerIcon, Activity, Copy, Check } from 'lucide-react'
 
 export const Route = createFileRoute('/_app/clusters_/$teamId/$clusterId')({
@@ -202,6 +203,7 @@ function ClusterDetailPage() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="members">Members ({members.length})</TabsTrigger>
           <TabsTrigger value="mesh">Mesh</TabsTrigger>
+          <TabsTrigger value="observability">Observability</TabsTrigger>
           <TabsTrigger value="logs">Logs</TabsTrigger>
           <TabsTrigger value="events">Events</TabsTrigger>
         </TabsList>
@@ -438,6 +440,15 @@ function ClusterDetailPage() {
             <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded bg-red-500" /> Failed / poor &gt;200ms</span>
             <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded bg-gray-300" /> Pending</span>
           </div>
+        </TabsContent>
+
+        <TabsContent value="observability" className="space-y-4 mt-4">
+          <ObservabilityPanel
+            teamId={teamId}
+            scopeType="cluster"
+            scopeId={clusterId}
+            metrics={['cluster.server_cpu_percent', 'cluster.server_memory_percent', 'cluster.container_cpu_percent', 'cluster.container_memory_percent']}
+          />
         </TabsContent>
 
         {/* Logs */}

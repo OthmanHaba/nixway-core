@@ -22,6 +22,7 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/email"
 	githubsvc "github.com/othmanhaba/nixway-core/internal/github"
 	"github.com/othmanhaba/nixway-core/internal/mesh"
+	"github.com/othmanhaba/nixway-core/internal/observability"
 	"github.com/othmanhaba/nixway-core/internal/project"
 	"github.com/othmanhaba/nixway-core/internal/provisioner"
 	"github.com/othmanhaba/nixway-core/internal/registry"
@@ -50,6 +51,7 @@ func NewRouter(
 	buildSvc *build.Service,
 	deploySvc *deploy.Service,
 	containerLogSvc *containerlog.Service,
+	observabilitySvc *observability.Service,
 ) http.Handler {
 	authH := handler.NewAuthHandler(queries, sessions, emailSender, auditWriter, cfg, logger)
 	teamH := handler.NewTeamHandler(queries, emailSender, auditWriter, cfg, logger)
@@ -72,6 +74,7 @@ func NewRouter(
 	buildH := handler.NewBuildHandler(queries, buildSvc, redisClient, logger)
 	deployH := handler.NewDeployHandler(queries, deploySvc, connMgr, redisClient, containerLogSvc, logger)
 	containerTermH := handler.NewContainerTerminalHandler(queries, connMgr, redisClient, logger)
+	observabilityH := handler.NewObservabilityHandler(queries, observabilitySvc, logger)
 
 	mux := http.NewServeMux()
 
@@ -259,6 +262,18 @@ func NewRouter(
 
 	// Server logs (SSE)
 	protected.HandleFunc("GET /api/v1/teams/{id}/servers/{serverId}/logs", deployH.ServerLogs)
+
+	// Observability
+	protected.HandleFunc("GET /api/v1/teams/{id}/observability/metrics", observabilityH.Metrics)
+	protected.HandleFunc("GET /api/v1/teams/{id}/observability/alerts", observabilityH.ListAlerts)
+	protected.HandleFunc("POST /api/v1/teams/{id}/observability/alerts", observabilityH.CreateAlert)
+	protected.HandleFunc("PUT /api/v1/teams/{id}/observability/alerts/{alertId}", observabilityH.UpdateAlert)
+	protected.HandleFunc("DELETE /api/v1/teams/{id}/observability/alerts/{alertId}", observabilityH.DeleteAlert)
+	protected.HandleFunc("POST /api/v1/teams/{id}/observability/alerts/evaluate", observabilityH.EvaluateAlerts)
+	protected.HandleFunc("GET /api/v1/teams/{id}/observability/events", observabilityH.Events)
+	protected.HandleFunc("GET /api/v1/teams/{id}/observability/channels", observabilityH.ListChannels)
+	protected.HandleFunc("POST /api/v1/teams/{id}/observability/channels", observabilityH.CreateChannel)
+	protected.HandleFunc("POST /api/v1/teams/{id}/observability/silences", observabilityH.CreateSilence)
 
 	// Discovery
 	protected.HandleFunc("POST /api/v1/discover", discoverH.Discover)

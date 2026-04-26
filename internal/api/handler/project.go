@@ -196,6 +196,10 @@ func (h *ProjectHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusInternalServerError, "failed to delete project")
 		return
 	}
+	_ = h.queries.DeleteMetricSamplesForScope(r.Context(), db.DeleteMetricSamplesForScopeParams{
+		ScopeType: "project",
+		ScopeID:   projectID,
+	})
 
 	w.WriteHeader(http.StatusNoContent)
 }

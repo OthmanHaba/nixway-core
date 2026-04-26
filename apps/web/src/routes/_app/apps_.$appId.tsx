@@ -3,6 +3,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '@/lib/api'
 import type { App, Build, Deployment, DeploymentTarget, ContainerReplica, ContainerInspect, ContainerLogEntry, ScalingEvent, AutoscalingRule, AutoscaleEvaluation, TrafficView } from '@/lib/types'
+import { useTeamContext } from '@/hooks/use-team-context'
+import { ObservabilityPanel } from '@/components/observability-panel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -1283,6 +1285,7 @@ function EditAppDialog({ app, appId, open, onClose }: { app: App; appId: string;
 function AppDetailPage() {
   const { appId } = Route.useParams()
   const queryClient = useQueryClient()
+  const { currentTeam } = useTeamContext()
   const [selectedBuild, setSelectedBuild] = useState<Build | null>(null)
   const [selectedDeployment, setSelectedDeployment] = useState<Deployment | null>(null)
   const [editOpen, setEditOpen] = useState(false)
@@ -1301,6 +1304,12 @@ function AppDetailPage() {
   const { data: deployments = [], isLoading: deploymentsLoading } = useQuery({
     queryKey: ['apps', appId, 'deployments'],
     queryFn: () => api.get<Deployment[]>(`/apps/${appId}/deployments`),
+    refetchInterval: 15_000,
+  })
+
+  const { data: replicas = [] } = useQuery({
+    queryKey: ['apps', appId, 'replicas', 'observability'],
+    queryFn: () => api.get<ContainerReplica[]>(`/apps/${appId}/replicas`),
     refetchInterval: 15_000,
   })
 
@@ -1364,6 +1373,7 @@ function AppDetailPage() {
           <TabsTrigger value="scaling">Scaling</TabsTrigger>
           <TabsTrigger value="traffic">Traffic</TabsTrigger>
           <TabsTrigger value="resources">Resources</TabsTrigger>
+          <TabsTrigger value="observability">Observability</TabsTrigger>
         </TabsList>
 
         {/* Overview */}
@@ -1585,6 +1595,41 @@ function AppDetailPage() {
         {/* Resources */}
         <TabsContent value="resources" className="mt-4">
           <ResourceLimitsPanel app={app} appId={appId} />
+        </TabsContent>
+
+        {/* Observability */}
+        <TabsContent value="observability" className="mt-4 space-y-4">
+          {currentTeam && (
+            <>
+              <ObservabilityPanel
+                teamId={currentTeam.id}
+                scopeType="app"
+                scopeId={appId}
+                metrics={['app.container_cpu_percent', 'app.container_memory_percent', 'app.container_network_rx_bytes', 'app.container_network_tx_bytes']}
+              />
+              {replicas.length > 0 && (
+                <div className="grid gap-4 xl:grid-cols-2">
+                  {replicas.filter((replica) => replica.target_id).map((replica) => (
+                    <Card key={replica.target_id}>
+                      <CardHeader>
+                        <CardTitle className="text-sm">
+                          {replica.server_name} / {replica.container_id?.slice(0, 12) || replica.target_id.slice(0, 8)}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ObservabilityPanel
+                          teamId={currentTeam.id}
+                          scopeType="container"
+                          scopeId={replica.target_id}
+                          metrics={['container.cpu_percent', 'container.memory_percent', 'container.restart_count', 'container.uptime_seconds']}
+                        />
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </TabsContent>
       </Tabs>
 

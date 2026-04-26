@@ -13,6 +13,53 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AlertEvent struct {
+	ID          uuid.UUID          `json:"id"`
+	RuleID      uuid.UUID          `json:"rule_id"`
+	TeamID      uuid.UUID          `json:"team_id"`
+	ScopeType   string             `json:"scope_type"`
+	ScopeID     uuid.UUID          `json:"scope_id"`
+	State       string             `json:"state"`
+	MetricValue *float64           `json:"metric_value"`
+	Threshold   float64            `json:"threshold"`
+	Message     string             `json:"message"`
+	NotifiedAt  pgtype.Timestamptz `json:"notified_at"`
+	CreatedAt   time.Time          `json:"created_at"`
+}
+
+type AlertRule struct {
+	ID                   uuid.UUID          `json:"id"`
+	TeamID               uuid.UUID          `json:"team_id"`
+	ScopeType            string             `json:"scope_type"`
+	ScopeID              uuid.UUID          `json:"scope_id"`
+	Name                 string             `json:"name"`
+	MetricName           string             `json:"metric_name"`
+	Comparison           string             `json:"comparison"`
+	Threshold            float64            `json:"threshold"`
+	DurationSeconds      int32              `json:"duration_seconds"`
+	Severity             string             `json:"severity"`
+	Enabled              bool               `json:"enabled"`
+	NotificationChannels []uuid.UUID        `json:"notification_channels"`
+	LastState            string             `json:"last_state"`
+	LastValue            *float64           `json:"last_value"`
+	LastEvaluatedAt      pgtype.Timestamptz `json:"last_evaluated_at"`
+	StateChangedAt       pgtype.Timestamptz `json:"state_changed_at"`
+	CreatedAt            time.Time          `json:"created_at"`
+	UpdatedAt            time.Time          `json:"updated_at"`
+}
+
+type AlertSilence struct {
+	ID        uuid.UUID   `json:"id"`
+	TeamID    uuid.UUID   `json:"team_id"`
+	RuleID    pgtype.UUID `json:"rule_id"`
+	ScopeType *string     `json:"scope_type"`
+	ScopeID   pgtype.UUID `json:"scope_id"`
+	Reason    string      `json:"reason"`
+	StartsAt  time.Time   `json:"starts_at"`
+	EndsAt    time.Time   `json:"ends_at"`
+	CreatedAt time.Time   `json:"created_at"`
+}
+
 type ApiToken struct {
 	ID         uuid.UUID          `json:"id"`
 	TeamID     uuid.UUID          `json:"team_id"`
@@ -234,6 +281,27 @@ type MeshEvent struct {
 	MemberID  pgtype.UUID     `json:"member_id"`
 	Details   json.RawMessage `json:"details"`
 	CreatedAt time.Time       `json:"created_at"`
+}
+
+type MetricSample struct {
+	ID         int64     `json:"id"`
+	ScopeType  string    `json:"scope_type"`
+	ScopeID    uuid.UUID `json:"scope_id"`
+	MetricName string    `json:"metric_name"`
+	Value      float64   `json:"value"`
+	Labels     []byte    `json:"labels"`
+	SampledAt  time.Time `json:"sampled_at"`
+}
+
+type NotificationChannel struct {
+	ID        uuid.UUID `json:"id"`
+	TeamID    uuid.UUID `json:"team_id"`
+	Name      string    `json:"name"`
+	Type      string    `json:"type"`
+	Target    string    `json:"target"`
+	Enabled   bool      `json:"enabled"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type Project struct {

@@ -2,7 +2,16 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '@/lib/api'
-import type { Server, ServerResources, ServerTag, ProvisioningJob } from '@/lib/types'
+import type {
+  AlertEvent,
+  AlertRule,
+  MetricSample,
+  NotificationChannel,
+  ProvisioningJob,
+  Server,
+  ServerResources,
+  ServerTag,
+} from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,7 +25,20 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { useSSE } from '@/hooks/use-sse'
 import { Terminal } from '@/components/terminal'
-import { Loader2, Trash2, Plus, Cpu, HardDrive, Network, MemoryStick, Pencil, AlertTriangle, DownloadCloud } from 'lucide-react'
+import {
+  Activity,
+  Bell,
+  DownloadCloud,
+  Loader2,
+  Trash2,
+  Plus,
+  Cpu,
+  HardDrive,
+  Network,
+  MemoryStick,
+  Pencil,
+  AlertTriangle,
+} from 'lucide-react'
 
 export const Route = createFileRoute('/_app/servers_/$teamId/$serverId')({
   component: ServerDetailPage,
@@ -72,6 +94,65 @@ function diskColor(pct: number): string {
   if (pct >= 90) return 'bg-red-500'
   if (pct >= 70) return 'bg-yellow-500'
   return 'bg-green-500'
+}
+
+function formatMetricValue(value: number, metric: string): string {
+  if (metric.includes('bytes')) return formatBytes(value)
+  if (metric.includes('percent')) return `${value.toFixed(1)}%`
+  return value.toFixed(2)
+}
+
+function stateVariant(state: string): 'default' | 'secondary' | 'destructive' | 'outline' {
+  if (state === 'firing') return 'destructive'
+  if (state === 'pending') return 'secondary'
+  if (state === 'resolved') return 'outline'
+  return 'default'
+}
+
+function MetricLineChart({ samples, metric, color }: { samples: MetricSample[]; metric: string; color: string }) {
+  const values = samples.map((s) => s.value)
+  const latest = values.at(-1) ?? 0
+  const min = values.length ? Math.min(...values) : 0
+  const max = values.length ? Math.max(...values) : 100
+  const span = Math.max(1, max - min)
+  const points = samples.map((sample, index) => {
+    const x = samples.length <= 1 ? 0 : (index / (samples.length - 1)) * 100
+    const y = 40 - ((sample.value - min) / span) * 34 - 3
+    return `${x.toFixed(2)},${y.toFixed(2)}`
+  }).join(' ')
+
+  return (
+    <div className="rounded-md border bg-background p-4">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold">{metric}</div>
+          <div className="text-xs text-muted-foreground">{samples.length} samples</div>
+        </div>
+        <div className="font-mono text-lg font-semibold">{formatMetricValue(latest, metric)}</div>
+      </div>
+      <div className="h-32">
+        {samples.length < 2 ? (
+          <div className="flex h-full items-center justify-center rounded border border-dashed text-sm text-muted-foreground">
+            Waiting for samples
+          </div>
+        ) : (
+          <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="h-full w-full overflow-visible">
+            <polyline
+              fill="none"
+              stroke={color}
+              strokeWidth="1.8"
+              vectorEffect="non-scaling-stroke"
+              points={points}
+            />
+          </svg>
+        )}
+      </div>
+      <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+        <span>{formatMetricValue(min, metric)}</span>
+        <span>{formatMetricValue(max, metric)}</span>
+      </div>
+    </div>
+  )
 }
 
 // --- Status indicator ---
@@ -200,6 +281,21 @@ function ServerDetailPage() {
     remove_volumes: false,
     older_than_hours: 24,
   })
+  const [metricRange, setMetricRange] = useState('1h')
+  const [alertDraft, setAlertDraft] = useState({
+    name: 'High CPU',
+    metric_name: 'server.cpu_percent',
+    comparison: 'gt',
+    threshold: 90,
+    duration_seconds: 300,
+    severity: 'warning',
+  })
+  const [channelDraft, setChannelDraft] = useState({
+    name: '',
+    type: 'webhook',
+    target: '',
+  })
+  const [selectedChannelIds, setSelectedChannelIds] = useState<string[]>([])
 
   // Relative time ticker
   const [tick, setTick] = useState(0)
@@ -223,6 +319,38 @@ function ServerDetailPage() {
     queryKey: ['teams', teamId, 'servers', serverId, 'latest-job'],
     queryFn: () => api.get<ProvisioningJob | null>(`/teams/${teamId}/servers/${serverId}/provision`),
     refetchInterval: 10_000,
+  })
+
+  const metricPath = (metric: string) =>
+    `/teams/${teamId}/observability/metrics?scope_type=server&scope_id=${serverId}&metric=${metric}&range=${metricRange}&limit=400`
+
+  const { data: cpuSamples = [] } = useQuery({
+    queryKey: ['teams', teamId, 'servers', serverId, 'metrics', 'cpu', metricRange],
+    queryFn: () => api.get<MetricSample[]>(metricPath('server.cpu_percent')),
+    refetchInterval: 15_000,
+  })
+
+  const { data: memorySamples = [] } = useQuery({
+    queryKey: ['teams', teamId, 'servers', serverId, 'metrics', 'memory', metricRange],
+    queryFn: () => api.get<MetricSample[]>(metricPath('server.memory_percent')),
+    refetchInterval: 15_000,
+  })
+
+  const { data: alertRules = [] } = useQuery({
+    queryKey: ['teams', teamId, 'servers', serverId, 'observability', 'alerts'],
+    queryFn: () => api.get<AlertRule[]>(`/teams/${teamId}/observability/alerts?scope_type=server&scope_id=${serverId}`),
+    refetchInterval: 15_000,
+  })
+
+  const { data: alertEvents = [] } = useQuery({
+    queryKey: ['teams', teamId, 'servers', serverId, 'observability', 'events'],
+    queryFn: () => api.get<AlertEvent[]>(`/teams/${teamId}/observability/events?scope_type=server&scope_id=${serverId}&limit=20`),
+    refetchInterval: 15_000,
+  })
+
+  const { data: notificationChannels = [] } = useQuery({
+    queryKey: ['teams', teamId, 'observability', 'channels'],
+    queryFn: () => api.get<NotificationChannel[]>(`/teams/${teamId}/observability/channels`),
   })
 
   useEffect(() => {
@@ -320,6 +448,71 @@ function ServerDetailPage() {
     },
     onError: (err) => {
       toast({ title: 'Agent update failed', description: err instanceof ApiError ? err.message : 'Failed to update agent' })
+    },
+  })
+
+  const createAlertRule = useMutation({
+    mutationFn: () =>
+      api.post<AlertRule>(`/teams/${teamId}/observability/alerts`, {
+        scope_type: 'server',
+        scope_id: serverId,
+        ...alertDraft,
+        enabled: true,
+        notification_channels: selectedChannelIds,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'servers', serverId, 'observability', 'alerts'] })
+      toast({ title: 'Alert rule created' })
+    },
+    onError: (err) => {
+      toast({ title: 'Alert rule failed', description: err instanceof ApiError ? err.message : 'Failed to create alert rule' })
+    },
+  })
+
+  const deleteAlertRule = useMutation({
+    mutationFn: (alertId: string) => api.delete(`/teams/${teamId}/observability/alerts/${alertId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'servers', serverId, 'observability', 'alerts'] })
+      toast({ title: 'Alert rule deleted' })
+    },
+  })
+
+  const evaluateAlerts = useMutation({
+    mutationFn: () => api.post<{ status: string }>(`/teams/${teamId}/observability/alerts/evaluate`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'servers', serverId, 'observability'] })
+      toast({ title: 'Alert evaluation queued' })
+    },
+  })
+
+  const createChannel = useMutation({
+    mutationFn: () =>
+      api.post<NotificationChannel>(`/teams/${teamId}/observability/channels`, {
+        ...channelDraft,
+        enabled: true,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'observability', 'channels'] })
+      setChannelDraft({ name: '', type: 'webhook', target: '' })
+      toast({ title: 'Notification channel created' })
+    },
+    onError: (err) => {
+      toast({ title: 'Channel failed', description: err instanceof ApiError ? err.message : 'Failed to create channel' })
+    },
+  })
+
+  const silenceAlert = useMutation({
+    mutationFn: (ruleId: string) =>
+      api.post(`/teams/${teamId}/observability/silences`, {
+        rule_id: ruleId,
+        reason: 'Silenced from server dashboard',
+        duration_seconds: 3600,
+      }),
+    onSuccess: () => {
+      toast({ title: 'Alert silenced for 1 hour' })
+    },
+    onError: (err) => {
+      toast({ title: 'Silence failed', description: err instanceof ApiError ? err.message : 'Failed to silence alert' })
     },
   })
 
@@ -446,6 +639,7 @@ function ServerDetailPage() {
         <TabsList className="h-auto flex-wrap justify-start">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="resources">Resources</TabsTrigger>
+          <TabsTrigger value="observability">Observability</TabsTrigger>
           <TabsTrigger value="terminal">Terminal</TabsTrigger>
           <TabsTrigger value="provisioning">Provisioning</TabsTrigger>
           <TabsTrigger value="tags">Tags</TabsTrigger>
@@ -611,6 +805,302 @@ function ServerDetailPage() {
               </Card>
             </>
           )}
+        </TabsContent>
+
+        {/* Observability Tab */}
+        <TabsContent value="observability" className="space-y-4 mt-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Historical metrics refresh every 15s</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                className="rounded-md border bg-background px-2 py-1 text-sm"
+                value={metricRange}
+                onChange={(e) => setMetricRange(e.target.value)}
+              >
+                <option value="5m">5m</option>
+                <option value="1h">1h</option>
+                <option value="24h">24h</option>
+                <option value="7d">7d</option>
+                <option value="30d">30d</option>
+              </select>
+              <Button type="button" size="sm" variant="outline" onClick={() => evaluateAlerts.mutate()}>
+                {evaluateAlerts.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <MetricLineChart samples={cpuSamples} metric="server.cpu_percent" color="rgb(37 99 235)" />
+            <MetricLineChart samples={memorySamples} metric="server.memory_percent" color="rgb(22 163 74)" />
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Alert Rules</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <form
+                  className="grid gap-3 lg:grid-cols-[1fr_1fr_100px_120px_120px_auto]"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    createAlertRule.mutate()
+                  }}
+                >
+                  <div className="space-y-1">
+                    <Label htmlFor="alert-name">Name</Label>
+                    <Input
+                      id="alert-name"
+                      value={alertDraft.name}
+                      onChange={(e) => setAlertDraft((prev) => ({ ...prev, name: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="alert-metric">Metric</Label>
+                    <select
+                      id="alert-metric"
+                      className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                      value={alertDraft.metric_name}
+                      onChange={(e) => setAlertDraft((prev) => ({ ...prev, metric_name: e.target.value }))}
+                    >
+                      <option value="server.cpu_percent">CPU %</option>
+                      <option value="server.memory_percent">Memory %</option>
+                      <option value="server.disk_percent">Disk %</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="alert-op">Op</Label>
+                    <select
+                      id="alert-op"
+                      className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                      value={alertDraft.comparison}
+                      onChange={(e) => setAlertDraft((prev) => ({ ...prev, comparison: e.target.value }))}
+                    >
+                      <option value="gt">&gt;</option>
+                      <option value="gte">&gt;=</option>
+                      <option value="lt">&lt;</option>
+                      <option value="lte">&lt;=</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="alert-threshold">Threshold</Label>
+                    <Input
+                      id="alert-threshold"
+                      type="number"
+                      value={alertDraft.threshold}
+                      onChange={(e) => setAlertDraft((prev) => ({ ...prev, threshold: Number(e.target.value) }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="alert-duration">Seconds</Label>
+                    <Input
+                      id="alert-duration"
+                      type="number"
+                      min={30}
+                      value={alertDraft.duration_seconds}
+                      onChange={(e) => setAlertDraft((prev) => ({ ...prev, duration_seconds: Number(e.target.value) }))}
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Button type="submit" disabled={createAlertRule.isPending}>
+                      {createAlertRule.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </form>
+                {notificationChannels.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {notificationChannels.map((channel) => (
+                      <label key={channel.id} className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={selectedChannelIds.includes(channel.id)}
+                          onChange={(e) => {
+                            setSelectedChannelIds((prev) =>
+                              e.target.checked ? [...prev, channel.id] : prev.filter((id) => id !== channel.id)
+                            )
+                          }}
+                          className="h-4 w-4"
+                        />
+                        <span>{channel.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                {alertRules.length === 0 ? (
+                  <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+                    No alert rules yet.
+                  </div>
+                ) : (
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Condition</TableHead>
+                          <TableHead>State</TableHead>
+                          <TableHead>Last Value</TableHead>
+                          <TableHead className="w-28" />
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {alertRules.map((rule) => (
+                          <TableRow key={rule.id}>
+                            <TableCell className="font-medium">{rule.name}</TableCell>
+                            <TableCell className="font-mono text-xs">
+                              {rule.metric_name} {rule.comparison} {rule.threshold} for {rule.duration_seconds}s
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={stateVariant(rule.last_state)}>{rule.last_state}</Badge>
+                            </TableCell>
+                            <TableCell className="font-mono text-xs">
+                              {rule.last_value == null ? '—' : formatMetricValue(rule.last_value, rule.metric_name)}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={silenceAlert.isPending}
+                                  onClick={() => silenceAlert.mutate(rule.id)}
+                                >
+                                  Silence
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  disabled={deleteAlertRule.isPending}
+                                  onClick={() => deleteAlertRule.mutate(rule.id)}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Notification Channels</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <form
+                  className="space-y-3"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    createChannel.mutate()
+                  }}
+                >
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="channel-name">Name</Label>
+                      <Input
+                        id="channel-name"
+                        value={channelDraft.name}
+                        onChange={(e) => setChannelDraft((prev) => ({ ...prev, name: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="channel-type">Type</Label>
+                      <select
+                        id="channel-type"
+                        className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                        value={channelDraft.type}
+                        onChange={(e) => setChannelDraft((prev) => ({ ...prev, type: e.target.value }))}
+                      >
+                        <option value="webhook">Webhook</option>
+                        <option value="slack">Slack</option>
+                        <option value="discord">Discord</option>
+                        <option value="email">Email</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="channel-target">Target</Label>
+                    <Input
+                      id="channel-target"
+                      value={channelDraft.target}
+                      onChange={(e) => setChannelDraft((prev) => ({ ...prev, target: e.target.value }))}
+                      placeholder="https://hooks.example.test/alerts"
+                      required
+                    />
+                  </div>
+                  <Button type="submit" variant="outline" disabled={createChannel.isPending}>
+                    {createChannel.isPending ? 'Saving...' : 'Add Channel'}
+                  </Button>
+                </form>
+
+                <div className="space-y-2">
+                  {notificationChannels.length === 0 ? (
+                    <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                      Alerts will still track state without a channel.
+                    </div>
+                  ) : notificationChannels.map((channel) => (
+                    <div key={channel.id} className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+                      <div>
+                        <div className="text-sm font-medium">{channel.name}</div>
+                        <div className="text-xs text-muted-foreground">{channel.type}</div>
+                      </div>
+                      <Badge variant={channel.enabled ? 'default' : 'secondary'}>
+                        {channel.enabled ? 'enabled' : 'off'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Alert Events</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {alertEvents.length === 0 ? (
+                <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+                  No alert events recorded for this server.
+                </div>
+              ) : (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>State</TableHead>
+                        <TableHead>Message</TableHead>
+                        <TableHead>Notified</TableHead>
+                        <TableHead>Time</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {alertEvents.map((event) => (
+                        <TableRow key={event.id}>
+                          <TableCell><Badge variant={stateVariant(event.state)}>{event.state}</Badge></TableCell>
+                          <TableCell className="text-sm">{event.message}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{event.notified_at ? 'yes' : 'no'}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {new Date(event.created_at).toLocaleString()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Terminal Tab */}

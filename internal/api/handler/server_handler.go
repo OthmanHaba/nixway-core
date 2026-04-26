@@ -297,6 +297,10 @@ func (h *ServerHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusInternalServerError, "failed to delete server")
 		return
 	}
+	_ = h.queries.DeleteMetricSamplesForScope(r.Context(), db.DeleteMetricSamplesForScopeParams{
+		ScopeType: "server",
+		ScopeID:   serverID,
+	})
 
 	ip := parseIP(r)
 	_ = h.audit.Log(r.Context(), audit.Entry{

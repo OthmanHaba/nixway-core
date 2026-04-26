@@ -7,13 +7,13 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
 	"github.com/othmanhaba/nixway-core/internal/api/middleware"
 	"github.com/othmanhaba/nixway-core/internal/api/respond"
 	"github.com/othmanhaba/nixway-core/internal/audit"
 	"github.com/othmanhaba/nixway-core/internal/cluster"
 	"github.com/othmanhaba/nixway-core/internal/db"
 	"github.com/othmanhaba/nixway-core/internal/mesh"
+	"github.com/redis/go-redis/v9"
 )
 
 // ClusterHandler handles cluster CRUD and member management.
@@ -239,6 +239,10 @@ func (h *ClusterHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusInternalServerError, "failed to delete cluster")
 		return
 	}
+	_ = h.queries.DeleteMetricSamplesForScope(r.Context(), db.DeleteMetricSamplesForScopeParams{
+		ScopeType: "cluster",
+		ScopeID:   clusterID,
+	})
 
 	ip := parseIP(r)
 	_ = h.audit.Log(r.Context(), audit.Entry{

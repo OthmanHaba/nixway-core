@@ -220,6 +220,57 @@ func (q *Queries) GetActiveDeployment(ctx context.Context, arg GetActiveDeployme
 	return i, err
 }
 
+const getActiveDeploymentTargetByServerContainer = `-- name: GetActiveDeploymentTargetByServerContainer :one
+SELECT
+    dt.id AS target_id,
+    dt.deployment_id,
+    dt.server_id,
+    dt.container_id,
+    d.app_id,
+    a.project_id,
+    p.cluster_id
+FROM deployment_targets dt
+JOIN deployments d ON d.id = dt.deployment_id
+JOIN apps a ON a.id = d.app_id
+JOIN projects p ON p.id = a.project_id
+WHERE dt.server_id = $1
+  AND dt.container_id = $2
+  AND dt.status = 'healthy'
+  AND d.status = 'healthy'
+ORDER BY dt.healthy_at DESC NULLS LAST, d.created_at DESC
+LIMIT 1
+`
+
+type GetActiveDeploymentTargetByServerContainerParams struct {
+	ServerID    uuid.UUID `json:"server_id"`
+	ContainerID *string   `json:"container_id"`
+}
+
+type GetActiveDeploymentTargetByServerContainerRow struct {
+	TargetID     uuid.UUID `json:"target_id"`
+	DeploymentID uuid.UUID `json:"deployment_id"`
+	ServerID     uuid.UUID `json:"server_id"`
+	ContainerID  *string   `json:"container_id"`
+	AppID        uuid.UUID `json:"app_id"`
+	ProjectID    uuid.UUID `json:"project_id"`
+	ClusterID    uuid.UUID `json:"cluster_id"`
+}
+
+func (q *Queries) GetActiveDeploymentTargetByServerContainer(ctx context.Context, arg GetActiveDeploymentTargetByServerContainerParams) (GetActiveDeploymentTargetByServerContainerRow, error) {
+	row := q.db.QueryRow(ctx, getActiveDeploymentTargetByServerContainer, arg.ServerID, arg.ContainerID)
+	var i GetActiveDeploymentTargetByServerContainerRow
+	err := row.Scan(
+		&i.TargetID,
+		&i.DeploymentID,
+		&i.ServerID,
+		&i.ContainerID,
+		&i.AppID,
+		&i.ProjectID,
+		&i.ClusterID,
+	)
+	return i, err
+}
+
 const getDeployment = `-- name: GetDeployment :one
 SELECT id, app_id, environment_id, build_id, strategy, replicas_desired, replicas_ready, env_snapshot, status, started_at, completed_at, error, created_at, logs, platform_domain FROM deployments WHERE id = $1
 `
@@ -314,7 +365,7 @@ func (q *Queries) IncrementReplicasReady(ctx context.Context, id uuid.UUID) erro
 }
 
 const listActiveContainersByApp = `-- name: ListActiveContainersByApp :many
-SELECT dt.container_id, dt.server_id, s.name AS server_name, s.agent_id
+SELECT dt.id AS target_id, dt.container_id, dt.server_id, s.name AS server_name, s.agent_id
 FROM deployment_targets dt
 JOIN deployments d ON d.id = dt.deployment_id
 JOIN servers s ON s.id = dt.server_id
@@ -322,6 +373,7 @@ WHERE d.app_id = $1 AND d.status = 'healthy' AND dt.status = 'healthy'
 `
 
 type ListActiveContainersByAppRow struct {
+	TargetID    uuid.UUID `json:"target_id"`
 	ContainerID *string   `json:"container_id"`
 	ServerID    uuid.UUID `json:"server_id"`
 	ServerName  string    `json:"server_name"`
@@ -338,6 +390,7 @@ func (q *Queries) ListActiveContainersByApp(ctx context.Context, appID uuid.UUID
 	for rows.Next() {
 		var i ListActiveContainersByAppRow
 		if err := rows.Scan(
+			&i.TargetID,
 			&i.ContainerID,
 			&i.ServerID,
 			&i.ServerName,

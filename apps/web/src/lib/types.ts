@@ -123,6 +123,62 @@ export interface ProvisioningJob {
   created_at: string
 }
 
+export interface MetricSample {
+  id: number
+  scope_type: string
+  scope_id: string
+  metric_name: string
+  value: number
+  labels: string | Record<string, unknown>
+  sampled_at: string
+}
+
+export interface AlertRule {
+  id: string
+  team_id: string
+  scope_type: string
+  scope_id: string
+  name: string
+  metric_name: string
+  comparison: string
+  threshold: number
+  duration_seconds: number
+  severity: string
+  enabled: boolean
+  notification_channels: string[]
+  last_state: string
+  last_value: number | null
+  last_evaluated_at: string | null
+  state_changed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AlertEvent {
+  id: string
+  rule_id: string
+  team_id: string
+  scope_type: string
+  scope_id: string
+  state: string
+  metric_value: number | null
+  threshold: number
+  message: string
+  notified_at: string | null
+  created_at: string
+}
+
+export interface NotificationChannel {
+  id: string
+  team_id: string
+  name: string
+  type: string
+  target: string
+  enabled: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface BuilderCandidate {
   builder: string
   confidence: number
@@ -353,6 +409,7 @@ export interface DeploymentTarget {
 }
 
 export interface ContainerReplica {
+  target_id: string
   container_id: string | null
   server_id: string
   server_name: string

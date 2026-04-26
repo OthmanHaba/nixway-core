@@ -69,11 +69,31 @@ SET status = $2, container_id = COALESCE($3, container_id),
 WHERE id = $1;
 
 -- name: ListActiveContainersByApp :many
-SELECT dt.container_id, dt.server_id, s.name AS server_name, s.agent_id
+SELECT dt.id AS target_id, dt.container_id, dt.server_id, s.name AS server_name, s.agent_id
 FROM deployment_targets dt
 JOIN deployments d ON d.id = dt.deployment_id
 JOIN servers s ON s.id = dt.server_id
 WHERE d.app_id = $1 AND d.status = 'healthy' AND dt.status = 'healthy';
+
+-- name: GetActiveDeploymentTargetByServerContainer :one
+SELECT
+    dt.id AS target_id,
+    dt.deployment_id,
+    dt.server_id,
+    dt.container_id,
+    d.app_id,
+    a.project_id,
+    p.cluster_id
+FROM deployment_targets dt
+JOIN deployments d ON d.id = dt.deployment_id
+JOIN apps a ON a.id = d.app_id
+JOIN projects p ON p.id = a.project_id
+WHERE dt.server_id = $1
+  AND dt.container_id = $2
+  AND dt.status = 'healthy'
+  AND d.status = 'healthy'
+ORDER BY dt.healthy_at DESC NULLS LAST, d.created_at DESC
+LIMIT 1;
 
 -- name: ListClusterMembersForScheduling :many
 SELECT

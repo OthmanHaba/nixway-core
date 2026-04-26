@@ -352,6 +352,10 @@ func (h *AppHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusInternalServerError, "failed to delete app")
 		return
 	}
+	_ = h.queries.DeleteMetricSamplesForScope(r.Context(), db.DeleteMetricSamplesForScopeParams{
+		ScopeType: "app",
+		ScopeID:   appID,
+	})
 
 	w.WriteHeader(http.StatusNoContent)
 }
