@@ -235,6 +235,9 @@ func NewRouter(
 	protected.HandleFunc("GET /api/v1/apps/{appId}/autoscaling-rules", deployH.ListAutoscalingRules)
 	protected.HandleFunc("DELETE /api/v1/apps/{appId}/autoscaling-rules/{ruleId}", deployH.DeleteAutoscalingRule)
 	protected.HandleFunc("POST /api/v1/apps/{appId}/autoscaling/evaluate", deployH.EvaluateAutoscaling)
+	protected.HandleFunc("GET /api/v1/apps/{appId}/traffic", deployH.GetTraffic)
+	protected.HandleFunc("PUT /api/v1/apps/{appId}/traffic", deployH.UpdateTraffic)
+	protected.HandleFunc("POST /api/v1/apps/{appId}/traffic/backends/{backendId}/promote", deployH.PromoteTrafficBackend)
 	protected.HandleFunc("GET /api/v1/apps/{appId}/logs", deployH.ContainerLogs)
 	protected.HandleFunc("POST /api/v1/apps/{appId}/cleanup", deployH.CleanupDeployments)
 

@@ -59,6 +59,17 @@ type AutoscaleEvaluation struct {
 	Message     string           `json:"message"`
 }
 
+type TrafficView struct {
+	Route    *db.TrafficRoute                   `json:"route,omitempty"`
+	Backends []db.ListTrafficBackendsByRouteRow `json:"backends"`
+	Events   []db.TrafficEvent                  `json:"events"`
+}
+
+type TrafficWeight struct {
+	BackendID uuid.UUID `json:"backend_id"`
+	Weight    int32     `json:"weight"`
+}
+
 func NewService(queries *db.Queries, redisClient *redis.Client, connMgr *agent.ConnManager, secretSvc *secret.Service, logger *slog.Logger) *Service {
 	return &Service{
 		queries:   queries,
@@ -408,6 +419,51 @@ func actorUUID(actorID *uuid.UUID) pgtype.UUID {
 	return pgtype.UUID{Bytes: *actorID, Valid: true}
 }
 
+func trafficDomain(app db.App, deployment db.Deployment) string {
+	if app.CustomDomain != nil && *app.CustomDomain != "" && app.DomainVerified {
+		return *app.CustomDomain
+	}
+	if deployment.PlatformDomain != "" {
+		return deployment.PlatformDomain
+	}
+	if len(app.Domains) > 0 && app.Domains[0] != "" {
+		return app.Domains[0]
+	}
+	return ""
+}
+
+func trafficDomains(app db.App, route db.TrafficRoute) []string {
+	seen := map[string]bool{}
+	var domains []string
+	add := func(domain string) {
+		if domain == "" || seen[domain] {
+			return
+		}
+		seen[domain] = true
+		domains = append(domains, domain)
+	}
+	add(route.Domain)
+	if app.CustomDomain != nil && app.DomainVerified {
+		add(*app.CustomDomain)
+	}
+	for _, domain := range app.Domains {
+		add(domain)
+	}
+	return domains
+}
+
+func shortSHA(sha string) string {
+	if len(sha) <= 7 {
+		return sha
+	}
+	return sha[:7]
+}
+
+func trafficServiceName(appSlug, label string, deploymentID uuid.UUID) string {
+	name := fmt.Sprintf("%s-%s-%s", appSlug, label, deploymentID.String()[:8])
+	return name
+}
+
 func (s *Service) StopSupersededContainers(ctx context.Context, deploymentID uuid.UUID) error {
 	current, err := s.queries.GetDeployment(ctx, deploymentID)
 	if err != nil {
@@ -453,6 +509,232 @@ func (s *Service) StopSupersededContainers(ctx context.Context, deploymentID uui
 			Status:    "stopped",
 			StoppedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 		})
+	}
+	return nil
+}
+
+func (s *Service) EnsureTrafficForDeployment(ctx context.Context, deploymentID uuid.UUID) error {
+	deployment, err := s.queries.GetDeployment(ctx, deploymentID)
+	if err != nil {
+		return fmt.Errorf("get deployment: %w", err)
+	}
+	app, err := s.queries.GetApp(ctx, deployment.AppID)
+	if err != nil {
+		return fmt.Errorf("get app: %w", err)
+	}
+	domain := trafficDomain(app, deployment)
+	if domain == "" {
+		return fmt.Errorf("no domain available for traffic route")
+	}
+	route, err := s.queries.EnsureTrafficRoute(ctx, db.EnsureTrafficRouteParams{
+		AppID:         app.ID,
+		EnvironmentID: deployment.EnvironmentID,
+		Domain:        domain,
+	})
+	if err != nil {
+		return fmt.Errorf("ensure route: %w", err)
+	}
+	count, _ := s.queries.CountTrafficBackendsByRoute(ctx, route.ID)
+	weight := int32(0)
+	label := "candidate"
+	if count == 0 {
+		weight = 100
+		label = "stable"
+	}
+	if deployment.BuildID != uuid.Nil {
+		if build, err := s.queries.GetBuild(ctx, deployment.BuildID); err == nil && build.CommitSha != "" {
+			label = fmt.Sprintf("%s-%s", label, shortSHA(build.CommitSha))
+		}
+	}
+	_, err = s.queries.UpsertTrafficBackend(ctx, db.UpsertTrafficBackendParams{
+		RouteID:      route.ID,
+		DeploymentID: deployment.ID,
+		Label:        label,
+		Weight:       weight,
+		Status:       "active",
+	})
+	if err != nil {
+		return fmt.Errorf("upsert backend: %w", err)
+	}
+	_, _ = s.queries.CreateTrafficEvent(ctx, db.CreateTrafficEventParams{
+		RouteID:   route.ID,
+		ActorType: "system",
+		EventType: "backend_added",
+		Message:   fmt.Sprintf("Added deployment %s as %s with weight %d", deployment.ID.String()[:8], label, weight),
+		Metadata:  []byte(`{}`),
+	})
+	return s.SyncTrafficRoute(ctx, route.ID)
+}
+
+func (s *Service) GetTraffic(ctx context.Context, appID uuid.UUID) (TrafficView, error) {
+	app, err := s.queries.GetApp(ctx, appID)
+	if err != nil {
+		return TrafficView{}, fmt.Errorf("get app: %w", err)
+	}
+	envID, err := s.productionEnvironment(ctx, app.ProjectID)
+	if err != nil {
+		return TrafficView{}, err
+	}
+	route, err := s.queries.GetTrafficRouteByAppEnvironment(ctx, db.GetTrafficRouteByAppEnvironmentParams{
+		AppID:         appID,
+		EnvironmentID: envID,
+	})
+	if err != nil {
+		return TrafficView{Backends: []db.ListTrafficBackendsByRouteRow{}, Events: []db.TrafficEvent{}}, nil
+	}
+	backends, err := s.queries.ListTrafficBackendsByRoute(ctx, route.ID)
+	if err != nil {
+		return TrafficView{}, fmt.Errorf("list backends: %w", err)
+	}
+	events, _ := s.queries.ListTrafficEventsByRoute(ctx, db.ListTrafficEventsByRouteParams{
+		RouteID: route.ID,
+		Limit:   20,
+		Offset:  0,
+	})
+	return TrafficView{Route: &route, Backends: backends, Events: events}, nil
+}
+
+func (s *Service) UpdateTrafficWeights(ctx context.Context, appID uuid.UUID, weights []TrafficWeight, actorID *uuid.UUID, actorType string) (TrafficView, error) {
+	view, err := s.GetTraffic(ctx, appID)
+	if err != nil {
+		return TrafficView{}, err
+	}
+	if view.Route == nil {
+		return TrafficView{}, fmt.Errorf("no traffic route exists yet")
+	}
+	total := int32(0)
+	for _, weight := range weights {
+		if weight.Weight < 0 || weight.Weight > 100 {
+			return TrafficView{}, fmt.Errorf("traffic weights must be between 0 and 100")
+		}
+		total += weight.Weight
+	}
+	if total != 100 {
+		return TrafficView{}, fmt.Errorf("traffic weights must total 100")
+	}
+	for _, weight := range weights {
+		if _, err := s.queries.UpdateTrafficBackendWeight(ctx, db.UpdateTrafficBackendWeightParams{
+			ID:      weight.BackendID,
+			RouteID: view.Route.ID,
+			Weight:  weight.Weight,
+		}); err != nil {
+			return TrafficView{}, fmt.Errorf("update backend weight: %w", err)
+		}
+	}
+	if actorType == "" {
+		actorType = "user"
+	}
+	_, _ = s.queries.CreateTrafficEvent(ctx, db.CreateTrafficEventParams{
+		RouteID:   view.Route.ID,
+		ActorID:   actorUUID(actorID),
+		ActorType: actorType,
+		EventType: "weights_updated",
+		Message:   "Updated traffic weights",
+		Metadata:  []byte(`{}`),
+	})
+	if err := s.SyncTrafficRoute(ctx, view.Route.ID); err != nil {
+		return TrafficView{}, err
+	}
+	return s.GetTraffic(ctx, appID)
+}
+
+func (s *Service) PromoteTrafficBackend(ctx context.Context, appID, backendID uuid.UUID, actorID *uuid.UUID) (TrafficView, error) {
+	view, err := s.GetTraffic(ctx, appID)
+	if err != nil {
+		return TrafficView{}, err
+	}
+	if view.Route == nil {
+		return TrafficView{}, fmt.Errorf("no traffic route exists yet")
+	}
+	weights := make([]TrafficWeight, 0, len(view.Backends))
+	for _, backend := range view.Backends {
+		weight := int32(0)
+		if backend.ID == backendID {
+			weight = 100
+		}
+		weights = append(weights, TrafficWeight{BackendID: backend.ID, Weight: weight})
+	}
+	return s.UpdateTrafficWeights(ctx, appID, weights, actorID, "user")
+}
+
+func (s *Service) SyncTrafficRoute(ctx context.Context, routeID uuid.UUID) error {
+	route, err := s.queries.GetTrafficRoute(ctx, routeID)
+	if err != nil {
+		return fmt.Errorf("get route: %w", err)
+	}
+	app, err := s.queries.GetApp(ctx, route.AppID)
+	if err != nil {
+		return fmt.Errorf("get app: %w", err)
+	}
+	project, err := s.queries.GetProject(ctx, app.ProjectID)
+	if err != nil {
+		return fmt.Errorf("get project: %w", err)
+	}
+	backends, err := s.queries.ListTrafficBackendsForSync(ctx, route.ID)
+	if err != nil {
+		return fmt.Errorf("list route backends: %w", err)
+	}
+	if len(backends) == 0 {
+		return nil
+	}
+
+	type group struct {
+		name   string
+		weight int32
+		urls   []string
+	}
+	groupsByServer := map[uuid.UUID][]group{}
+	agentByServer := map[uuid.UUID]string{}
+	for _, backend := range backends {
+		targets, err := s.queries.ListDeploymentTargets(ctx, backend.DeploymentID)
+		if err != nil {
+			continue
+		}
+		for _, target := range targets {
+			if target.Status != "healthy" {
+				continue
+			}
+			server, err := s.queries.GetServerByID(ctx, db.GetServerByIDParams{ID: target.ServerID, TeamID: project.TeamID})
+			if err != nil || server.AgentID == nil {
+				continue
+			}
+			agentByServer[target.ServerID] = *server.AgentID
+			containerName := fmt.Sprintf("nixway-%s-%s", app.Slug, backend.DeploymentID.String()[:8])
+			groupsByServer[target.ServerID] = append(groupsByServer[target.ServerID], group{
+				name:   trafficServiceName(app.Slug, backend.Label, backend.DeploymentID),
+				weight: backend.Weight,
+				urls:   []string{fmt.Sprintf("http://%s:%d", containerName, app.Port)},
+			})
+		}
+	}
+
+	domains := trafficDomains(app, route)
+	for serverID, groups := range groupsByServer {
+		agentID := agentByServer[serverID]
+		if agentID == "" {
+			continue
+		}
+		cmdGroups := make([]*agentv1.TrafficBackendGroup, 0, len(groups))
+		for _, group := range groups {
+			cmdGroups = append(cmdGroups, &agentv1.TrafficBackendGroup{
+				Name:   group.name,
+				Weight: group.weight,
+				Urls:   group.urls,
+			})
+		}
+		if err := s.connMgr.SendToAgent(agentID, &agentv1.ControlMessage{
+			Payload: &agentv1.ControlMessage_TrafficRoute{
+				TrafficRoute: &agentv1.TrafficRouteCommand{
+					RequestId: uuid.New().String(),
+					AppSlug:   app.Slug,
+					Domains:   domains,
+					Tls:       false,
+					Groups:    cmdGroups,
+				},
+			},
+		}); err != nil {
+			s.logger.Warn("traffic route sync failed", "server", serverID, "error", err)
+		}
 	}
 	return nil
 }

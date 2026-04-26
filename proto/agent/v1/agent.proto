@@ -48,6 +48,7 @@ message AgentMessage {
     ContainerInspectResult container_inspect_result = 20;
     ServerLogsOutput server_logs_output = 21;
     ServerCleanupResult server_cleanup_result = 22;
+    TrafficRouteResult traffic_route_result = 23;
   }
 }
 
@@ -73,6 +74,7 @@ message ControlMessage {
     ContainerInspectCommand container_inspect = 18;
     ServerLogsCommand server_logs = 19;
     ServerCleanupCommand server_cleanup = 20;
+    TrafficRouteCommand traffic_route = 21;
   }
 }
 
@@ -294,6 +296,27 @@ message TraefikConfig {
   repeated string domains = 2;
   bool tls = 3;
   int32 port = 4;
+}
+
+message TrafficRouteCommand {
+  string request_id = 1;
+  string app_slug = 2;
+  repeated string domains = 3;
+  bool tls = 4;
+  repeated TrafficBackendGroup groups = 5;
+}
+
+message TrafficBackendGroup {
+  string name = 1;
+  int32 weight = 2;
+  repeated string urls = 3;
+}
+
+message TrafficRouteResult {
+  string request_id = 1;
+  string app_slug = 2;
+  bool success = 3;
+  string error = 4;
 }
 
 message DeployOutput {

@@ -426,6 +426,39 @@ type TerminalSession struct {
 	ClientIp        *netip.Addr        `json:"client_ip"`
 }
 
+type TrafficBackend struct {
+	ID           uuid.UUID `json:"id"`
+	RouteID      uuid.UUID `json:"route_id"`
+	DeploymentID uuid.UUID `json:"deployment_id"`
+	Label        string    `json:"label"`
+	Weight       int32     `json:"weight"`
+	Status       string    `json:"status"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type TrafficEvent struct {
+	ID        uuid.UUID   `json:"id"`
+	RouteID   uuid.UUID   `json:"route_id"`
+	ActorID   pgtype.UUID `json:"actor_id"`
+	ActorType string      `json:"actor_type"`
+	EventType string      `json:"event_type"`
+	Message   string      `json:"message"`
+	Metadata  []byte      `json:"metadata"`
+	CreatedAt time.Time   `json:"created_at"`
+}
+
+type TrafficRoute struct {
+	ID            uuid.UUID `json:"id"`
+	AppID         uuid.UUID `json:"app_id"`
+	EnvironmentID uuid.UUID `json:"environment_id"`
+	Domain        string    `json:"domain"`
+	Mode          string    `json:"mode"`
+	Status        string    `json:"status"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
 type User struct {
 	ID                   uuid.UUID          `json:"id"`
 	Email                string             `json:"email"`

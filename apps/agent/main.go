@@ -201,6 +201,13 @@ func receiveLoop(
 			)
 			go HandleServerCleanupCommand(ctx, p.ServerCleanup, stream, logger)
 
+		case *agentv1.ControlMessage_TrafficRoute:
+			logger.Info("traffic route command received",
+				"request_id", p.TrafficRoute.RequestId,
+				"app", p.TrafficRoute.AppSlug,
+			)
+			go HandleTrafficRouteCommand(ctx, p.TrafficRoute, stream, logger)
+
 		default:
 			logger.Warn("unknown control message payload")
 		}

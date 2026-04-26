@@ -23,6 +23,7 @@ import (
 type DeployTriggerer interface {
 	TriggerDeploy(ctx context.Context, appID, envID, buildID uuid.UUID, targetServerID ...*uuid.UUID) (db.Deployment, error)
 	StopSupersededContainers(ctx context.Context, deploymentID uuid.UUID) error
+	EnsureTrafficForDeployment(ctx context.Context, deploymentID uuid.UUID) error
 }
 
 // MeshRegenerator handles mesh lifecycle events with logging.
@@ -345,6 +346,19 @@ func (s *Server) Connect(stream agentv1.AgentService_ConnectServer) error {
 			if s.redis != nil {
 				data, _ := json.Marshal(cr)
 				s.redis.Publish(stream.Context(), "server-cleanup:"+cr.RequestId, string(data))
+			}
+
+		case *agentv1.AgentMessage_TrafficRouteResult:
+			tr := p.TrafficRouteResult
+			s.logger.Info("traffic route result",
+				"agent_id", agentID,
+				"request_id", tr.RequestId,
+				"app", tr.AppSlug,
+				"success", tr.Success,
+			)
+			if s.redis != nil {
+				data, _ := json.Marshal(tr)
+				s.redis.Publish(stream.Context(), "traffic-route:"+tr.RequestId, string(data))
 			}
 
 		default:
@@ -688,8 +702,8 @@ func (s *Server) handleDeployOutput(ctx context.Context, do *agentv1.DeployOutpu
 				}
 				if s.deployer != nil {
 					go func() {
-						if err := s.deployer.StopSupersededContainers(context.Background(), did); err != nil {
-							s.logger.Warn("failed to stop superseded containers", "deploy_id", did, "error", err)
+						if err := s.deployer.EnsureTrafficForDeployment(context.Background(), did); err != nil {
+							s.logger.Warn("failed to ensure traffic route", "deploy_id", did, "error", err)
 						}
 					}()
 				}

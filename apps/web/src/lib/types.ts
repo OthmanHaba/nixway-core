@@ -408,6 +408,50 @@ export interface AutoscaleEvaluation {
   event?: ScalingEvent
 }
 
+export interface TrafficRoute {
+  id: string
+  app_id: string
+  environment_id: string
+  domain: string
+  mode: string
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+export interface TrafficBackend {
+  id: string
+  route_id: string
+  deployment_id: string
+  label: string
+  weight: number
+  status: string
+  deployment_status: string
+  replicas_ready: number
+  replicas_desired: number
+  commit_sha: string
+  image_tag: string
+  created_at: string
+  updated_at: string
+}
+
+export interface TrafficEvent {
+  id: string
+  route_id: string
+  actor_id: string | null
+  actor_type: string
+  event_type: string
+  message: string
+  metadata: unknown
+  created_at: string
+}
+
+export interface TrafficView {
+  route?: TrafficRoute
+  backends: TrafficBackend[]
+  events: TrafficEvent[]
+}
+
 export interface ContainerInspect {
   request_id: string
   container_name: string

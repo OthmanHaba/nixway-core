@@ -476,6 +476,87 @@ func (h *DeployHandler) EvaluateAutoscaling(w http.ResponseWriter, r *http.Reque
 	respond.JSON(w, http.StatusOK, results)
 }
 
+func (h *DeployHandler) GetTraffic(w http.ResponseWriter, r *http.Request) {
+	authCtx := middleware.GetAuthContext(r)
+	if authCtx == nil {
+		respond.Error(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	appID, err := uuid.Parse(r.PathValue("appId"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid app ID")
+		return
+	}
+	view, err := h.deploySvc.GetTraffic(r.Context(), appID)
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	respond.JSON(w, http.StatusOK, view)
+}
+
+func (h *DeployHandler) UpdateTraffic(w http.ResponseWriter, r *http.Request) {
+	authCtx := middleware.GetAuthContext(r)
+	if authCtx == nil {
+		respond.Error(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	appID, err := uuid.Parse(r.PathValue("appId"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid app ID")
+		return
+	}
+	var req struct {
+		Weights []struct {
+			BackendID string `json:"backend_id"`
+			Weight    int32  `json:"weight"`
+		} `json:"weights"`
+	}
+	if err := respond.DecodeJSON(r, &req); err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	weights := make([]deploy.TrafficWeight, 0, len(req.Weights))
+	for _, item := range req.Weights {
+		id, err := uuid.Parse(item.BackendID)
+		if err != nil {
+			respond.Error(w, http.StatusBadRequest, "invalid backend_id")
+			return
+		}
+		weights = append(weights, deploy.TrafficWeight{BackendID: id, Weight: item.Weight})
+	}
+	view, err := h.deploySvc.UpdateTrafficWeights(r.Context(), appID, weights, &authCtx.UserID, "user")
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	respond.JSON(w, http.StatusOK, view)
+}
+
+func (h *DeployHandler) PromoteTrafficBackend(w http.ResponseWriter, r *http.Request) {
+	authCtx := middleware.GetAuthContext(r)
+	if authCtx == nil {
+		respond.Error(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	appID, err := uuid.Parse(r.PathValue("appId"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid app ID")
+		return
+	}
+	backendID, err := uuid.Parse(r.PathValue("backendId"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid backend ID")
+		return
+	}
+	view, err := h.deploySvc.PromoteTrafficBackend(r.Context(), appID, backendID, &authCtx.UserID)
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	respond.JSON(w, http.StatusOK, view)
+}
+
 // StreamLogs handles GET /api/v1/apps/{appId}/deployments/{deployId}/logs (SSE)
 func (h *DeployHandler) StreamLogs(w http.ResponseWriter, r *http.Request) {
 	deployID, err := uuid.Parse(r.PathValue("deployId"))

@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '@/lib/api'
-import type { App, Build, Deployment, DeploymentTarget, ContainerReplica, ContainerInspect, ContainerLogEntry, ScalingEvent, AutoscalingRule, AutoscaleEvaluation } from '@/lib/types'
+import type { App, Build, Deployment, DeploymentTarget, ContainerReplica, ContainerInspect, ContainerLogEntry, ScalingEvent, AutoscalingRule, AutoscaleEvaluation, TrafficView } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -798,6 +798,134 @@ function ScalingPanel({ app, appId }: { app: App; appId: string }) {
   )
 }
 
+function TrafficPanel({ appId }: { appId: string }) {
+  const queryClient = useQueryClient()
+  const [error, setError] = useState('')
+  const { data: traffic } = useQuery({
+    queryKey: ['apps', appId, 'traffic'],
+    queryFn: () => api.get<TrafficView>(`/apps/${appId}/traffic`),
+    refetchInterval: 15_000,
+  })
+
+  const updateTraffic = useMutation({
+    mutationFn: (weights: { backend_id: string; weight: number }[]) =>
+      api.put<TrafficView>(`/apps/${appId}/traffic`, { weights }),
+    onSuccess: () => {
+      setError('')
+      queryClient.invalidateQueries({ queryKey: ['apps', appId, 'traffic'] })
+    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : 'Failed to update traffic'),
+  })
+
+  const promote = useMutation({
+    mutationFn: (backendId: string) =>
+      api.post<TrafficView>(`/apps/${appId}/traffic/backends/${backendId}/promote`),
+    onSuccess: () => {
+      setError('')
+      queryClient.invalidateQueries({ queryKey: ['apps', appId, 'traffic'] })
+    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : 'Failed to promote backend'),
+  })
+
+  const backends = traffic?.backends ?? []
+  const applySplit = (weights: number[]) => {
+    updateTraffic.mutate(backends.map((backend, index) => ({
+      backend_id: backend.id,
+      weight: weights[index] ?? 0,
+    })))
+  }
+
+  if (!traffic?.route) {
+    return (
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Traffic</CardTitle></CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">Traffic groups appear after an app has a healthy deployment.</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Traffic Route</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          {error && <p className="text-sm text-red-500">{error}</p>}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium">{traffic.route.domain}</p>
+              <p className="text-xs text-muted-foreground">{traffic.route.mode} routing</p>
+            </div>
+            <div className="flex gap-2">
+              {backends.length >= 2 && (
+                <>
+                  <Button size="sm" variant="outline" onClick={() => applySplit([100, 0])}>100/0</Button>
+                  <Button size="sm" variant="outline" onClick={() => applySplit([90, 10])}>90/10</Button>
+                  <Button size="sm" variant="outline" onClick={() => applySplit([50, 50])}>50/50</Button>
+                  <Button size="sm" variant="outline" onClick={() => applySplit([0, 100])}>0/100</Button>
+                </>
+              )}
+            </div>
+          </div>
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Backend</TableHead>
+                <TableHead>Commit</TableHead>
+                <TableHead>Replicas</TableHead>
+                <TableHead>Weight</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {backends.map((backend) => (
+                <TableRow key={backend.id}>
+                  <TableCell>
+                    <div className="font-medium">{backend.label || backend.deployment_id.slice(0, 8)}</div>
+                    <div className="text-xs text-muted-foreground">{backend.deployment_status}</div>
+                  </TableCell>
+                  <TableCell>
+                    <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">
+                      {backend.commit_sha ? backend.commit_sha.slice(0, 7) : backend.deployment_id.slice(0, 8)}
+                    </code>
+                  </TableCell>
+                  <TableCell className="text-sm">{backend.replicas_ready}/{backend.replicas_desired}</TableCell>
+                  <TableCell className="text-sm font-medium">{backend.weight}%</TableCell>
+                  <TableCell className="text-right">
+                    <Button size="sm" variant="outline" onClick={() => promote.mutate(backend.id)} disabled={promote.isPending}>
+                      Promote
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Traffic Events</CardTitle></CardHeader>
+        <CardContent>
+          {(traffic.events ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">No traffic events.</p>
+          ) : (
+            <div className="space-y-3">
+              {traffic.events.map((event) => (
+                <div key={event.id} className="border-l pl-3">
+                  <p className="text-sm font-medium">{event.message || event.event_type}</p>
+                  <p className="text-xs text-muted-foreground">{relativeTime(event.created_at)}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 // --- Log Search Panel ---
 
 function LogSearchPanel({ appId }: { appId: string }) {
@@ -1234,6 +1362,7 @@ function AppDetailPage() {
           <TabsTrigger value="logs">Logs</TabsTrigger>
           <TabsTrigger value="inspect">Inspect</TabsTrigger>
           <TabsTrigger value="scaling">Scaling</TabsTrigger>
+          <TabsTrigger value="traffic">Traffic</TabsTrigger>
           <TabsTrigger value="resources">Resources</TabsTrigger>
         </TabsList>
 
@@ -1446,6 +1575,11 @@ function AppDetailPage() {
         {/* Scaling */}
         <TabsContent value="scaling" className="mt-4">
           <ScalingPanel app={app} appId={appId} />
+        </TabsContent>
+
+        {/* Traffic */}
+        <TabsContent value="traffic" className="mt-4">
+          <TrafficPanel appId={appId} />
         </TabsContent>
 
         {/* Resources */}
