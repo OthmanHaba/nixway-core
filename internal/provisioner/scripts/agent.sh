@@ -51,7 +51,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/nixway-agent --server ${GRPC_ADDR} --id ${SERVER_ID}
+ExecStart=/usr/local/bin/nixway-agent --server ${GRPC_ADDR} --id ${SERVER_ID} --metrics-listen 0.0.0.0:9100
 Restart=always
 RestartSec=5
 LimitNOFILE=65535

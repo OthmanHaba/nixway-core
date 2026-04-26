@@ -95,7 +95,23 @@ func (h *ObservabilityHandler) Metrics(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	samples, err := h.queries.ListMetricSamples(r.Context(), db.ListMetricSamplesParams{
+	samples, err := h.service.QueryRange(r.Context(), observability.QueryRangeRequest{
+		ScopeType:  scopeType,
+		ScopeID:    scopeID,
+		MetricName: metric,
+		Since:      since,
+		Limit:      limit,
+	})
+	if err == nil && len(samples) > 0 {
+		w.Header().Set("X-Metrics-Source", "victoria-metrics")
+		respond.JSON(w, http.StatusOK, samples)
+		return
+	}
+	if err != nil {
+		h.logger.Debug("victoria metrics query failed, falling back to postgres", "scope_type", scopeType, "scope_id", scopeID, "metric", metric, "error", err)
+	}
+
+	samples, err = h.queries.ListMetricSamples(r.Context(), db.ListMetricSamplesParams{
 		ScopeType:  scopeType,
 		ScopeID:    scopeID,
 		MetricName: metric,
@@ -376,6 +392,57 @@ func (h *ObservabilityHandler) CreateSilence(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	respond.JSON(w, http.StatusCreated, silence)
+}
+
+func (h *ObservabilityHandler) ClusterScrapeConfig(w http.ResponseWriter, r *http.Request) {
+	teamID, ok := h.requireTeam(w, r, model.RoleMember, model.ScopeServersRead)
+	if !ok {
+		return
+	}
+	clusterID, err := uuid.Parse(r.PathValue("clusterId"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid cluster ID")
+		return
+	}
+	if ok := h.ensureScopeTeam(r, teamID, "cluster", clusterID); !ok {
+		respond.Error(w, http.StatusNotFound, "cluster not found")
+		return
+	}
+	config, err := h.service.BuildClusterScrapeConfig(r.Context(), clusterID)
+	if err != nil {
+		h.logger.Error("failed to build scrape config", "cluster_id", clusterID, "error", err)
+		respond.Error(w, http.StatusInternalServerError, "failed to build scrape config")
+		return
+	}
+	w.Header().Set("Content-Type", "text/yaml; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(config))
+}
+
+func (h *ObservabilityHandler) SyncClusterScrapeConfig(w http.ResponseWriter, r *http.Request) {
+	teamID, ok := h.requireTeam(w, r, model.RoleAdmin, model.ScopeServersWrite)
+	if !ok {
+		return
+	}
+	clusterID, err := uuid.Parse(r.PathValue("clusterId"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid cluster ID")
+		return
+	}
+	if ok := h.ensureScopeTeam(r, teamID, "cluster", clusterID); !ok {
+		respond.Error(w, http.StatusNotFound, "cluster not found")
+		return
+	}
+	config, err := h.service.SyncClusterScrapeConfig(r.Context(), clusterID)
+	if err != nil {
+		h.logger.Error("failed to sync scrape config", "cluster_id", clusterID, "error", err)
+		respond.Error(w, http.StatusInternalServerError, "failed to sync scrape config")
+		return
+	}
+	respond.JSON(w, http.StatusOK, map[string]string{
+		"status": "synced",
+		"config": config,
+	})
 }
 
 func (h *ObservabilityHandler) requireTeam(w http.ResponseWriter, r *http.Request, role model.Role, scope string) (uuid.UUID, bool) {

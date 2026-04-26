@@ -156,7 +156,13 @@ func main() {
 	deploySvc.StartAutoscalerLoop(ctx)
 	containerLogSvc := containerlog.NewService(queries, logger)
 	containerLogSvc.StartRetentionLoop(ctx, 7)
-	observabilitySvc := observability.NewService(queries, logger)
+	observabilitySvc := observability.NewService(
+		queries,
+		logger,
+		cfg.Observability.VictoriaMetricsURL,
+		cfg.Observability.VMAgentConfigPath,
+		cfg.Observability.VMAgentURL,
+	)
 	observabilitySvc.StartRetentionLoop(ctx, 30)
 	observabilitySvc.StartAlertEvaluator(ctx)
 

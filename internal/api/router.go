@@ -62,7 +62,7 @@ func NewRouter(
 	tagH := handler.NewTagHandler(queries, logger)
 	provisionH := handler.NewProvisionHandler(queries, redisClient, auditWriter, provisionSvc, logger)
 	discoverH := handler.NewDiscoveryHandler(logger)
-	clusterH := handler.NewClusterHandler(queries, auditWriter, clusterSvc, meshMgr, redisClient, logger)
+	clusterH := handler.NewClusterHandler(queries, auditWriter, clusterSvc, meshMgr, redisClient, observabilitySvc, logger)
 	agentDlH := handler.NewAgentDownloadHandler(cfg.Server.AgentBinaryDir, logger)
 	terminalH := handler.NewTerminalHandler(queries, logger, masterKey)
 	githubH := handler.NewGitHubHandler(queries, auditWriter, githubService, masterKey, logger)
@@ -274,6 +274,8 @@ func NewRouter(
 	protected.HandleFunc("GET /api/v1/teams/{id}/observability/channels", observabilityH.ListChannels)
 	protected.HandleFunc("POST /api/v1/teams/{id}/observability/channels", observabilityH.CreateChannel)
 	protected.HandleFunc("POST /api/v1/teams/{id}/observability/silences", observabilityH.CreateSilence)
+	protected.HandleFunc("GET /api/v1/teams/{id}/clusters/{clusterId}/observability/scrape-config", observabilityH.ClusterScrapeConfig)
+	protected.HandleFunc("POST /api/v1/teams/{id}/clusters/{clusterId}/observability/scrape-config/sync", observabilityH.SyncClusterScrapeConfig)
 
 	// Discovery
 	protected.HandleFunc("POST /api/v1/discover", discoverH.Discover)

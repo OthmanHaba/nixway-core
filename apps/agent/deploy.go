@@ -48,6 +48,9 @@ func HandleDeployCommand(ctx context.Context, cmd *agentv1.DeployCommand, stream
 		"--restart", "unless-stopped",
 		"-l", "traefik.enable=false",
 	}
+	for k, v := range cmd.Labels {
+		args = append(args, "-l", fmt.Sprintf("%s=%s", k, v))
+	}
 
 	// Add environment variables
 	for k, v := range cmd.Env {

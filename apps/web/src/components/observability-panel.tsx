@@ -1,10 +1,13 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Activity } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Activity, Plus } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { AlertEvent, AlertRule, MetricSample } from '@/lib/types'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 function formatMetricValue(value: number, metric: string): string {
@@ -102,6 +105,15 @@ export function ObservabilityPanel({
   metrics: string[]
 }) {
   const [range, setRange] = useState('1h')
+  const queryClient = useQueryClient()
+  const [alertDraft, setAlertDraft] = useState({
+    name: 'High usage',
+    metric_name: metrics[0] ?? '',
+    comparison: 'gt',
+    threshold: 90,
+    duration_seconds: 300,
+    severity: 'warning',
+  })
 
   const { data: alerts = [] } = useQuery({
     queryKey: ['observability', teamId, scopeType, scopeId, 'alerts'],
@@ -113,6 +125,19 @@ export function ObservabilityPanel({
     queryKey: ['observability', teamId, scopeType, scopeId, 'events'],
     queryFn: () => api.get<AlertEvent[]>(`/teams/${teamId}/observability/events?scope_type=${scopeType}&scope_id=${scopeId}&limit=20`),
     refetchInterval: 15_000,
+  })
+
+  const createAlert = useMutation({
+    mutationFn: () => api.post<AlertRule>(`/teams/${teamId}/observability/alerts`, {
+      scope_type: scopeType,
+      scope_id: scopeId,
+      ...alertDraft,
+      enabled: true,
+      notification_channels: [],
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['observability', teamId, scopeType, scopeId, 'alerts'] })
+    },
   })
 
   return (
@@ -151,7 +176,59 @@ export function ObservabilityPanel({
       <div className="grid gap-4 xl:grid-cols-2">
         <Card>
           <CardHeader><CardTitle className="text-base">Alert Rules</CardTitle></CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <form
+              className="grid gap-3 lg:grid-cols-[1fr_1fr_90px_110px_auto]"
+              onSubmit={(event) => {
+                event.preventDefault()
+                createAlert.mutate()
+              }}
+            >
+              <div className="space-y-1">
+                <Label className="text-xs">Name</Label>
+                <Input
+                  value={alertDraft.name}
+                  onChange={(event) => setAlertDraft((prev) => ({ ...prev, name: event.target.value }))}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Metric</Label>
+                <select
+                  className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                  value={alertDraft.metric_name}
+                  onChange={(event) => setAlertDraft((prev) => ({ ...prev, metric_name: event.target.value }))}
+                >
+                  {metrics.map((metric) => <option key={metric} value={metric}>{metric}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Op</Label>
+                <select
+                  className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                  value={alertDraft.comparison}
+                  onChange={(event) => setAlertDraft((prev) => ({ ...prev, comparison: event.target.value }))}
+                >
+                  <option value="gt">&gt;</option>
+                  <option value="gte">&gt;=</option>
+                  <option value="lt">&lt;</option>
+                  <option value="lte">&lt;=</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Threshold</Label>
+                <Input
+                  type="number"
+                  value={alertDraft.threshold}
+                  onChange={(event) => setAlertDraft((prev) => ({ ...prev, threshold: Number(event.target.value) }))}
+                />
+              </div>
+              <div className="flex items-end">
+                <Button type="submit" size="icon" variant="outline" disabled={createAlert.isPending || !alertDraft.metric_name}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </form>
             {alerts.length === 0 ? (
               <div className="rounded-md border border-dashed p-5 text-sm text-muted-foreground">No alert rules for this scope.</div>
             ) : (

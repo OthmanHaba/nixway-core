@@ -16,25 +16,54 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// ClusterHandler handles cluster CRUD and member management.
-type ClusterHandler struct {
-	queries    *db.Queries
-	audit      *audit.Writer
-	clusterSvc *cluster.Service
-	meshMgr    *mesh.Manager
-	redis      *redis.Client
-	logger     *slog.Logger
+type ScrapeConfigSyncer interface {
+	SyncClusterScrapeConfig(ctx context.Context, clusterID uuid.UUID) (string, error)
+	SyncTeamScrapeConfig(ctx context.Context, teamID uuid.UUID) (string, error)
 }
 
-func NewClusterHandler(queries *db.Queries, auditWriter *audit.Writer, clusterSvc *cluster.Service, meshMgr *mesh.Manager, redisClient *redis.Client, logger *slog.Logger) *ClusterHandler {
+// ClusterHandler handles cluster CRUD and member management.
+type ClusterHandler struct {
+	queries       *db.Queries
+	audit         *audit.Writer
+	clusterSvc    *cluster.Service
+	meshMgr       *mesh.Manager
+	redis         *redis.Client
+	observability ScrapeConfigSyncer
+	logger        *slog.Logger
+}
+
+func NewClusterHandler(queries *db.Queries, auditWriter *audit.Writer, clusterSvc *cluster.Service, meshMgr *mesh.Manager, redisClient *redis.Client, observability ScrapeConfigSyncer, logger *slog.Logger) *ClusterHandler {
 	return &ClusterHandler{
-		queries:    queries,
-		audit:      auditWriter,
-		clusterSvc: clusterSvc,
-		meshMgr:    meshMgr,
-		redis:      redisClient,
-		logger:     logger,
+		queries:       queries,
+		audit:         auditWriter,
+		clusterSvc:    clusterSvc,
+		meshMgr:       meshMgr,
+		redis:         redisClient,
+		observability: observability,
+		logger:        logger,
 	}
+}
+
+func (h *ClusterHandler) syncScrapeConfig(clusterID uuid.UUID) {
+	if h.observability == nil {
+		return
+	}
+	go func() {
+		if _, err := h.observability.SyncClusterScrapeConfig(context.Background(), clusterID); err != nil {
+			h.logger.Warn("failed to sync vmagent scrape config", "cluster_id", clusterID, "error", err)
+		}
+	}()
+}
+
+func (h *ClusterHandler) syncTeamScrapeConfig(teamID uuid.UUID) {
+	if h.observability == nil {
+		return
+	}
+	go func() {
+		if _, err := h.observability.SyncTeamScrapeConfig(context.Background(), teamID); err != nil {
+			h.logger.Warn("failed to sync vmagent team scrape config", "team_id", teamID, "error", err)
+		}
+	}()
 }
 
 type createClusterRequest struct {
@@ -89,6 +118,8 @@ func (h *ClusterHandler) Create(w http.ResponseWriter, r *http.Request) {
 		ResourceID:   &c.ID,
 		IPAddress:    ip,
 	})
+
+	h.syncTeamScrapeConfig(teamID)
 
 	respond.JSON(w, http.StatusCreated, c)
 }
@@ -255,6 +286,8 @@ func (h *ClusterHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		IPAddress:    ip,
 	})
 
+	h.syncTeamScrapeConfig(teamID)
+
 	respond.JSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
@@ -348,6 +381,8 @@ func (h *ClusterHandler) AddMember(w http.ResponseWriter, r *http.Request) {
 		IPAddress:    ip,
 	})
 
+	h.syncScrapeConfig(clusterID)
+
 	respond.JSON(w, http.StatusCreated, member)
 }
 
@@ -410,6 +445,8 @@ func (h *ClusterHandler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		ResourceID:   &clusterID,
 		IPAddress:    ip,
 	})
+
+	h.syncScrapeConfig(clusterID)
 
 	respond.JSON(w, http.StatusOK, map[string]string{"status": "removed"})
 }

@@ -13,8 +13,10 @@ import (
 
 func main() {
 	var (
-		server = flag.String("server", "localhost:9090", "control-plane gRPC address")
-		id     = flag.String("id", "", "agent ID (defaults to hostname)")
+		server        = flag.String("server", "localhost:9090", "control-plane gRPC address")
+		id            = flag.String("id", "", "agent ID (defaults to hostname)")
+		metricsListen = flag.String("metrics-listen", ":9100", "Prometheus metrics listen address")
+		metricsPath   = flag.String("metrics-path", "/metrics", "Prometheus metrics path")
 	)
 	flag.Parse()
 
@@ -37,6 +39,7 @@ func main() {
 	defer client.Close()
 
 	logger.Info("starting agent", "id", agentID, "server", *server)
+	StartMetricsServer(ctx, agentID, *metricsListen, *metricsPath, logger)
 
 	for {
 		stream, err := client.ConnectWithRetry(ctx)

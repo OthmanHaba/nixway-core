@@ -936,6 +936,16 @@ func (s *Service) dispatchDeploy(ctx context.Context, deployment db.Deployment, 
 		},
 		MemoryLimitMb:      app.MemoryLimitMb,
 		CpuLimitMillicores: app.CpuLimitMillicores,
+		Labels: map[string]string{
+			"nixway.managed":        "true",
+			"nixway.app_id":         app.ID.String(),
+			"nixway.app_slug":       app.Slug,
+			"nixway.project_id":     project.ID.String(),
+			"nixway.cluster_id":     project.ClusterID.String(),
+			"nixway.deployment_id":  deployment.ID.String(),
+			"nixway.target_id":      targetID,
+			"nixway.environment_id": deployment.EnvironmentID.String(),
+		},
 	}
 
 	// Publish log

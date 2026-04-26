@@ -30,6 +30,9 @@ type dockerInspectState struct {
 type dockerInspectLine struct {
 	RestartCount int64              `json:"RestartCount"`
 	State        dockerInspectState `json:"State"`
+	Config       struct {
+		Labels map[string]string `json:"Labels"`
+	} `json:"Config"`
 }
 
 func collectContainerMetrics() *agentv1.MetricReport {
@@ -78,6 +81,7 @@ func fillInspectMetrics(metric *agentv1.ContainerMetric) {
 		return
 	}
 	metric.RestartCount = inspect.RestartCount
+	metric.Labels = inspect.Config.Labels
 	if started, err := time.Parse(time.RFC3339Nano, inspect.State.StartedAt); err == nil && !started.IsZero() {
 		metric.UptimeSeconds = int64(time.Since(started).Seconds())
 	}

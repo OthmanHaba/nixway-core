@@ -11,16 +11,17 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	Redis    RedisConfig
-	Auth     AuthConfig
-	Email    EmailConfig
-	Crypto   CryptoConfig
-	Cluster  ClusterConfig
-	GitHub   GitHubConfig
-	Webhook  WebhookConfig
-	Domain   DomainConfig
+	Server        ServerConfig
+	Database      DatabaseConfig
+	Redis         RedisConfig
+	Auth          AuthConfig
+	Email         EmailConfig
+	Crypto        CryptoConfig
+	Cluster       ClusterConfig
+	GitHub        GitHubConfig
+	Webhook       WebhookConfig
+	Domain        DomainConfig
+	Observability ObservabilityConfig
 }
 
 type ServerConfig struct {
@@ -81,6 +82,12 @@ type DomainConfig struct {
 	BaseDomain string // Platform wildcard base domain (e.g., "apps.nixway.dev")
 }
 
+type ObservabilityConfig struct {
+	VictoriaMetricsURL string
+	VMAgentConfigPath  string
+	VMAgentURL         string
+}
+
 func Load() (*Config, error) {
 	// Load .env file if it exists.
 	// Try multiple paths since the working directory varies depending on
@@ -109,7 +116,7 @@ func Load() (*Config, error) {
 	// Server defaults
 	v.SetDefault("server.host", "0.0.0.0")
 	v.SetDefault("server.port", 8080)
-	v.SetDefault("server.public_url", "")  // Set via NIXWAY_SERVER_PUBLIC_URL or .tunnel-url file
+	v.SetDefault("server.public_url", "") // Set via NIXWAY_SERVER_PUBLIC_URL or .tunnel-url file
 	v.SetDefault("server.grpc_port", 9090)
 	v.SetDefault("server.agent_binary_dir", "apps/agent/bin")
 
@@ -144,6 +151,11 @@ func Load() (*Config, error) {
 
 	// Webhook defaults
 	v.SetDefault("webhook.event_retention_days", 10)
+
+	// Observability defaults
+	v.SetDefault("observability.victoria_metrics_url", "http://localhost:8428")
+	v.SetDefault("observability.vmagent_config_path", "configs/vmagent.yml")
+	v.SetDefault("observability.vmagent_url", "http://localhost:8429")
 
 	// Email defaults
 	v.SetDefault("email.driver", "console")
@@ -213,6 +225,9 @@ func Load() (*Config, error) {
 	cfg.Webhook.EventRetentionDays = v.GetInt("webhook.event_retention_days")
 
 	cfg.Domain.BaseDomain = v.GetString("domain.base_domain")
+	cfg.Observability.VictoriaMetricsURL = v.GetString("observability.victoria_metrics_url")
+	cfg.Observability.VMAgentConfigPath = v.GetString("observability.vmagent_config_path")
+	cfg.Observability.VMAgentURL = v.GetString("observability.vmagent_url")
 
 	return cfg, nil
 }

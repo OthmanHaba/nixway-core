@@ -1,32 +1,57 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_DB: nixway_core
-      POSTGRES_USER: nixway
-      POSTGRES_PASSWORD: nixway
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nixway"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+#  postgres:
+#    image: postgres:16-alpine
+#    ports:
+#      - "5432:5432"
+#    environment:
+#      POSTGRES_DB: nixway_core
+#      POSTGRES_USER: nixway
+#      POSTGRES_PASSWORD: nixway
+#    volumes:
+#      - pgdata:/var/lib/postgresql/data
+#    healthcheck:
+#      test: ["CMD-SHELL", "pg_isready -U nixway"]
+#      interval: 5s
+#      timeout: 5s
+#      retries: 5
 
-  redis:
-    image: redis:7-alpine
+#  redis:
+#    image: redis:7-alpine
+#    ports:
+#      - "6379:6379"
+#    volumes:
+#      - redisdata:/data
+#    healthcheck:
+#      test: ["CMD", "redis-cli", "ping"]
+#      interval: 5s
+#      timeout: 5s
+#      retries: 5
+
+  victoria-metrics:
+    image: victoriametrics/victoria-metrics:latest
     ports:
-      - "6379:6379"
+      - "8428:8428"
+    command:
+      - "-storageDataPath=/victoria-metrics-data"
+      - "-retentionPeriod=12"
+      - "-downsampling.period=30d:5m"
     volumes:
-      - redisdata:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      - vmdata:/victoria-metrics-data
+
+  vmagent:
+    image: victoriametrics/vmagent:latest
+    ports:
+      - "8429:8429"
+    command:
+      - "-promscrape.config=/etc/vmagent/prometheus.yml"
+      - "-promscrape.configCheckInterval=10s"
+      - "-remoteWrite.url=http://victoria-metrics:8428/api/v1/write"
+    volumes:
+      - ./configs/vmagent.yml:/etc/vmagent/prometheus.yml:ro
+    depends_on:
+      - victoria-metrics
 
 volumes:
-  pgdata:
-  redisdata:
+#  pgdata:
+#  redisdata:
+  vmdata:

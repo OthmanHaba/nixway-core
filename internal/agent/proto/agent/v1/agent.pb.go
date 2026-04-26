@@ -1361,6 +1361,7 @@ type ContainerMetric struct {
 	BlockWriteBytes uint64                 `protobuf:"varint,9,opt,name=block_write_bytes,json=blockWriteBytes,proto3" json:"block_write_bytes,omitempty"`
 	RestartCount    int64                  `protobuf:"varint,10,opt,name=restart_count,json=restartCount,proto3" json:"restart_count,omitempty"`
 	UptimeSeconds   int64                  `protobuf:"varint,11,opt,name=uptime_seconds,json=uptimeSeconds,proto3" json:"uptime_seconds,omitempty"`
+	Labels          map[string]string      `protobuf:"bytes,12,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -1470,6 +1471,13 @@ func (x *ContainerMetric) GetUptimeSeconds() int64 {
 		return x.UptimeSeconds
 	}
 	return 0
+}
+
+func (x *ContainerMetric) GetLabels() map[string]string {
+	if x != nil {
+		return x.Labels
+	}
+	return nil
 }
 
 type DiskInfo struct {
@@ -2941,6 +2949,7 @@ type DeployCommand struct {
 	Traefik                    *TraefikConfig         `protobuf:"bytes,10,opt,name=traefik,proto3" json:"traefik,omitempty"`
 	MemoryLimitMb              int32                  `protobuf:"varint,11,opt,name=memory_limit_mb,json=memoryLimitMb,proto3" json:"memory_limit_mb,omitempty"`
 	CpuLimitMillicores         int32                  `protobuf:"varint,12,opt,name=cpu_limit_millicores,json=cpuLimitMillicores,proto3" json:"cpu_limit_millicores,omitempty"`
+	Labels                     map[string]string      `protobuf:"bytes,13,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields              protoimpl.UnknownFields
 	sizeCache                  protoimpl.SizeCache
 }
@@ -3057,6 +3066,13 @@ func (x *DeployCommand) GetCpuLimitMillicores() int32 {
 		return x.CpuLimitMillicores
 	}
 	return 0
+}
+
+func (x *DeployCommand) GetLabels() map[string]string {
+	if x != nil {
+		return x.Labels
+	}
+	return nil
 }
 
 type TraefikConfig struct {
@@ -4770,7 +4786,7 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x129\n" +
 	"\n" +
 	"containers\x18\x02 \x03(\v2\x19.agent.v1.ContainerMetricR\n" +
-	"containers\"\xba\x03\n" +
+	"containers\"\xb4\x04\n" +
 	"\x0fContainerMetric\x12%\n" +
 	"\x0econtainer_name\x18\x01 \x01(\tR\rcontainerName\x12\x1f\n" +
 	"\vcpu_percent\x18\x02 \x01(\x01R\n" +
@@ -4785,7 +4801,11 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"\x11block_write_bytes\x18\t \x01(\x04R\x0fblockWriteBytes\x12#\n" +
 	"\rrestart_count\x18\n" +
 	" \x01(\x03R\frestartCount\x12%\n" +
-	"\x0euptime_seconds\x18\v \x01(\x03R\ruptimeSeconds\"k\n" +
+	"\x0euptime_seconds\x18\v \x01(\x03R\ruptimeSeconds\x12=\n" +
+	"\x06labels\x18\f \x03(\v2%.agent.v1.ContainerMetric.LabelsEntryR\x06labels\x1a9\n" +
+	"\vLabelsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"k\n" +
 	"\bDiskInfo\x12\x1f\n" +
 	"\vmount_point\x18\x01 \x01(\tR\n" +
 	"mountPoint\x12\x1f\n" +
@@ -4908,7 +4928,7 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"\bfinished\x18\x04 \x01(\bR\bfinished\x12\x18\n" +
 	"\asuccess\x18\x05 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x06 \x01(\tR\x05error\x12\x19\n" +
-	"\bimage_id\x18\a \x01(\tR\aimageId\"\xca\x04\n" +
+	"\bimage_id\x18\a \x01(\tR\aimageId\"\xc2\x05\n" +
 	"\rDeployCommand\x12\x1b\n" +
 	"\tdeploy_id\x18\x01 \x01(\tR\bdeployId\x12\x1b\n" +
 	"\ttarget_id\x18\x02 \x01(\tR\btargetId\x12\x1b\n" +
@@ -4922,8 +4942,12 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"\atraefik\x18\n" +
 	" \x01(\v2\x17.agent.v1.TraefikConfigR\atraefik\x12&\n" +
 	"\x0fmemory_limit_mb\x18\v \x01(\x05R\rmemoryLimitMb\x120\n" +
-	"\x14cpu_limit_millicores\x18\f \x01(\x05R\x12cpuLimitMillicores\x1a6\n" +
+	"\x14cpu_limit_millicores\x18\f \x01(\x05R\x12cpuLimitMillicores\x12;\n" +
+	"\x06labels\x18\r \x03(\v2#.agent.v1.DeployCommand.LabelsEntryR\x06labels\x1a6\n" +
 	"\bEnvEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a9\n" +
+	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"j\n" +
 	"\rTraefikConfig\x12\x19\n" +
@@ -5093,7 +5117,7 @@ func file_agent_v1_agent_proto_rawDescGZIP() []byte {
 }
 
 var file_agent_v1_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 60)
+var file_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 62)
 var file_agent_v1_agent_proto_goTypes = []any{
 	(FileTransferRequest_Direction)(0), // 0: agent.v1.FileTransferRequest.Direction
 	(*RegisterRequest)(nil),            // 1: agent.v1.RegisterRequest
@@ -5152,11 +5176,13 @@ var file_agent_v1_agent_proto_goTypes = []any{
 	(*ServerCleanupCommand)(nil),       // 54: agent.v1.ServerCleanupCommand
 	(*ServerCleanupResult)(nil),        // 55: agent.v1.ServerCleanupResult
 	nil,                                // 56: agent.v1.ExecCommand.EnvEntry
-	nil,                                // 57: agent.v1.BuildCommand.BuildArgsEntry
-	nil,                                // 58: agent.v1.DeployCommand.EnvEntry
-	nil,                                // 59: agent.v1.ContainerInspectResult.EnvEntry
-	nil,                                // 60: agent.v1.ContainerInspectResult.LabelsEntry
-	(*timestamppb.Timestamp)(nil),      // 61: google.protobuf.Timestamp
+	nil,                                // 57: agent.v1.ContainerMetric.LabelsEntry
+	nil,                                // 58: agent.v1.BuildCommand.BuildArgsEntry
+	nil,                                // 59: agent.v1.DeployCommand.EnvEntry
+	nil,                                // 60: agent.v1.DeployCommand.LabelsEntry
+	nil,                                // 61: agent.v1.ContainerInspectResult.EnvEntry
+	nil,                                // 62: agent.v1.ContainerInspectResult.LabelsEntry
+	(*timestamppb.Timestamp)(nil),      // 63: google.protobuf.Timestamp
 }
 var file_agent_v1_agent_proto_depIdxs = []int32{
 	5,  // 0: agent.v1.AgentMessage.heartbeat:type_name -> agent.v1.Heartbeat
@@ -5204,29 +5230,31 @@ var file_agent_v1_agent_proto_depIdxs = []int32{
 	52, // 42: agent.v1.ControlMessage.server_logs:type_name -> agent.v1.ServerLogsCommand
 	54, // 43: agent.v1.ControlMessage.server_cleanup:type_name -> agent.v1.ServerCleanupCommand
 	35, // 44: agent.v1.ControlMessage.traffic_route:type_name -> agent.v1.TrafficRouteCommand
-	61, // 45: agent.v1.Heartbeat.timestamp:type_name -> google.protobuf.Timestamp
+	63, // 45: agent.v1.Heartbeat.timestamp:type_name -> google.protobuf.Timestamp
 	56, // 46: agent.v1.ExecCommand.env:type_name -> agent.v1.ExecCommand.EnvEntry
 	11, // 47: agent.v1.HealthReport.disks:type_name -> agent.v1.DiskInfo
 	10, // 48: agent.v1.MetricReport.containers:type_name -> agent.v1.ContainerMetric
-	0,  // 49: agent.v1.FileTransferRequest.direction:type_name -> agent.v1.FileTransferRequest.Direction
-	11, // 50: agent.v1.ResourceReport.disks:type_name -> agent.v1.DiskInfo
-	15, // 51: agent.v1.ResourceReport.network_interfaces:type_name -> agent.v1.NetworkInterface
-	28, // 52: agent.v1.MeshHealthReport.peers:type_name -> agent.v1.PeerHealthInfo
-	57, // 53: agent.v1.BuildCommand.build_args:type_name -> agent.v1.BuildCommand.BuildArgsEntry
-	58, // 54: agent.v1.DeployCommand.env:type_name -> agent.v1.DeployCommand.EnvEntry
-	34, // 55: agent.v1.DeployCommand.traefik:type_name -> agent.v1.TraefikConfig
-	36, // 56: agent.v1.TrafficRouteCommand.groups:type_name -> agent.v1.TrafficBackendGroup
-	59, // 57: agent.v1.ContainerInspectResult.env:type_name -> agent.v1.ContainerInspectResult.EnvEntry
-	60, // 58: agent.v1.ContainerInspectResult.labels:type_name -> agent.v1.ContainerInspectResult.LabelsEntry
-	3,  // 59: agent.v1.AgentService.Connect:input_type -> agent.v1.AgentMessage
-	1,  // 60: agent.v1.AgentService.Register:input_type -> agent.v1.RegisterRequest
-	4,  // 61: agent.v1.AgentService.Connect:output_type -> agent.v1.ControlMessage
-	2,  // 62: agent.v1.AgentService.Register:output_type -> agent.v1.RegisterResponse
-	61, // [61:63] is the sub-list for method output_type
-	59, // [59:61] is the sub-list for method input_type
-	59, // [59:59] is the sub-list for extension type_name
-	59, // [59:59] is the sub-list for extension extendee
-	0,  // [0:59] is the sub-list for field type_name
+	57, // 49: agent.v1.ContainerMetric.labels:type_name -> agent.v1.ContainerMetric.LabelsEntry
+	0,  // 50: agent.v1.FileTransferRequest.direction:type_name -> agent.v1.FileTransferRequest.Direction
+	11, // 51: agent.v1.ResourceReport.disks:type_name -> agent.v1.DiskInfo
+	15, // 52: agent.v1.ResourceReport.network_interfaces:type_name -> agent.v1.NetworkInterface
+	28, // 53: agent.v1.MeshHealthReport.peers:type_name -> agent.v1.PeerHealthInfo
+	58, // 54: agent.v1.BuildCommand.build_args:type_name -> agent.v1.BuildCommand.BuildArgsEntry
+	59, // 55: agent.v1.DeployCommand.env:type_name -> agent.v1.DeployCommand.EnvEntry
+	34, // 56: agent.v1.DeployCommand.traefik:type_name -> agent.v1.TraefikConfig
+	60, // 57: agent.v1.DeployCommand.labels:type_name -> agent.v1.DeployCommand.LabelsEntry
+	36, // 58: agent.v1.TrafficRouteCommand.groups:type_name -> agent.v1.TrafficBackendGroup
+	61, // 59: agent.v1.ContainerInspectResult.env:type_name -> agent.v1.ContainerInspectResult.EnvEntry
+	62, // 60: agent.v1.ContainerInspectResult.labels:type_name -> agent.v1.ContainerInspectResult.LabelsEntry
+	3,  // 61: agent.v1.AgentService.Connect:input_type -> agent.v1.AgentMessage
+	1,  // 62: agent.v1.AgentService.Register:input_type -> agent.v1.RegisterRequest
+	4,  // 63: agent.v1.AgentService.Connect:output_type -> agent.v1.ControlMessage
+	2,  // 64: agent.v1.AgentService.Register:output_type -> agent.v1.RegisterResponse
+	63, // [63:65] is the sub-list for method output_type
+	61, // [61:63] is the sub-list for method input_type
+	61, // [61:61] is the sub-list for extension type_name
+	61, // [61:61] is the sub-list for extension extendee
+	0,  // [0:61] is the sub-list for field type_name
 }
 
 func init() { file_agent_v1_agent_proto_init() }
@@ -5289,7 +5317,7 @@ func file_agent_v1_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_agent_v1_agent_proto_rawDesc), len(file_agent_v1_agent_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   60,
+			NumMessages:   62,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
