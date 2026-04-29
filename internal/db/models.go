@@ -196,6 +196,90 @@ type ContainerLog struct {
 	IngestedAt    time.Time   `json:"ingested_at"`
 }
 
+type Database struct {
+	ID                    uuid.UUID   `json:"id"`
+	TeamID                uuid.UUID   `json:"team_id"`
+	ProjectID             uuid.UUID   `json:"project_id"`
+	ClusterID             uuid.UUID   `json:"cluster_id"`
+	ServerID              uuid.UUID   `json:"server_id"`
+	VolumeID              pgtype.UUID `json:"volume_id"`
+	TemplateSlug          string      `json:"template_slug"`
+	Version               string      `json:"version"`
+	Name                  string      `json:"name"`
+	ContainerName         string      `json:"container_name"`
+	Status                string      `json:"status"`
+	Port                  int32       `json:"port"`
+	DnsRecord             *string     `json:"dns_record"`
+	SuperuserSecretID     pgtype.UUID `json:"superuser_secret_id"`
+	AppuserSecretID       pgtype.UUID `json:"appuser_secret_id"`
+	ResourceCpuMillicores int32       `json:"resource_cpu_millicores"`
+	ResourceMemoryMb      int32       `json:"resource_memory_mb"`
+	BackupSchedule        *string     `json:"backup_schedule"`
+	BackupRetentionDays   *int32      `json:"backup_retention_days"`
+	BackupStorageType     *string     `json:"backup_storage_type"`
+	CreatedAt             time.Time   `json:"created_at"`
+	UpdatedAt             time.Time   `json:"updated_at"`
+}
+
+type DatabaseBackup struct {
+	ID          uuid.UUID          `json:"id"`
+	DatabaseID  uuid.UUID          `json:"database_id"`
+	Type        string             `json:"type"`
+	Status      string             `json:"status"`
+	SizeBytes   *int64             `json:"size_bytes"`
+	StorageType string             `json:"storage_type"`
+	StoragePath *string            `json:"storage_path"`
+	BackupTool  string             `json:"backup_tool"`
+	TriggeredBy pgtype.UUID        `json:"triggered_by"`
+	StartedAt   time.Time          `json:"started_at"`
+	CompletedAt pgtype.Timestamptz `json:"completed_at"`
+	Error       *string            `json:"error"`
+}
+
+type DatabaseCredentialRotation struct {
+	ID                  uuid.UUID          `json:"id"`
+	DatabaseID          uuid.UUID          `json:"database_id"`
+	RotatedBy           uuid.UUID          `json:"rotated_by"`
+	OldSecretID         pgtype.UUID        `json:"old_secret_id"`
+	NewSecretID         pgtype.UUID        `json:"new_secret_id"`
+	Status              string             `json:"status"`
+	LinkedAppsRestarted int32              `json:"linked_apps_restarted"`
+	Error               *string            `json:"error"`
+	CreatedAt           time.Time          `json:"created_at"`
+	CompletedAt         pgtype.Timestamptz `json:"completed_at"`
+}
+
+type DatabaseLink struct {
+	ID         uuid.UUID `json:"id"`
+	DatabaseID uuid.UUID `json:"database_id"`
+	AppID      uuid.UUID `json:"app_id"`
+	EnvPrefix  string    `json:"env_prefix"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+type DatabaseQueryHistory struct {
+	ID              uuid.UUID `json:"id"`
+	UserID          uuid.UUID `json:"user_id"`
+	DatabaseID      uuid.UUID `json:"database_id"`
+	QueryText       string    `json:"query_text"`
+	WriteMode       bool      `json:"write_mode"`
+	ExecutionTimeMs *int32    `json:"execution_time_ms"`
+	RowCount        *int32    `json:"row_count"`
+	Error           *string   `json:"error"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+type DatabaseSavedQuery struct {
+	ID         uuid.UUID   `json:"id"`
+	ProjectID  uuid.UUID   `json:"project_id"`
+	UserID     uuid.UUID   `json:"user_id"`
+	DatabaseID pgtype.UUID `json:"database_id"`
+	Name       string      `json:"name"`
+	QueryText  string      `json:"query_text"`
+	CreatedAt  time.Time   `json:"created_at"`
+	UpdatedAt  time.Time   `json:"updated_at"`
+}
+
 type Deployment struct {
 	ID              uuid.UUID          `json:"id"`
 	AppID           uuid.UUID          `json:"app_id"`
@@ -539,6 +623,32 @@ type User struct {
 	PasswordResetExpires pgtype.Timestamptz `json:"password_reset_expires"`
 	CreatedAt            time.Time          `json:"created_at"`
 	UpdatedAt            time.Time          `json:"updated_at"`
+}
+
+type Volume struct {
+	ID            uuid.UUID `json:"id"`
+	TeamID        uuid.UUID `json:"team_id"`
+	ClusterID     uuid.UUID `json:"cluster_id"`
+	ServerID      uuid.UUID `json:"server_id"`
+	Name          string    `json:"name"`
+	SizeGb        int32     `json:"size_gb"`
+	UsedBytes     int64     `json:"used_bytes"`
+	Filesystem    string    `json:"filesystem"`
+	MountPath     *string   `json:"mount_path"`
+	ContainerName *string   `json:"container_name"`
+	Status        string    `json:"status"`
+	HostPath      string    `json:"host_path"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+type VolumeSnapshot struct {
+	ID          uuid.UUID `json:"id"`
+	VolumeID    uuid.UUID `json:"volume_id"`
+	SizeBytes   int64     `json:"size_bytes"`
+	StorageType string    `json:"storage_type"`
+	StoragePath string    `json:"storage_path"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type WireguardPeer struct {

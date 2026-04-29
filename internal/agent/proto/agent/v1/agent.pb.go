@@ -224,6 +224,11 @@ type AgentMessage struct {
 	//	*AgentMessage_ServerCleanupResult
 	//	*AgentMessage_TrafficRouteResult
 	//	*AgentMessage_MetricReport
+	//	*AgentMessage_VolumeResult
+	//	*AgentMessage_DatabaseAlterUserResult
+	//	*AgentMessage_DatabaseQueryResult
+	//	*AgentMessage_BackupResult
+	//	*AgentMessage_RestoreResult
 	Payload       isAgentMessage_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -482,6 +487,51 @@ func (x *AgentMessage) GetMetricReport() *MetricReport {
 	return nil
 }
 
+func (x *AgentMessage) GetVolumeResult() *VolumeResult {
+	if x != nil {
+		if x, ok := x.Payload.(*AgentMessage_VolumeResult); ok {
+			return x.VolumeResult
+		}
+	}
+	return nil
+}
+
+func (x *AgentMessage) GetDatabaseAlterUserResult() *DatabaseAlterUserResult {
+	if x != nil {
+		if x, ok := x.Payload.(*AgentMessage_DatabaseAlterUserResult); ok {
+			return x.DatabaseAlterUserResult
+		}
+	}
+	return nil
+}
+
+func (x *AgentMessage) GetDatabaseQueryResult() *DatabaseQueryResult {
+	if x != nil {
+		if x, ok := x.Payload.(*AgentMessage_DatabaseQueryResult); ok {
+			return x.DatabaseQueryResult
+		}
+	}
+	return nil
+}
+
+func (x *AgentMessage) GetBackupResult() *BackupResult {
+	if x != nil {
+		if x, ok := x.Payload.(*AgentMessage_BackupResult); ok {
+			return x.BackupResult
+		}
+	}
+	return nil
+}
+
+func (x *AgentMessage) GetRestoreResult() *RestoreResult {
+	if x != nil {
+		if x, ok := x.Payload.(*AgentMessage_RestoreResult); ok {
+			return x.RestoreResult
+		}
+	}
+	return nil
+}
+
 type isAgentMessage_Payload interface {
 	isAgentMessage_Payload()
 }
@@ -582,6 +632,26 @@ type AgentMessage_MetricReport struct {
 	MetricReport *MetricReport `protobuf:"bytes,24,opt,name=metric_report,json=metricReport,proto3,oneof"`
 }
 
+type AgentMessage_VolumeResult struct {
+	VolumeResult *VolumeResult `protobuf:"bytes,25,opt,name=volume_result,json=volumeResult,proto3,oneof"`
+}
+
+type AgentMessage_DatabaseAlterUserResult struct {
+	DatabaseAlterUserResult *DatabaseAlterUserResult `protobuf:"bytes,26,opt,name=database_alter_user_result,json=databaseAlterUserResult,proto3,oneof"`
+}
+
+type AgentMessage_DatabaseQueryResult struct {
+	DatabaseQueryResult *DatabaseQueryResult `protobuf:"bytes,27,opt,name=database_query_result,json=databaseQueryResult,proto3,oneof"`
+}
+
+type AgentMessage_BackupResult struct {
+	BackupResult *BackupResult `protobuf:"bytes,28,opt,name=backup_result,json=backupResult,proto3,oneof"`
+}
+
+type AgentMessage_RestoreResult struct {
+	RestoreResult *RestoreResult `protobuf:"bytes,29,opt,name=restore_result,json=restoreResult,proto3,oneof"`
+}
+
 func (*AgentMessage_Heartbeat) isAgentMessage_Payload() {}
 
 func (*AgentMessage_ExecOutput) isAgentMessage_Payload() {}
@@ -630,6 +700,16 @@ func (*AgentMessage_TrafficRouteResult) isAgentMessage_Payload() {}
 
 func (*AgentMessage_MetricReport) isAgentMessage_Payload() {}
 
+func (*AgentMessage_VolumeResult) isAgentMessage_Payload() {}
+
+func (*AgentMessage_DatabaseAlterUserResult) isAgentMessage_Payload() {}
+
+func (*AgentMessage_DatabaseQueryResult) isAgentMessage_Payload() {}
+
+func (*AgentMessage_BackupResult) isAgentMessage_Payload() {}
+
+func (*AgentMessage_RestoreResult) isAgentMessage_Payload() {}
+
 type ControlMessage struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Payload:
@@ -655,6 +735,15 @@ type ControlMessage struct {
 	//	*ControlMessage_ServerLogs
 	//	*ControlMessage_ServerCleanup
 	//	*ControlMessage_TrafficRoute
+	//	*ControlMessage_VolumeCreate
+	//	*ControlMessage_VolumeDelete
+	//	*ControlMessage_VolumeMove
+	//	*ControlMessage_VolumeSnapshot
+	//	*ControlMessage_VolumeResize
+	//	*ControlMessage_DatabaseAlterUser
+	//	*ControlMessage_DatabaseQuery
+	//	*ControlMessage_Backup
+	//	*ControlMessage_Restore
 	Payload       isControlMessage_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -886,6 +975,87 @@ func (x *ControlMessage) GetTrafficRoute() *TrafficRouteCommand {
 	return nil
 }
 
+func (x *ControlMessage) GetVolumeCreate() *VolumeCreateCommand {
+	if x != nil {
+		if x, ok := x.Payload.(*ControlMessage_VolumeCreate); ok {
+			return x.VolumeCreate
+		}
+	}
+	return nil
+}
+
+func (x *ControlMessage) GetVolumeDelete() *VolumeDeleteCommand {
+	if x != nil {
+		if x, ok := x.Payload.(*ControlMessage_VolumeDelete); ok {
+			return x.VolumeDelete
+		}
+	}
+	return nil
+}
+
+func (x *ControlMessage) GetVolumeMove() *VolumeMoveCommand {
+	if x != nil {
+		if x, ok := x.Payload.(*ControlMessage_VolumeMove); ok {
+			return x.VolumeMove
+		}
+	}
+	return nil
+}
+
+func (x *ControlMessage) GetVolumeSnapshot() *VolumeSnapshotCommand {
+	if x != nil {
+		if x, ok := x.Payload.(*ControlMessage_VolumeSnapshot); ok {
+			return x.VolumeSnapshot
+		}
+	}
+	return nil
+}
+
+func (x *ControlMessage) GetVolumeResize() *VolumeResizeCommand {
+	if x != nil {
+		if x, ok := x.Payload.(*ControlMessage_VolumeResize); ok {
+			return x.VolumeResize
+		}
+	}
+	return nil
+}
+
+func (x *ControlMessage) GetDatabaseAlterUser() *DatabaseAlterUserCommand {
+	if x != nil {
+		if x, ok := x.Payload.(*ControlMessage_DatabaseAlterUser); ok {
+			return x.DatabaseAlterUser
+		}
+	}
+	return nil
+}
+
+func (x *ControlMessage) GetDatabaseQuery() *DatabaseQueryCommand {
+	if x != nil {
+		if x, ok := x.Payload.(*ControlMessage_DatabaseQuery); ok {
+			return x.DatabaseQuery
+		}
+	}
+	return nil
+}
+
+func (x *ControlMessage) GetBackup() *BackupCommand {
+	if x != nil {
+		if x, ok := x.Payload.(*ControlMessage_Backup); ok {
+			return x.Backup
+		}
+	}
+	return nil
+}
+
+func (x *ControlMessage) GetRestore() *RestoreCommand {
+	if x != nil {
+		if x, ok := x.Payload.(*ControlMessage_Restore); ok {
+			return x.Restore
+		}
+	}
+	return nil
+}
+
 type isControlMessage_Payload interface {
 	isControlMessage_Payload()
 }
@@ -974,6 +1144,42 @@ type ControlMessage_TrafficRoute struct {
 	TrafficRoute *TrafficRouteCommand `protobuf:"bytes,21,opt,name=traffic_route,json=trafficRoute,proto3,oneof"`
 }
 
+type ControlMessage_VolumeCreate struct {
+	VolumeCreate *VolumeCreateCommand `protobuf:"bytes,22,opt,name=volume_create,json=volumeCreate,proto3,oneof"`
+}
+
+type ControlMessage_VolumeDelete struct {
+	VolumeDelete *VolumeDeleteCommand `protobuf:"bytes,23,opt,name=volume_delete,json=volumeDelete,proto3,oneof"`
+}
+
+type ControlMessage_VolumeMove struct {
+	VolumeMove *VolumeMoveCommand `protobuf:"bytes,24,opt,name=volume_move,json=volumeMove,proto3,oneof"`
+}
+
+type ControlMessage_VolumeSnapshot struct {
+	VolumeSnapshot *VolumeSnapshotCommand `protobuf:"bytes,25,opt,name=volume_snapshot,json=volumeSnapshot,proto3,oneof"`
+}
+
+type ControlMessage_VolumeResize struct {
+	VolumeResize *VolumeResizeCommand `protobuf:"bytes,26,opt,name=volume_resize,json=volumeResize,proto3,oneof"`
+}
+
+type ControlMessage_DatabaseAlterUser struct {
+	DatabaseAlterUser *DatabaseAlterUserCommand `protobuf:"bytes,27,opt,name=database_alter_user,json=databaseAlterUser,proto3,oneof"`
+}
+
+type ControlMessage_DatabaseQuery struct {
+	DatabaseQuery *DatabaseQueryCommand `protobuf:"bytes,28,opt,name=database_query,json=databaseQuery,proto3,oneof"`
+}
+
+type ControlMessage_Backup struct {
+	Backup *BackupCommand `protobuf:"bytes,29,opt,name=backup,proto3,oneof"`
+}
+
+type ControlMessage_Restore struct {
+	Restore *RestoreCommand `protobuf:"bytes,30,opt,name=restore,proto3,oneof"`
+}
+
 func (*ControlMessage_ExecCommand) isControlMessage_Payload() {}
 
 func (*ControlMessage_FileTransfer) isControlMessage_Payload() {}
@@ -1015,6 +1221,24 @@ func (*ControlMessage_ServerLogs) isControlMessage_Payload() {}
 func (*ControlMessage_ServerCleanup) isControlMessage_Payload() {}
 
 func (*ControlMessage_TrafficRoute) isControlMessage_Payload() {}
+
+func (*ControlMessage_VolumeCreate) isControlMessage_Payload() {}
+
+func (*ControlMessage_VolumeDelete) isControlMessage_Payload() {}
+
+func (*ControlMessage_VolumeMove) isControlMessage_Payload() {}
+
+func (*ControlMessage_VolumeSnapshot) isControlMessage_Payload() {}
+
+func (*ControlMessage_VolumeResize) isControlMessage_Payload() {}
+
+func (*ControlMessage_DatabaseAlterUser) isControlMessage_Payload() {}
+
+func (*ControlMessage_DatabaseQuery) isControlMessage_Payload() {}
+
+func (*ControlMessage_Backup) isControlMessage_Payload() {}
+
+func (*ControlMessage_Restore) isControlMessage_Payload() {}
 
 type Heartbeat struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -2950,6 +3174,10 @@ type DeployCommand struct {
 	MemoryLimitMb              int32                  `protobuf:"varint,11,opt,name=memory_limit_mb,json=memoryLimitMb,proto3" json:"memory_limit_mb,omitempty"`
 	CpuLimitMillicores         int32                  `protobuf:"varint,12,opt,name=cpu_limit_millicores,json=cpuLimitMillicores,proto3" json:"cpu_limit_millicores,omitempty"`
 	Labels                     map[string]string      `protobuf:"bytes,13,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	VolumeMounts               []*VolumeMount         `protobuf:"bytes,14,rep,name=volume_mounts,json=volumeMounts,proto3" json:"volume_mounts,omitempty"`
+	ContainerCommand           string                 `protobuf:"bytes,15,opt,name=container_command,json=containerCommand,proto3" json:"container_command,omitempty"` // optional CMD override (template Command field)
+	ExecHealthCheck            *HealthCheckSpec       `protobuf:"bytes,16,opt,name=exec_health_check,json=execHealthCheck,proto3" json:"exec_health_check,omitempty"`  // optional exec-based health check (databases)
+	SkipTraefik                bool                   `protobuf:"varint,17,opt,name=skip_traefik,json=skipTraefik,proto3" json:"skip_traefik,omitempty"`               // databases are not HTTP-routed
 	unknownFields              protoimpl.UnknownFields
 	sizeCache                  protoimpl.SizeCache
 }
@@ -3075,6 +3303,162 @@ func (x *DeployCommand) GetLabels() map[string]string {
 	return nil
 }
 
+func (x *DeployCommand) GetVolumeMounts() []*VolumeMount {
+	if x != nil {
+		return x.VolumeMounts
+	}
+	return nil
+}
+
+func (x *DeployCommand) GetContainerCommand() string {
+	if x != nil {
+		return x.ContainerCommand
+	}
+	return ""
+}
+
+func (x *DeployCommand) GetExecHealthCheck() *HealthCheckSpec {
+	if x != nil {
+		return x.ExecHealthCheck
+	}
+	return nil
+}
+
+func (x *DeployCommand) GetSkipTraefik() bool {
+	if x != nil {
+		return x.SkipTraefik
+	}
+	return false
+}
+
+type VolumeMount struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	HostPath      string                 `protobuf:"bytes,1,opt,name=host_path,json=hostPath,proto3" json:"host_path,omitempty"`
+	ContainerPath string                 `protobuf:"bytes,2,opt,name=container_path,json=containerPath,proto3" json:"container_path,omitempty"`
+	ReadOnly      bool                   `protobuf:"varint,3,opt,name=read_only,json=readOnly,proto3" json:"read_only,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VolumeMount) Reset() {
+	*x = VolumeMount{}
+	mi := &file_agent_v1_agent_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VolumeMount) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VolumeMount) ProtoMessage() {}
+
+func (x *VolumeMount) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VolumeMount.ProtoReflect.Descriptor instead.
+func (*VolumeMount) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *VolumeMount) GetHostPath() string {
+	if x != nil {
+		return x.HostPath
+	}
+	return ""
+}
+
+func (x *VolumeMount) GetContainerPath() string {
+	if x != nil {
+		return x.ContainerPath
+	}
+	return ""
+}
+
+func (x *VolumeMount) GetReadOnly() bool {
+	if x != nil {
+		return x.ReadOnly
+	}
+	return false
+}
+
+type HealthCheckSpec struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Command         string                 `protobuf:"bytes,1,opt,name=command,proto3" json:"command,omitempty"` // shell command run inside the container
+	IntervalSeconds int32                  `protobuf:"varint,2,opt,name=interval_seconds,json=intervalSeconds,proto3" json:"interval_seconds,omitempty"`
+	TimeoutSeconds  int32                  `protobuf:"varint,3,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
+	Retries         int32                  `protobuf:"varint,4,opt,name=retries,proto3" json:"retries,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *HealthCheckSpec) Reset() {
+	*x = HealthCheckSpec{}
+	mi := &file_agent_v1_agent_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HealthCheckSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HealthCheckSpec) ProtoMessage() {}
+
+func (x *HealthCheckSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HealthCheckSpec.ProtoReflect.Descriptor instead.
+func (*HealthCheckSpec) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *HealthCheckSpec) GetCommand() string {
+	if x != nil {
+		return x.Command
+	}
+	return ""
+}
+
+func (x *HealthCheckSpec) GetIntervalSeconds() int32 {
+	if x != nil {
+		return x.IntervalSeconds
+	}
+	return 0
+}
+
+func (x *HealthCheckSpec) GetTimeoutSeconds() int32 {
+	if x != nil {
+		return x.TimeoutSeconds
+	}
+	return 0
+}
+
+func (x *HealthCheckSpec) GetRetries() int32 {
+	if x != nil {
+		return x.Retries
+	}
+	return 0
+}
+
 type TraefikConfig struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AppSlug       string                 `protobuf:"bytes,1,opt,name=app_slug,json=appSlug,proto3" json:"app_slug,omitempty"`
@@ -3087,7 +3471,7 @@ type TraefikConfig struct {
 
 func (x *TraefikConfig) Reset() {
 	*x = TraefikConfig{}
-	mi := &file_agent_v1_agent_proto_msgTypes[33]
+	mi := &file_agent_v1_agent_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3099,7 +3483,7 @@ func (x *TraefikConfig) String() string {
 func (*TraefikConfig) ProtoMessage() {}
 
 func (x *TraefikConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[33]
+	mi := &file_agent_v1_agent_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3112,7 +3496,7 @@ func (x *TraefikConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TraefikConfig.ProtoReflect.Descriptor instead.
 func (*TraefikConfig) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{33}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *TraefikConfig) GetAppSlug() string {
@@ -3156,7 +3540,7 @@ type TrafficRouteCommand struct {
 
 func (x *TrafficRouteCommand) Reset() {
 	*x = TrafficRouteCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[34]
+	mi := &file_agent_v1_agent_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3168,7 +3552,7 @@ func (x *TrafficRouteCommand) String() string {
 func (*TrafficRouteCommand) ProtoMessage() {}
 
 func (x *TrafficRouteCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[34]
+	mi := &file_agent_v1_agent_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3181,7 +3565,7 @@ func (x *TrafficRouteCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TrafficRouteCommand.ProtoReflect.Descriptor instead.
 func (*TrafficRouteCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{34}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *TrafficRouteCommand) GetRequestId() string {
@@ -3230,7 +3614,7 @@ type TrafficBackendGroup struct {
 
 func (x *TrafficBackendGroup) Reset() {
 	*x = TrafficBackendGroup{}
-	mi := &file_agent_v1_agent_proto_msgTypes[35]
+	mi := &file_agent_v1_agent_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3242,7 +3626,7 @@ func (x *TrafficBackendGroup) String() string {
 func (*TrafficBackendGroup) ProtoMessage() {}
 
 func (x *TrafficBackendGroup) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[35]
+	mi := &file_agent_v1_agent_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3255,7 +3639,7 @@ func (x *TrafficBackendGroup) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TrafficBackendGroup.ProtoReflect.Descriptor instead.
 func (*TrafficBackendGroup) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{35}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *TrafficBackendGroup) GetName() string {
@@ -3291,7 +3675,7 @@ type TrafficRouteResult struct {
 
 func (x *TrafficRouteResult) Reset() {
 	*x = TrafficRouteResult{}
-	mi := &file_agent_v1_agent_proto_msgTypes[36]
+	mi := &file_agent_v1_agent_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3303,7 +3687,7 @@ func (x *TrafficRouteResult) String() string {
 func (*TrafficRouteResult) ProtoMessage() {}
 
 func (x *TrafficRouteResult) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[36]
+	mi := &file_agent_v1_agent_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3316,7 +3700,7 @@ func (x *TrafficRouteResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TrafficRouteResult.ProtoReflect.Descriptor instead.
 func (*TrafficRouteResult) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{36}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *TrafficRouteResult) GetRequestId() string {
@@ -3362,7 +3746,7 @@ type DeployOutput struct {
 
 func (x *DeployOutput) Reset() {
 	*x = DeployOutput{}
-	mi := &file_agent_v1_agent_proto_msgTypes[37]
+	mi := &file_agent_v1_agent_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3374,7 +3758,7 @@ func (x *DeployOutput) String() string {
 func (*DeployOutput) ProtoMessage() {}
 
 func (x *DeployOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[37]
+	mi := &file_agent_v1_agent_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3387,7 +3771,7 @@ func (x *DeployOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeployOutput.ProtoReflect.Descriptor instead.
 func (*DeployOutput) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{37}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *DeployOutput) GetDeployId() string {
@@ -3451,7 +3835,7 @@ type StopContainerCommand struct {
 
 func (x *StopContainerCommand) Reset() {
 	*x = StopContainerCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[38]
+	mi := &file_agent_v1_agent_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3463,7 +3847,7 @@ func (x *StopContainerCommand) String() string {
 func (*StopContainerCommand) ProtoMessage() {}
 
 func (x *StopContainerCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[38]
+	mi := &file_agent_v1_agent_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3476,7 +3860,7 @@ func (x *StopContainerCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopContainerCommand.ProtoReflect.Descriptor instead.
 func (*StopContainerCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{38}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *StopContainerCommand) GetContainerName() string {
@@ -3518,7 +3902,7 @@ type StopContainerResult struct {
 
 func (x *StopContainerResult) Reset() {
 	*x = StopContainerResult{}
-	mi := &file_agent_v1_agent_proto_msgTypes[39]
+	mi := &file_agent_v1_agent_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3530,7 +3914,7 @@ func (x *StopContainerResult) String() string {
 func (*StopContainerResult) ProtoMessage() {}
 
 func (x *StopContainerResult) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[39]
+	mi := &file_agent_v1_agent_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3543,7 +3927,7 @@ func (x *StopContainerResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopContainerResult.ProtoReflect.Descriptor instead.
 func (*StopContainerResult) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{39}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *StopContainerResult) GetContainerName() string {
@@ -3579,7 +3963,7 @@ type ContainerLogsCommand struct {
 
 func (x *ContainerLogsCommand) Reset() {
 	*x = ContainerLogsCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[40]
+	mi := &file_agent_v1_agent_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3591,7 +3975,7 @@ func (x *ContainerLogsCommand) String() string {
 func (*ContainerLogsCommand) ProtoMessage() {}
 
 func (x *ContainerLogsCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[40]
+	mi := &file_agent_v1_agent_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3604,7 +3988,7 @@ func (x *ContainerLogsCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerLogsCommand.ProtoReflect.Descriptor instead.
 func (*ContainerLogsCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{40}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *ContainerLogsCommand) GetRequestId() string {
@@ -3647,7 +4031,7 @@ type ContainerLogsOutput struct {
 
 func (x *ContainerLogsOutput) Reset() {
 	*x = ContainerLogsOutput{}
-	mi := &file_agent_v1_agent_proto_msgTypes[41]
+	mi := &file_agent_v1_agent_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3659,7 +4043,7 @@ func (x *ContainerLogsOutput) String() string {
 func (*ContainerLogsOutput) ProtoMessage() {}
 
 func (x *ContainerLogsOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[41]
+	mi := &file_agent_v1_agent_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3672,7 +4056,7 @@ func (x *ContainerLogsOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerLogsOutput.ProtoReflect.Descriptor instead.
 func (*ContainerLogsOutput) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{41}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *ContainerLogsOutput) GetRequestId() string {
@@ -3714,7 +4098,7 @@ type ImagePullCommand struct {
 
 func (x *ImagePullCommand) Reset() {
 	*x = ImagePullCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[42]
+	mi := &file_agent_v1_agent_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3726,7 +4110,7 @@ func (x *ImagePullCommand) String() string {
 func (*ImagePullCommand) ProtoMessage() {}
 
 func (x *ImagePullCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[42]
+	mi := &file_agent_v1_agent_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3739,7 +4123,7 @@ func (x *ImagePullCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImagePullCommand.ProtoReflect.Descriptor instead.
 func (*ImagePullCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{42}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ImagePullCommand) GetTransferId() string {
@@ -3774,7 +4158,7 @@ type ImagePullResult struct {
 
 func (x *ImagePullResult) Reset() {
 	*x = ImagePullResult{}
-	mi := &file_agent_v1_agent_proto_msgTypes[43]
+	mi := &file_agent_v1_agent_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3786,7 +4170,7 @@ func (x *ImagePullResult) String() string {
 func (*ImagePullResult) ProtoMessage() {}
 
 func (x *ImagePullResult) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[43]
+	mi := &file_agent_v1_agent_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3799,7 +4183,7 @@ func (x *ImagePullResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImagePullResult.ProtoReflect.Descriptor instead.
 func (*ImagePullResult) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{43}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ImagePullResult) GetTransferId() string {
@@ -3836,7 +4220,7 @@ type ContainerExecCommand struct {
 
 func (x *ContainerExecCommand) Reset() {
 	*x = ContainerExecCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[44]
+	mi := &file_agent_v1_agent_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3848,7 +4232,7 @@ func (x *ContainerExecCommand) String() string {
 func (*ContainerExecCommand) ProtoMessage() {}
 
 func (x *ContainerExecCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[44]
+	mi := &file_agent_v1_agent_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3861,7 +4245,7 @@ func (x *ContainerExecCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerExecCommand.ProtoReflect.Descriptor instead.
 func (*ContainerExecCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{44}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *ContainerExecCommand) GetSessionId() string {
@@ -3912,7 +4296,7 @@ type ContainerExecInput struct {
 
 func (x *ContainerExecInput) Reset() {
 	*x = ContainerExecInput{}
-	mi := &file_agent_v1_agent_proto_msgTypes[45]
+	mi := &file_agent_v1_agent_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3924,7 +4308,7 @@ func (x *ContainerExecInput) String() string {
 func (*ContainerExecInput) ProtoMessage() {}
 
 func (x *ContainerExecInput) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[45]
+	mi := &file_agent_v1_agent_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3937,7 +4321,7 @@ func (x *ContainerExecInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerExecInput.ProtoReflect.Descriptor instead.
 func (*ContainerExecInput) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{45}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *ContainerExecInput) GetSessionId() string {
@@ -3988,7 +4372,7 @@ type ContainerExecOutput struct {
 
 func (x *ContainerExecOutput) Reset() {
 	*x = ContainerExecOutput{}
-	mi := &file_agent_v1_agent_proto_msgTypes[46]
+	mi := &file_agent_v1_agent_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4000,7 +4384,7 @@ func (x *ContainerExecOutput) String() string {
 func (*ContainerExecOutput) ProtoMessage() {}
 
 func (x *ContainerExecOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[46]
+	mi := &file_agent_v1_agent_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4013,7 +4397,7 @@ func (x *ContainerExecOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerExecOutput.ProtoReflect.Descriptor instead.
 func (*ContainerExecOutput) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{46}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *ContainerExecOutput) GetSessionId() string {
@@ -4061,7 +4445,7 @@ type RestartContainerCommand struct {
 
 func (x *RestartContainerCommand) Reset() {
 	*x = RestartContainerCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[47]
+	mi := &file_agent_v1_agent_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4073,7 +4457,7 @@ func (x *RestartContainerCommand) String() string {
 func (*RestartContainerCommand) ProtoMessage() {}
 
 func (x *RestartContainerCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[47]
+	mi := &file_agent_v1_agent_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4086,7 +4470,7 @@ func (x *RestartContainerCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestartContainerCommand.ProtoReflect.Descriptor instead.
 func (*RestartContainerCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{47}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *RestartContainerCommand) GetContainerName() string {
@@ -4114,7 +4498,7 @@ type RestartContainerResult struct {
 
 func (x *RestartContainerResult) Reset() {
 	*x = RestartContainerResult{}
-	mi := &file_agent_v1_agent_proto_msgTypes[48]
+	mi := &file_agent_v1_agent_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4126,7 +4510,7 @@ func (x *RestartContainerResult) String() string {
 func (*RestartContainerResult) ProtoMessage() {}
 
 func (x *RestartContainerResult) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[48]
+	mi := &file_agent_v1_agent_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4139,7 +4523,7 @@ func (x *RestartContainerResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestartContainerResult.ProtoReflect.Descriptor instead.
 func (*RestartContainerResult) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{48}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *RestartContainerResult) GetContainerName() string {
@@ -4173,7 +4557,7 @@ type ContainerInspectCommand struct {
 
 func (x *ContainerInspectCommand) Reset() {
 	*x = ContainerInspectCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[49]
+	mi := &file_agent_v1_agent_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4185,7 +4569,7 @@ func (x *ContainerInspectCommand) String() string {
 func (*ContainerInspectCommand) ProtoMessage() {}
 
 func (x *ContainerInspectCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[49]
+	mi := &file_agent_v1_agent_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4198,7 +4582,7 @@ func (x *ContainerInspectCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerInspectCommand.ProtoReflect.Descriptor instead.
 func (*ContainerInspectCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{49}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *ContainerInspectCommand) GetRequestId() string {
@@ -4240,7 +4624,7 @@ type ContainerInspectResult struct {
 
 func (x *ContainerInspectResult) Reset() {
 	*x = ContainerInspectResult{}
-	mi := &file_agent_v1_agent_proto_msgTypes[50]
+	mi := &file_agent_v1_agent_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4252,7 +4636,7 @@ func (x *ContainerInspectResult) String() string {
 func (*ContainerInspectResult) ProtoMessage() {}
 
 func (x *ContainerInspectResult) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[50]
+	mi := &file_agent_v1_agent_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4265,7 +4649,7 @@ func (x *ContainerInspectResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerInspectResult.ProtoReflect.Descriptor instead.
 func (*ContainerInspectResult) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{50}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *ContainerInspectResult) GetRequestId() string {
@@ -4399,7 +4783,7 @@ type ServerLogsCommand struct {
 
 func (x *ServerLogsCommand) Reset() {
 	*x = ServerLogsCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[51]
+	mi := &file_agent_v1_agent_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4411,7 +4795,7 @@ func (x *ServerLogsCommand) String() string {
 func (*ServerLogsCommand) ProtoMessage() {}
 
 func (x *ServerLogsCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[51]
+	mi := &file_agent_v1_agent_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4424,7 +4808,7 @@ func (x *ServerLogsCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerLogsCommand.ProtoReflect.Descriptor instead.
 func (*ServerLogsCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{51}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *ServerLogsCommand) GetRequestId() string {
@@ -4467,7 +4851,7 @@ type ServerLogsOutput struct {
 
 func (x *ServerLogsOutput) Reset() {
 	*x = ServerLogsOutput{}
-	mi := &file_agent_v1_agent_proto_msgTypes[52]
+	mi := &file_agent_v1_agent_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4479,7 +4863,7 @@ func (x *ServerLogsOutput) String() string {
 func (*ServerLogsOutput) ProtoMessage() {}
 
 func (x *ServerLogsOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[52]
+	mi := &file_agent_v1_agent_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4492,7 +4876,7 @@ func (x *ServerLogsOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerLogsOutput.ProtoReflect.Descriptor instead.
 func (*ServerLogsOutput) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{52}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *ServerLogsOutput) GetRequestId() string {
@@ -4538,7 +4922,7 @@ type ServerCleanupCommand struct {
 
 func (x *ServerCleanupCommand) Reset() {
 	*x = ServerCleanupCommand{}
-	mi := &file_agent_v1_agent_proto_msgTypes[53]
+	mi := &file_agent_v1_agent_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4550,7 +4934,7 @@ func (x *ServerCleanupCommand) String() string {
 func (*ServerCleanupCommand) ProtoMessage() {}
 
 func (x *ServerCleanupCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[53]
+	mi := &file_agent_v1_agent_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4563,7 +4947,7 @@ func (x *ServerCleanupCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerCleanupCommand.ProtoReflect.Descriptor instead.
 func (*ServerCleanupCommand) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{53}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *ServerCleanupCommand) GetRequestId() string {
@@ -4627,7 +5011,7 @@ type ServerCleanupResult struct {
 
 func (x *ServerCleanupResult) Reset() {
 	*x = ServerCleanupResult{}
-	mi := &file_agent_v1_agent_proto_msgTypes[54]
+	mi := &file_agent_v1_agent_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4639,7 +5023,7 @@ func (x *ServerCleanupResult) String() string {
 func (*ServerCleanupResult) ProtoMessage() {}
 
 func (x *ServerCleanupResult) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_v1_agent_proto_msgTypes[54]
+	mi := &file_agent_v1_agent_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4652,7 +5036,7 @@ func (x *ServerCleanupResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerCleanupResult.ProtoReflect.Descriptor instead.
 func (*ServerCleanupResult) Descriptor() ([]byte, []int) {
-	return file_agent_v1_agent_proto_rawDescGZIP(), []int{54}
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *ServerCleanupResult) GetRequestId() string {
@@ -4683,6 +5067,1385 @@ func (x *ServerCleanupResult) GetError() string {
 	return ""
 }
 
+type VolumeCreateCommand struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	RequestId string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	VolumeId  string                 `protobuf:"bytes,2,opt,name=volume_id,json=volumeId,proto3" json:"volume_id,omitempty"`
+	HostPath  string                 `protobuf:"bytes,3,opt,name=host_path,json=hostPath,proto3" json:"host_path,omitempty"`
+	// Declared size of the loopback-backed ext4 volume in GiB. Required on
+	// first create; the agent re-uses the existing image's size on retries.
+	SizeGb        int32 `protobuf:"varint,4,opt,name=size_gb,json=sizeGb,proto3" json:"size_gb,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VolumeCreateCommand) Reset() {
+	*x = VolumeCreateCommand{}
+	mi := &file_agent_v1_agent_proto_msgTypes[57]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VolumeCreateCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VolumeCreateCommand) ProtoMessage() {}
+
+func (x *VolumeCreateCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[57]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VolumeCreateCommand.ProtoReflect.Descriptor instead.
+func (*VolumeCreateCommand) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{57}
+}
+
+func (x *VolumeCreateCommand) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *VolumeCreateCommand) GetVolumeId() string {
+	if x != nil {
+		return x.VolumeId
+	}
+	return ""
+}
+
+func (x *VolumeCreateCommand) GetHostPath() string {
+	if x != nil {
+		return x.HostPath
+	}
+	return ""
+}
+
+func (x *VolumeCreateCommand) GetSizeGb() int32 {
+	if x != nil {
+		return x.SizeGb
+	}
+	return 0
+}
+
+type VolumeDeleteCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	VolumeId      string                 `protobuf:"bytes,2,opt,name=volume_id,json=volumeId,proto3" json:"volume_id,omitempty"`
+	HostPath      string                 `protobuf:"bytes,3,opt,name=host_path,json=hostPath,proto3" json:"host_path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VolumeDeleteCommand) Reset() {
+	*x = VolumeDeleteCommand{}
+	mi := &file_agent_v1_agent_proto_msgTypes[58]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VolumeDeleteCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VolumeDeleteCommand) ProtoMessage() {}
+
+func (x *VolumeDeleteCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[58]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VolumeDeleteCommand.ProtoReflect.Descriptor instead.
+func (*VolumeDeleteCommand) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{58}
+}
+
+func (x *VolumeDeleteCommand) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *VolumeDeleteCommand) GetVolumeId() string {
+	if x != nil {
+		return x.VolumeId
+	}
+	return ""
+}
+
+func (x *VolumeDeleteCommand) GetHostPath() string {
+	if x != nil {
+		return x.HostPath
+	}
+	return ""
+}
+
+type VolumeMoveCommand struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	RequestId         string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	VolumeId          string                 `protobuf:"bytes,2,opt,name=volume_id,json=volumeId,proto3" json:"volume_id,omitempty"`
+	SourcePath        string                 `protobuf:"bytes,3,opt,name=source_path,json=sourcePath,proto3" json:"source_path,omitempty"`
+	TargetWireguardIp string                 `protobuf:"bytes,4,opt,name=target_wireguard_ip,json=targetWireguardIp,proto3" json:"target_wireguard_ip,omitempty"`
+	TargetPath        string                 `protobuf:"bytes,5,opt,name=target_path,json=targetPath,proto3" json:"target_path,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *VolumeMoveCommand) Reset() {
+	*x = VolumeMoveCommand{}
+	mi := &file_agent_v1_agent_proto_msgTypes[59]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VolumeMoveCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VolumeMoveCommand) ProtoMessage() {}
+
+func (x *VolumeMoveCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[59]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VolumeMoveCommand.ProtoReflect.Descriptor instead.
+func (*VolumeMoveCommand) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{59}
+}
+
+func (x *VolumeMoveCommand) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *VolumeMoveCommand) GetVolumeId() string {
+	if x != nil {
+		return x.VolumeId
+	}
+	return ""
+}
+
+func (x *VolumeMoveCommand) GetSourcePath() string {
+	if x != nil {
+		return x.SourcePath
+	}
+	return ""
+}
+
+func (x *VolumeMoveCommand) GetTargetWireguardIp() string {
+	if x != nil {
+		return x.TargetWireguardIp
+	}
+	return ""
+}
+
+func (x *VolumeMoveCommand) GetTargetPath() string {
+	if x != nil {
+		return x.TargetPath
+	}
+	return ""
+}
+
+type VolumeSnapshotCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	VolumeId      string                 `protobuf:"bytes,2,opt,name=volume_id,json=volumeId,proto3" json:"volume_id,omitempty"`
+	SourcePath    string                 `protobuf:"bytes,3,opt,name=source_path,json=sourcePath,proto3" json:"source_path,omitempty"`
+	SnapshotId    string                 `protobuf:"bytes,4,opt,name=snapshot_id,json=snapshotId,proto3" json:"snapshot_id,omitempty"`
+	OutputPath    string                 `protobuf:"bytes,5,opt,name=output_path,json=outputPath,proto3" json:"output_path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VolumeSnapshotCommand) Reset() {
+	*x = VolumeSnapshotCommand{}
+	mi := &file_agent_v1_agent_proto_msgTypes[60]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VolumeSnapshotCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VolumeSnapshotCommand) ProtoMessage() {}
+
+func (x *VolumeSnapshotCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[60]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VolumeSnapshotCommand.ProtoReflect.Descriptor instead.
+func (*VolumeSnapshotCommand) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{60}
+}
+
+func (x *VolumeSnapshotCommand) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *VolumeSnapshotCommand) GetVolumeId() string {
+	if x != nil {
+		return x.VolumeId
+	}
+	return ""
+}
+
+func (x *VolumeSnapshotCommand) GetSourcePath() string {
+	if x != nil {
+		return x.SourcePath
+	}
+	return ""
+}
+
+func (x *VolumeSnapshotCommand) GetSnapshotId() string {
+	if x != nil {
+		return x.SnapshotId
+	}
+	return ""
+}
+
+func (x *VolumeSnapshotCommand) GetOutputPath() string {
+	if x != nil {
+		return x.OutputPath
+	}
+	return ""
+}
+
+type VolumeResizeCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	VolumeId      string                 `protobuf:"bytes,2,opt,name=volume_id,json=volumeId,proto3" json:"volume_id,omitempty"`
+	HostPath      string                 `protobuf:"bytes,3,opt,name=host_path,json=hostPath,proto3" json:"host_path,omitempty"`
+	NewSizeGb     int32                  `protobuf:"varint,4,opt,name=new_size_gb,json=newSizeGb,proto3" json:"new_size_gb,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VolumeResizeCommand) Reset() {
+	*x = VolumeResizeCommand{}
+	mi := &file_agent_v1_agent_proto_msgTypes[61]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VolumeResizeCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VolumeResizeCommand) ProtoMessage() {}
+
+func (x *VolumeResizeCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[61]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VolumeResizeCommand.ProtoReflect.Descriptor instead.
+func (*VolumeResizeCommand) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{61}
+}
+
+func (x *VolumeResizeCommand) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *VolumeResizeCommand) GetVolumeId() string {
+	if x != nil {
+		return x.VolumeId
+	}
+	return ""
+}
+
+func (x *VolumeResizeCommand) GetHostPath() string {
+	if x != nil {
+		return x.HostPath
+	}
+	return ""
+}
+
+func (x *VolumeResizeCommand) GetNewSizeGb() int32 {
+	if x != nil {
+		return x.NewSizeGb
+	}
+	return 0
+}
+
+type VolumeResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	VolumeId      string                 `protobuf:"bytes,2,opt,name=volume_id,json=volumeId,proto3" json:"volume_id,omitempty"`
+	Success       bool                   `protobuf:"varint,3,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
+	SizeBytes     int64                  `protobuf:"varint,5,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	UsedBytes     int64                  `protobuf:"varint,6,opt,name=used_bytes,json=usedBytes,proto3" json:"used_bytes,omitempty"`
+	SnapshotPath  string                 `protobuf:"bytes,7,opt,name=snapshot_path,json=snapshotPath,proto3" json:"snapshot_path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VolumeResult) Reset() {
+	*x = VolumeResult{}
+	mi := &file_agent_v1_agent_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VolumeResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VolumeResult) ProtoMessage() {}
+
+func (x *VolumeResult) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VolumeResult.ProtoReflect.Descriptor instead.
+func (*VolumeResult) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{62}
+}
+
+func (x *VolumeResult) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *VolumeResult) GetVolumeId() string {
+	if x != nil {
+		return x.VolumeId
+	}
+	return ""
+}
+
+func (x *VolumeResult) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *VolumeResult) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *VolumeResult) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *VolumeResult) GetUsedBytes() int64 {
+	if x != nil {
+		return x.UsedBytes
+	}
+	return 0
+}
+
+func (x *VolumeResult) GetSnapshotPath() string {
+	if x != nil {
+		return x.SnapshotPath
+	}
+	return ""
+}
+
+// DatabaseAlterUserCommand asks the agent to change a database user's password
+// in the running container. The agent constructs the proper CLI invocation per
+// database_type and execs it via `docker exec`. The new_password field is
+// transmitted over WireGuard-protected gRPC and MUST NOT be logged.
+type DatabaseAlterUserCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	DatabaseId    string                 `protobuf:"bytes,2,opt,name=database_id,json=databaseId,proto3" json:"database_id,omitempty"`
+	ContainerName string                 `protobuf:"bytes,3,opt,name=container_name,json=containerName,proto3" json:"container_name,omitempty"`
+	DatabaseType  string                 `protobuf:"bytes,4,opt,name=database_type,json=databaseType,proto3" json:"database_type,omitempty"` // "postgresql", "mysql", "mongodb", "redis"
+	Username      string                 `protobuf:"bytes,5,opt,name=username,proto3" json:"username,omitempty"`                             // user to alter (e.g. "app_user")
+	NewPassword   string                 `protobuf:"bytes,6,opt,name=new_password,json=newPassword,proto3" json:"new_password,omitempty"`    // plaintext (never logged)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DatabaseAlterUserCommand) Reset() {
+	*x = DatabaseAlterUserCommand{}
+	mi := &file_agent_v1_agent_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DatabaseAlterUserCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DatabaseAlterUserCommand) ProtoMessage() {}
+
+func (x *DatabaseAlterUserCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DatabaseAlterUserCommand.ProtoReflect.Descriptor instead.
+func (*DatabaseAlterUserCommand) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *DatabaseAlterUserCommand) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *DatabaseAlterUserCommand) GetDatabaseId() string {
+	if x != nil {
+		return x.DatabaseId
+	}
+	return ""
+}
+
+func (x *DatabaseAlterUserCommand) GetContainerName() string {
+	if x != nil {
+		return x.ContainerName
+	}
+	return ""
+}
+
+func (x *DatabaseAlterUserCommand) GetDatabaseType() string {
+	if x != nil {
+		return x.DatabaseType
+	}
+	return ""
+}
+
+func (x *DatabaseAlterUserCommand) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *DatabaseAlterUserCommand) GetNewPassword() string {
+	if x != nil {
+		return x.NewPassword
+	}
+	return ""
+}
+
+type DatabaseAlterUserResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	DatabaseId    string                 `protobuf:"bytes,2,opt,name=database_id,json=databaseId,proto3" json:"database_id,omitempty"`
+	Success       bool                   `protobuf:"varint,3,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DatabaseAlterUserResult) Reset() {
+	*x = DatabaseAlterUserResult{}
+	mi := &file_agent_v1_agent_proto_msgTypes[64]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DatabaseAlterUserResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DatabaseAlterUserResult) ProtoMessage() {}
+
+func (x *DatabaseAlterUserResult) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[64]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DatabaseAlterUserResult.ProtoReflect.Descriptor instead.
+func (*DatabaseAlterUserResult) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{64}
+}
+
+func (x *DatabaseAlterUserResult) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *DatabaseAlterUserResult) GetDatabaseId() string {
+	if x != nil {
+		return x.DatabaseId
+	}
+	return ""
+}
+
+func (x *DatabaseAlterUserResult) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *DatabaseAlterUserResult) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+// DatabaseQueryCommand asks the agent to execute a query against a managed
+// database using the appropriate driver (pgx/mysql/mongo/redis). The agent
+// connects locally to the database and returns a single
+// DatabaseQueryResult. Passwords cross gRPC over WireGuard; the agent MUST
+// NOT log them.
+type DatabaseQueryCommand struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	RequestId      string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	DatabaseId     string                 `protobuf:"bytes,2,opt,name=database_id,json=databaseId,proto3" json:"database_id,omitempty"`
+	DatabaseType   string                 `protobuf:"bytes,3,opt,name=database_type,json=databaseType,proto3" json:"database_type,omitempty"`    // "postgresql" | "mysql" | "mongodb" | "redis"
+	ContainerName  string                 `protobuf:"bytes,4,opt,name=container_name,json=containerName,proto3" json:"container_name,omitempty"` // for terminal-style fallback (not used in v1 query relay)
+	Host           string                 `protobuf:"bytes,5,opt,name=host,proto3" json:"host,omitempty"`                                        // dns_record OR "localhost"
+	Port           int32                  `protobuf:"varint,6,opt,name=port,proto3" json:"port,omitempty"`
+	Username       string                 `protobuf:"bytes,7,opt,name=username,proto3" json:"username,omitempty"` // typically "app_user"
+	Password       string                 `protobuf:"bytes,8,opt,name=password,proto3" json:"password,omitempty"` // plaintext; never logged
+	Dbname         string                 `protobuf:"bytes,9,opt,name=dbname,proto3" json:"dbname,omitempty"`
+	Query          string                 `protobuf:"bytes,10,opt,name=query,proto3" json:"query,omitempty"` // SQL, Redis command line, or Mongo JSON filter
+	WriteMode      bool                   `protobuf:"varint,11,opt,name=write_mode,json=writeMode,proto3" json:"write_mode,omitempty"`
+	TimeoutSeconds int32                  `protobuf:"varint,12,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"` // default 30
+	MaxRows        int32                  `protobuf:"varint,13,opt,name=max_rows,json=maxRows,proto3" json:"max_rows,omitempty"`                      // default 1000
+	// Operation hint for non-SQL or DB-specific calls. Empty/"select" runs the
+	// query verbatim. Recognised values include:
+	//
+	//	"select", "list_schemas", "list_tables", "get_rows",
+	//	"redis_keys", "redis_get", "redis_info", "redis_config", "redis_type", "redis_ttl",
+	//	"mongo_list_collections", "mongo_find", "mongo_get_doc"
+	Operation     string            `protobuf:"bytes,14,opt,name=operation,proto3" json:"operation,omitempty"`
+	Params        map[string]string `protobuf:"bytes,15,rep,name=params,proto3" json:"params,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // operation-specific params
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DatabaseQueryCommand) Reset() {
+	*x = DatabaseQueryCommand{}
+	mi := &file_agent_v1_agent_proto_msgTypes[65]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DatabaseQueryCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DatabaseQueryCommand) ProtoMessage() {}
+
+func (x *DatabaseQueryCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[65]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DatabaseQueryCommand.ProtoReflect.Descriptor instead.
+func (*DatabaseQueryCommand) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{65}
+}
+
+func (x *DatabaseQueryCommand) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *DatabaseQueryCommand) GetDatabaseId() string {
+	if x != nil {
+		return x.DatabaseId
+	}
+	return ""
+}
+
+func (x *DatabaseQueryCommand) GetDatabaseType() string {
+	if x != nil {
+		return x.DatabaseType
+	}
+	return ""
+}
+
+func (x *DatabaseQueryCommand) GetContainerName() string {
+	if x != nil {
+		return x.ContainerName
+	}
+	return ""
+}
+
+func (x *DatabaseQueryCommand) GetHost() string {
+	if x != nil {
+		return x.Host
+	}
+	return ""
+}
+
+func (x *DatabaseQueryCommand) GetPort() int32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *DatabaseQueryCommand) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *DatabaseQueryCommand) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+func (x *DatabaseQueryCommand) GetDbname() string {
+	if x != nil {
+		return x.Dbname
+	}
+	return ""
+}
+
+func (x *DatabaseQueryCommand) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *DatabaseQueryCommand) GetWriteMode() bool {
+	if x != nil {
+		return x.WriteMode
+	}
+	return false
+}
+
+func (x *DatabaseQueryCommand) GetTimeoutSeconds() int32 {
+	if x != nil {
+		return x.TimeoutSeconds
+	}
+	return 0
+}
+
+func (x *DatabaseQueryCommand) GetMaxRows() int32 {
+	if x != nil {
+		return x.MaxRows
+	}
+	return 0
+}
+
+func (x *DatabaseQueryCommand) GetOperation() string {
+	if x != nil {
+		return x.Operation
+	}
+	return ""
+}
+
+func (x *DatabaseQueryCommand) GetParams() map[string]string {
+	if x != nil {
+		return x.Params
+	}
+	return nil
+}
+
+// DatabaseQueryResult is returned once per command. For SQL/structured
+// results, columns + rows are populated. For Redis INFO, raw text dumps,
+// or Mongo JSON arrays, raw_text carries the payload.
+type DatabaseQueryResult struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	RequestId       string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	Success         bool                   `protobuf:"varint,2,opt,name=success,proto3" json:"success,omitempty"`
+	Error           string                 `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
+	ExecutionTimeMs int64                  `protobuf:"varint,4,opt,name=execution_time_ms,json=executionTimeMs,proto3" json:"execution_time_ms,omitempty"`
+	Columns         []*ColumnMeta          `protobuf:"bytes,5,rep,name=columns,proto3" json:"columns,omitempty"`
+	Rows            []*QueryRow            `protobuf:"bytes,6,rep,name=rows,proto3" json:"rows,omitempty"`
+	AffectedRows    int32                  `protobuf:"varint,7,opt,name=affected_rows,json=affectedRows,proto3" json:"affected_rows,omitempty"`
+	RawText         string                 `protobuf:"bytes,8,opt,name=raw_text,json=rawText,proto3" json:"raw_text,omitempty"`
+	Truncated       bool                   `protobuf:"varint,9,opt,name=truncated,proto3" json:"truncated,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *DatabaseQueryResult) Reset() {
+	*x = DatabaseQueryResult{}
+	mi := &file_agent_v1_agent_proto_msgTypes[66]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DatabaseQueryResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DatabaseQueryResult) ProtoMessage() {}
+
+func (x *DatabaseQueryResult) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[66]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DatabaseQueryResult.ProtoReflect.Descriptor instead.
+func (*DatabaseQueryResult) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{66}
+}
+
+func (x *DatabaseQueryResult) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *DatabaseQueryResult) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *DatabaseQueryResult) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *DatabaseQueryResult) GetExecutionTimeMs() int64 {
+	if x != nil {
+		return x.ExecutionTimeMs
+	}
+	return 0
+}
+
+func (x *DatabaseQueryResult) GetColumns() []*ColumnMeta {
+	if x != nil {
+		return x.Columns
+	}
+	return nil
+}
+
+func (x *DatabaseQueryResult) GetRows() []*QueryRow {
+	if x != nil {
+		return x.Rows
+	}
+	return nil
+}
+
+func (x *DatabaseQueryResult) GetAffectedRows() int32 {
+	if x != nil {
+		return x.AffectedRows
+	}
+	return 0
+}
+
+func (x *DatabaseQueryResult) GetRawText() string {
+	if x != nil {
+		return x.RawText
+	}
+	return ""
+}
+
+func (x *DatabaseQueryResult) GetTruncated() bool {
+	if x != nil {
+		return x.Truncated
+	}
+	return false
+}
+
+type ColumnMeta struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	TypeName      string                 `protobuf:"bytes,2,opt,name=type_name,json=typeName,proto3" json:"type_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ColumnMeta) Reset() {
+	*x = ColumnMeta{}
+	mi := &file_agent_v1_agent_proto_msgTypes[67]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ColumnMeta) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ColumnMeta) ProtoMessage() {}
+
+func (x *ColumnMeta) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[67]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ColumnMeta.ProtoReflect.Descriptor instead.
+func (*ColumnMeta) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{67}
+}
+
+func (x *ColumnMeta) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ColumnMeta) GetTypeName() string {
+	if x != nil {
+		return x.TypeName
+	}
+	return ""
+}
+
+type QueryRow struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Values        []string               `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	Nulls         []bool                 `protobuf:"varint,2,rep,packed,name=nulls,proto3" json:"nulls,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QueryRow) Reset() {
+	*x = QueryRow{}
+	mi := &file_agent_v1_agent_proto_msgTypes[68]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QueryRow) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QueryRow) ProtoMessage() {}
+
+func (x *QueryRow) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[68]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QueryRow.ProtoReflect.Descriptor instead.
+func (*QueryRow) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{68}
+}
+
+func (x *QueryRow) GetValues() []string {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+func (x *QueryRow) GetNulls() []bool {
+	if x != nil {
+		return x.Nulls
+	}
+	return nil
+}
+
+// BackupCommand asks the agent to dump a managed database to a local file
+// inside /var/lib/nixway/backups/, then upload the dump to MinIO via the
+// supplied presigned PUT URL. Superuser credentials are used so dumps capture
+// the entire database (the app_user typically can't). Passwords cross gRPC
+// over WireGuard; the agent MUST NOT log them.
+type BackupCommand struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	RequestId         string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	BackupId          string                 `protobuf:"bytes,2,opt,name=backup_id,json=backupId,proto3" json:"backup_id,omitempty"`
+	DatabaseId        string                 `protobuf:"bytes,3,opt,name=database_id,json=databaseId,proto3" json:"database_id,omitempty"`
+	ContainerName     string                 `protobuf:"bytes,4,opt,name=container_name,json=containerName,proto3" json:"container_name,omitempty"`
+	DatabaseType      string                 `protobuf:"bytes,5,opt,name=database_type,json=databaseType,proto3" json:"database_type,omitempty"`                // "postgresql" | "mysql" | "mongodb" | "redis"
+	Superuser         string                 `protobuf:"bytes,6,opt,name=superuser,proto3" json:"superuser,omitempty"`                                          // typically "postgres", "root", "admin"
+	SuperuserPassword string                 `protobuf:"bytes,7,opt,name=superuser_password,json=superuserPassword,proto3" json:"superuser_password,omitempty"` // plaintext; never logged
+	Dbname            string                 `protobuf:"bytes,8,opt,name=dbname,proto3" json:"dbname,omitempty"`
+	Tool              string                 `protobuf:"bytes,9,opt,name=tool,proto3" json:"tool,omitempty"`                                            // "pg_dump" | "mysqldump" | "mongodump" | "redis-bgsave"
+	OutputFilename    string                 `protobuf:"bytes,10,opt,name=output_filename,json=outputFilename,proto3" json:"output_filename,omitempty"` // local filename within /var/lib/nixway/backups/
+	UploadUrl         string                 `protobuf:"bytes,11,opt,name=upload_url,json=uploadUrl,proto3" json:"upload_url,omitempty"`                // MinIO presigned PUT URL
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *BackupCommand) Reset() {
+	*x = BackupCommand{}
+	mi := &file_agent_v1_agent_proto_msgTypes[69]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BackupCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BackupCommand) ProtoMessage() {}
+
+func (x *BackupCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[69]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BackupCommand.ProtoReflect.Descriptor instead.
+func (*BackupCommand) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{69}
+}
+
+func (x *BackupCommand) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *BackupCommand) GetBackupId() string {
+	if x != nil {
+		return x.BackupId
+	}
+	return ""
+}
+
+func (x *BackupCommand) GetDatabaseId() string {
+	if x != nil {
+		return x.DatabaseId
+	}
+	return ""
+}
+
+func (x *BackupCommand) GetContainerName() string {
+	if x != nil {
+		return x.ContainerName
+	}
+	return ""
+}
+
+func (x *BackupCommand) GetDatabaseType() string {
+	if x != nil {
+		return x.DatabaseType
+	}
+	return ""
+}
+
+func (x *BackupCommand) GetSuperuser() string {
+	if x != nil {
+		return x.Superuser
+	}
+	return ""
+}
+
+func (x *BackupCommand) GetSuperuserPassword() string {
+	if x != nil {
+		return x.SuperuserPassword
+	}
+	return ""
+}
+
+func (x *BackupCommand) GetDbname() string {
+	if x != nil {
+		return x.Dbname
+	}
+	return ""
+}
+
+func (x *BackupCommand) GetTool() string {
+	if x != nil {
+		return x.Tool
+	}
+	return ""
+}
+
+func (x *BackupCommand) GetOutputFilename() string {
+	if x != nil {
+		return x.OutputFilename
+	}
+	return ""
+}
+
+func (x *BackupCommand) GetUploadUrl() string {
+	if x != nil {
+		return x.UploadUrl
+	}
+	return ""
+}
+
+type BackupResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	BackupId      string                 `protobuf:"bytes,2,opt,name=backup_id,json=backupId,proto3" json:"backup_id,omitempty"`
+	Success       bool                   `protobuf:"varint,3,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
+	SizeBytes     int64                  `protobuf:"varint,5,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	StoragePath   string                 `protobuf:"bytes,6,opt,name=storage_path,json=storagePath,proto3" json:"storage_path,omitempty"` // bucket-relative key, e.g. "backups/<db>/<id>.dump"
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BackupResult) Reset() {
+	*x = BackupResult{}
+	mi := &file_agent_v1_agent_proto_msgTypes[70]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BackupResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BackupResult) ProtoMessage() {}
+
+func (x *BackupResult) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[70]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BackupResult.ProtoReflect.Descriptor instead.
+func (*BackupResult) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{70}
+}
+
+func (x *BackupResult) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *BackupResult) GetBackupId() string {
+	if x != nil {
+		return x.BackupId
+	}
+	return ""
+}
+
+func (x *BackupResult) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *BackupResult) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *BackupResult) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *BackupResult) GetStoragePath() string {
+	if x != nil {
+		return x.StoragePath
+	}
+	return ""
+}
+
+// RestoreCommand asks the agent to download a backup file from MinIO via the
+// supplied presigned GET URL and apply it to a target database container.
+type RestoreCommand struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	RequestId         string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	BackupId          string                 `protobuf:"bytes,2,opt,name=backup_id,json=backupId,proto3" json:"backup_id,omitempty"`
+	DatabaseId        string                 `protobuf:"bytes,3,opt,name=database_id,json=databaseId,proto3" json:"database_id,omitempty"`
+	ContainerName     string                 `protobuf:"bytes,4,opt,name=container_name,json=containerName,proto3" json:"container_name,omitempty"`
+	DatabaseType      string                 `protobuf:"bytes,5,opt,name=database_type,json=databaseType,proto3" json:"database_type,omitempty"`
+	Superuser         string                 `protobuf:"bytes,6,opt,name=superuser,proto3" json:"superuser,omitempty"`
+	SuperuserPassword string                 `protobuf:"bytes,7,opt,name=superuser_password,json=superuserPassword,proto3" json:"superuser_password,omitempty"` // plaintext; never logged
+	Dbname            string                 `protobuf:"bytes,8,opt,name=dbname,proto3" json:"dbname,omitempty"`
+	Tool              string                 `protobuf:"bytes,9,opt,name=tool,proto3" json:"tool,omitempty"`                                   // "pg_restore" | "mysql" | "mongorestore" | "redis-load"
+	DownloadUrl       string                 `protobuf:"bytes,10,opt,name=download_url,json=downloadUrl,proto3" json:"download_url,omitempty"` // MinIO presigned GET URL
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *RestoreCommand) Reset() {
+	*x = RestoreCommand{}
+	mi := &file_agent_v1_agent_proto_msgTypes[71]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RestoreCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RestoreCommand) ProtoMessage() {}
+
+func (x *RestoreCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[71]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RestoreCommand.ProtoReflect.Descriptor instead.
+func (*RestoreCommand) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{71}
+}
+
+func (x *RestoreCommand) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *RestoreCommand) GetBackupId() string {
+	if x != nil {
+		return x.BackupId
+	}
+	return ""
+}
+
+func (x *RestoreCommand) GetDatabaseId() string {
+	if x != nil {
+		return x.DatabaseId
+	}
+	return ""
+}
+
+func (x *RestoreCommand) GetContainerName() string {
+	if x != nil {
+		return x.ContainerName
+	}
+	return ""
+}
+
+func (x *RestoreCommand) GetDatabaseType() string {
+	if x != nil {
+		return x.DatabaseType
+	}
+	return ""
+}
+
+func (x *RestoreCommand) GetSuperuser() string {
+	if x != nil {
+		return x.Superuser
+	}
+	return ""
+}
+
+func (x *RestoreCommand) GetSuperuserPassword() string {
+	if x != nil {
+		return x.SuperuserPassword
+	}
+	return ""
+}
+
+func (x *RestoreCommand) GetDbname() string {
+	if x != nil {
+		return x.Dbname
+	}
+	return ""
+}
+
+func (x *RestoreCommand) GetTool() string {
+	if x != nil {
+		return x.Tool
+	}
+	return ""
+}
+
+func (x *RestoreCommand) GetDownloadUrl() string {
+	if x != nil {
+		return x.DownloadUrl
+	}
+	return ""
+}
+
+type RestoreResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	BackupId      string                 `protobuf:"bytes,2,opt,name=backup_id,json=backupId,proto3" json:"backup_id,omitempty"`
+	Success       bool                   `protobuf:"varint,3,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RestoreResult) Reset() {
+	*x = RestoreResult{}
+	mi := &file_agent_v1_agent_proto_msgTypes[72]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RestoreResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RestoreResult) ProtoMessage() {}
+
+func (x *RestoreResult) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_v1_agent_proto_msgTypes[72]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RestoreResult.ProtoReflect.Descriptor instead.
+func (*RestoreResult) Descriptor() ([]byte, []int) {
+	return file_agent_v1_agent_proto_rawDescGZIP(), []int{72}
+}
+
+func (x *RestoreResult) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *RestoreResult) GetBackupId() string {
+	if x != nil {
+		return x.BackupId
+	}
+	return ""
+}
+
+func (x *RestoreResult) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *RestoreResult) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
 var File_agent_v1_agent_proto protoreflect.FileDescriptor
 
 const file_agent_v1_agent_proto_rawDesc = "" +
@@ -4696,7 +6459,7 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"\x10RegisterResponse\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12 \n" +
 	"\vcertificate\x18\x02 \x01(\fR\vcertificate\x12%\n" +
-	"\x0eca_certificate\x18\x03 \x01(\fR\rcaCertificate\"\xaa\x0e\n" +
+	"\x0eca_certificate\x18\x03 \x01(\fR\rcaCertificate\"\xa1\x11\n" +
 	"\fAgentMessage\x123\n" +
 	"\theartbeat\x18\x01 \x01(\v2\x13.agent.v1.HeartbeatH\x00R\theartbeat\x127\n" +
 	"\vexec_output\x18\x02 \x01(\v2\x14.agent.v1.ExecOutputH\x00R\n" +
@@ -4724,8 +6487,13 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"\x12server_logs_output\x18\x15 \x01(\v2\x1a.agent.v1.ServerLogsOutputH\x00R\x10serverLogsOutput\x12S\n" +
 	"\x15server_cleanup_result\x18\x16 \x01(\v2\x1d.agent.v1.ServerCleanupResultH\x00R\x13serverCleanupResult\x12P\n" +
 	"\x14traffic_route_result\x18\x17 \x01(\v2\x1c.agent.v1.TrafficRouteResultH\x00R\x12trafficRouteResult\x12=\n" +
-	"\rmetric_report\x18\x18 \x01(\v2\x16.agent.v1.MetricReportH\x00R\fmetricReportB\t\n" +
-	"\apayload\"\x8c\f\n" +
+	"\rmetric_report\x18\x18 \x01(\v2\x16.agent.v1.MetricReportH\x00R\fmetricReport\x12=\n" +
+	"\rvolume_result\x18\x19 \x01(\v2\x16.agent.v1.VolumeResultH\x00R\fvolumeResult\x12`\n" +
+	"\x1adatabase_alter_user_result\x18\x1a \x01(\v2!.agent.v1.DatabaseAlterUserResultH\x00R\x17databaseAlterUserResult\x12S\n" +
+	"\x15database_query_result\x18\x1b \x01(\v2\x1d.agent.v1.DatabaseQueryResultH\x00R\x13databaseQueryResult\x12=\n" +
+	"\rbackup_result\x18\x1c \x01(\v2\x16.agent.v1.BackupResultH\x00R\fbackupResult\x12@\n" +
+	"\x0erestore_result\x18\x1d \x01(\v2\x17.agent.v1.RestoreResultH\x00R\rrestoreResultB\t\n" +
+	"\apayload\"\xf2\x10\n" +
 	"\x0eControlMessage\x12:\n" +
 	"\fexec_command\x18\x01 \x01(\v2\x15.agent.v1.ExecCommandH\x00R\vexecCommand\x12D\n" +
 	"\rfile_transfer\x18\x02 \x01(\v2\x1d.agent.v1.FileTransferRequestH\x00R\ffileTransfer\x12=\n" +
@@ -4750,7 +6518,17 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"\vserver_logs\x18\x13 \x01(\v2\x1b.agent.v1.ServerLogsCommandH\x00R\n" +
 	"serverLogs\x12G\n" +
 	"\x0eserver_cleanup\x18\x14 \x01(\v2\x1e.agent.v1.ServerCleanupCommandH\x00R\rserverCleanup\x12D\n" +
-	"\rtraffic_route\x18\x15 \x01(\v2\x1d.agent.v1.TrafficRouteCommandH\x00R\ftrafficRouteB\t\n" +
+	"\rtraffic_route\x18\x15 \x01(\v2\x1d.agent.v1.TrafficRouteCommandH\x00R\ftrafficRoute\x12D\n" +
+	"\rvolume_create\x18\x16 \x01(\v2\x1d.agent.v1.VolumeCreateCommandH\x00R\fvolumeCreate\x12D\n" +
+	"\rvolume_delete\x18\x17 \x01(\v2\x1d.agent.v1.VolumeDeleteCommandH\x00R\fvolumeDelete\x12>\n" +
+	"\vvolume_move\x18\x18 \x01(\v2\x1b.agent.v1.VolumeMoveCommandH\x00R\n" +
+	"volumeMove\x12J\n" +
+	"\x0fvolume_snapshot\x18\x19 \x01(\v2\x1f.agent.v1.VolumeSnapshotCommandH\x00R\x0evolumeSnapshot\x12D\n" +
+	"\rvolume_resize\x18\x1a \x01(\v2\x1d.agent.v1.VolumeResizeCommandH\x00R\fvolumeResize\x12T\n" +
+	"\x13database_alter_user\x18\x1b \x01(\v2\".agent.v1.DatabaseAlterUserCommandH\x00R\x11databaseAlterUser\x12G\n" +
+	"\x0edatabase_query\x18\x1c \x01(\v2\x1e.agent.v1.DatabaseQueryCommandH\x00R\rdatabaseQuery\x121\n" +
+	"\x06backup\x18\x1d \x01(\v2\x17.agent.v1.BackupCommandH\x00R\x06backup\x124\n" +
+	"\arestore\x18\x1e \x01(\v2\x18.agent.v1.RestoreCommandH\x00R\arestoreB\t\n" +
 	"\apayload\"`\n" +
 	"\tHeartbeat\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x128\n" +
@@ -4928,7 +6706,7 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"\bfinished\x18\x04 \x01(\bR\bfinished\x12\x18\n" +
 	"\asuccess\x18\x05 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x06 \x01(\tR\x05error\x12\x19\n" +
-	"\bimage_id\x18\a \x01(\tR\aimageId\"\xc2\x05\n" +
+	"\bimage_id\x18\a \x01(\tR\aimageId\"\x95\a\n" +
 	"\rDeployCommand\x12\x1b\n" +
 	"\tdeploy_id\x18\x01 \x01(\tR\bdeployId\x12\x1b\n" +
 	"\ttarget_id\x18\x02 \x01(\tR\btargetId\x12\x1b\n" +
@@ -4943,13 +6721,26 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	" \x01(\v2\x17.agent.v1.TraefikConfigR\atraefik\x12&\n" +
 	"\x0fmemory_limit_mb\x18\v \x01(\x05R\rmemoryLimitMb\x120\n" +
 	"\x14cpu_limit_millicores\x18\f \x01(\x05R\x12cpuLimitMillicores\x12;\n" +
-	"\x06labels\x18\r \x03(\v2#.agent.v1.DeployCommand.LabelsEntryR\x06labels\x1a6\n" +
+	"\x06labels\x18\r \x03(\v2#.agent.v1.DeployCommand.LabelsEntryR\x06labels\x12:\n" +
+	"\rvolume_mounts\x18\x0e \x03(\v2\x15.agent.v1.VolumeMountR\fvolumeMounts\x12+\n" +
+	"\x11container_command\x18\x0f \x01(\tR\x10containerCommand\x12E\n" +
+	"\x11exec_health_check\x18\x10 \x01(\v2\x19.agent.v1.HealthCheckSpecR\x0fexecHealthCheck\x12!\n" +
+	"\fskip_traefik\x18\x11 \x01(\bR\vskipTraefik\x1a6\n" +
 	"\bEnvEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"j\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"n\n" +
+	"\vVolumeMount\x12\x1b\n" +
+	"\thost_path\x18\x01 \x01(\tR\bhostPath\x12%\n" +
+	"\x0econtainer_path\x18\x02 \x01(\tR\rcontainerPath\x12\x1b\n" +
+	"\tread_only\x18\x03 \x01(\bR\breadOnly\"\x99\x01\n" +
+	"\x0fHealthCheckSpec\x12\x18\n" +
+	"\acommand\x18\x01 \x01(\tR\acommand\x12)\n" +
+	"\x10interval_seconds\x18\x02 \x01(\x05R\x0fintervalSeconds\x12'\n" +
+	"\x0ftimeout_seconds\x18\x03 \x01(\x05R\x0etimeoutSeconds\x12\x18\n" +
+	"\aretries\x18\x04 \x01(\x05R\aretries\"j\n" +
 	"\rTraefikConfig\x12\x19\n" +
 	"\bapp_slug\x18\x01 \x01(\tR\aappSlug\x12\x18\n" +
 	"\adomains\x18\x02 \x03(\tR\adomains\x12\x10\n" +
@@ -5099,6 +6890,155 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12\x18\n" +
 	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\x16\n" +
 	"\x06output\x18\x03 \x01(\tR\x06output\x12\x14\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error\"\x87\x01\n" +
+	"\x13VolumeCreateCommand\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1b\n" +
+	"\tvolume_id\x18\x02 \x01(\tR\bvolumeId\x12\x1b\n" +
+	"\thost_path\x18\x03 \x01(\tR\bhostPath\x12\x17\n" +
+	"\asize_gb\x18\x04 \x01(\x05R\x06sizeGb\"n\n" +
+	"\x13VolumeDeleteCommand\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1b\n" +
+	"\tvolume_id\x18\x02 \x01(\tR\bvolumeId\x12\x1b\n" +
+	"\thost_path\x18\x03 \x01(\tR\bhostPath\"\xc1\x01\n" +
+	"\x11VolumeMoveCommand\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1b\n" +
+	"\tvolume_id\x18\x02 \x01(\tR\bvolumeId\x12\x1f\n" +
+	"\vsource_path\x18\x03 \x01(\tR\n" +
+	"sourcePath\x12.\n" +
+	"\x13target_wireguard_ip\x18\x04 \x01(\tR\x11targetWireguardIp\x12\x1f\n" +
+	"\vtarget_path\x18\x05 \x01(\tR\n" +
+	"targetPath\"\xb6\x01\n" +
+	"\x15VolumeSnapshotCommand\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1b\n" +
+	"\tvolume_id\x18\x02 \x01(\tR\bvolumeId\x12\x1f\n" +
+	"\vsource_path\x18\x03 \x01(\tR\n" +
+	"sourcePath\x12\x1f\n" +
+	"\vsnapshot_id\x18\x04 \x01(\tR\n" +
+	"snapshotId\x12\x1f\n" +
+	"\voutput_path\x18\x05 \x01(\tR\n" +
+	"outputPath\"\x8e\x01\n" +
+	"\x13VolumeResizeCommand\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1b\n" +
+	"\tvolume_id\x18\x02 \x01(\tR\bvolumeId\x12\x1b\n" +
+	"\thost_path\x18\x03 \x01(\tR\bhostPath\x12\x1e\n" +
+	"\vnew_size_gb\x18\x04 \x01(\x05R\tnewSizeGb\"\xdd\x01\n" +
+	"\fVolumeResult\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1b\n" +
+	"\tvolume_id\x18\x02 \x01(\tR\bvolumeId\x12\x18\n" +
+	"\asuccess\x18\x03 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x05 \x01(\x03R\tsizeBytes\x12\x1d\n" +
+	"\n" +
+	"used_bytes\x18\x06 \x01(\x03R\tusedBytes\x12#\n" +
+	"\rsnapshot_path\x18\a \x01(\tR\fsnapshotPath\"\xe5\x01\n" +
+	"\x18DatabaseAlterUserCommand\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1f\n" +
+	"\vdatabase_id\x18\x02 \x01(\tR\n" +
+	"databaseId\x12%\n" +
+	"\x0econtainer_name\x18\x03 \x01(\tR\rcontainerName\x12#\n" +
+	"\rdatabase_type\x18\x04 \x01(\tR\fdatabaseType\x12\x1a\n" +
+	"\busername\x18\x05 \x01(\tR\busername\x12!\n" +
+	"\fnew_password\x18\x06 \x01(\tR\vnewPassword\"\x89\x01\n" +
+	"\x17DatabaseAlterUserResult\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1f\n" +
+	"\vdatabase_id\x18\x02 \x01(\tR\n" +
+	"databaseId\x12\x18\n" +
+	"\asuccess\x18\x03 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error\"\xb0\x04\n" +
+	"\x14DatabaseQueryCommand\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1f\n" +
+	"\vdatabase_id\x18\x02 \x01(\tR\n" +
+	"databaseId\x12#\n" +
+	"\rdatabase_type\x18\x03 \x01(\tR\fdatabaseType\x12%\n" +
+	"\x0econtainer_name\x18\x04 \x01(\tR\rcontainerName\x12\x12\n" +
+	"\x04host\x18\x05 \x01(\tR\x04host\x12\x12\n" +
+	"\x04port\x18\x06 \x01(\x05R\x04port\x12\x1a\n" +
+	"\busername\x18\a \x01(\tR\busername\x12\x1a\n" +
+	"\bpassword\x18\b \x01(\tR\bpassword\x12\x16\n" +
+	"\x06dbname\x18\t \x01(\tR\x06dbname\x12\x14\n" +
+	"\x05query\x18\n" +
+	" \x01(\tR\x05query\x12\x1d\n" +
+	"\n" +
+	"write_mode\x18\v \x01(\bR\twriteMode\x12'\n" +
+	"\x0ftimeout_seconds\x18\f \x01(\x05R\x0etimeoutSeconds\x12\x19\n" +
+	"\bmax_rows\x18\r \x01(\x05R\amaxRows\x12\x1c\n" +
+	"\toperation\x18\x0e \x01(\tR\toperation\x12B\n" +
+	"\x06params\x18\x0f \x03(\v2*.agent.v1.DatabaseQueryCommand.ParamsEntryR\x06params\x1a9\n" +
+	"\vParamsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xc6\x02\n" +
+	"\x13DatabaseQueryResult\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x18\n" +
+	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x03 \x01(\tR\x05error\x12*\n" +
+	"\x11execution_time_ms\x18\x04 \x01(\x03R\x0fexecutionTimeMs\x12.\n" +
+	"\acolumns\x18\x05 \x03(\v2\x14.agent.v1.ColumnMetaR\acolumns\x12&\n" +
+	"\x04rows\x18\x06 \x03(\v2\x12.agent.v1.QueryRowR\x04rows\x12#\n" +
+	"\raffected_rows\x18\a \x01(\x05R\faffectedRows\x12\x19\n" +
+	"\braw_text\x18\b \x01(\tR\arawText\x12\x1c\n" +
+	"\ttruncated\x18\t \x01(\bR\ttruncated\"=\n" +
+	"\n" +
+	"ColumnMeta\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1b\n" +
+	"\ttype_name\x18\x02 \x01(\tR\btypeName\"8\n" +
+	"\bQueryRow\x12\x16\n" +
+	"\x06values\x18\x01 \x03(\tR\x06values\x12\x14\n" +
+	"\x05nulls\x18\x02 \x03(\bR\x05nulls\"\xf9\x02\n" +
+	"\rBackupCommand\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1b\n" +
+	"\tbackup_id\x18\x02 \x01(\tR\bbackupId\x12\x1f\n" +
+	"\vdatabase_id\x18\x03 \x01(\tR\n" +
+	"databaseId\x12%\n" +
+	"\x0econtainer_name\x18\x04 \x01(\tR\rcontainerName\x12#\n" +
+	"\rdatabase_type\x18\x05 \x01(\tR\fdatabaseType\x12\x1c\n" +
+	"\tsuperuser\x18\x06 \x01(\tR\tsuperuser\x12-\n" +
+	"\x12superuser_password\x18\a \x01(\tR\x11superuserPassword\x12\x16\n" +
+	"\x06dbname\x18\b \x01(\tR\x06dbname\x12\x12\n" +
+	"\x04tool\x18\t \x01(\tR\x04tool\x12'\n" +
+	"\x0foutput_filename\x18\n" +
+	" \x01(\tR\x0eoutputFilename\x12\x1d\n" +
+	"\n" +
+	"upload_url\x18\v \x01(\tR\tuploadUrl\"\xbc\x01\n" +
+	"\fBackupResult\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1b\n" +
+	"\tbackup_id\x18\x02 \x01(\tR\bbackupId\x12\x18\n" +
+	"\asuccess\x18\x03 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x05 \x01(\x03R\tsizeBytes\x12!\n" +
+	"\fstorage_path\x18\x06 \x01(\tR\vstoragePath\"\xd5\x02\n" +
+	"\x0eRestoreCommand\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1b\n" +
+	"\tbackup_id\x18\x02 \x01(\tR\bbackupId\x12\x1f\n" +
+	"\vdatabase_id\x18\x03 \x01(\tR\n" +
+	"databaseId\x12%\n" +
+	"\x0econtainer_name\x18\x04 \x01(\tR\rcontainerName\x12#\n" +
+	"\rdatabase_type\x18\x05 \x01(\tR\fdatabaseType\x12\x1c\n" +
+	"\tsuperuser\x18\x06 \x01(\tR\tsuperuser\x12-\n" +
+	"\x12superuser_password\x18\a \x01(\tR\x11superuserPassword\x12\x16\n" +
+	"\x06dbname\x18\b \x01(\tR\x06dbname\x12\x12\n" +
+	"\x04tool\x18\t \x01(\tR\x04tool\x12!\n" +
+	"\fdownload_url\x18\n" +
+	" \x01(\tR\vdownloadUrl\"{\n" +
+	"\rRestoreResult\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1b\n" +
+	"\tbackup_id\x18\x02 \x01(\tR\bbackupId\x12\x18\n" +
+	"\asuccess\x18\x03 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x04 \x01(\tR\x05error2\x92\x01\n" +
 	"\fAgentService\x12?\n" +
 	"\aConnect\x12\x16.agent.v1.AgentMessage\x1a\x18.agent.v1.ControlMessage(\x010\x01\x12A\n" +
@@ -5117,7 +7057,7 @@ func file_agent_v1_agent_proto_rawDescGZIP() []byte {
 }
 
 var file_agent_v1_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 62)
+var file_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 81)
 var file_agent_v1_agent_proto_goTypes = []any{
 	(FileTransferRequest_Direction)(0), // 0: agent.v1.FileTransferRequest.Direction
 	(*RegisterRequest)(nil),            // 1: agent.v1.RegisterRequest
@@ -5153,36 +7093,55 @@ var file_agent_v1_agent_proto_goTypes = []any{
 	(*BuildCommand)(nil),               // 31: agent.v1.BuildCommand
 	(*BuildOutput)(nil),                // 32: agent.v1.BuildOutput
 	(*DeployCommand)(nil),              // 33: agent.v1.DeployCommand
-	(*TraefikConfig)(nil),              // 34: agent.v1.TraefikConfig
-	(*TrafficRouteCommand)(nil),        // 35: agent.v1.TrafficRouteCommand
-	(*TrafficBackendGroup)(nil),        // 36: agent.v1.TrafficBackendGroup
-	(*TrafficRouteResult)(nil),         // 37: agent.v1.TrafficRouteResult
-	(*DeployOutput)(nil),               // 38: agent.v1.DeployOutput
-	(*StopContainerCommand)(nil),       // 39: agent.v1.StopContainerCommand
-	(*StopContainerResult)(nil),        // 40: agent.v1.StopContainerResult
-	(*ContainerLogsCommand)(nil),       // 41: agent.v1.ContainerLogsCommand
-	(*ContainerLogsOutput)(nil),        // 42: agent.v1.ContainerLogsOutput
-	(*ImagePullCommand)(nil),           // 43: agent.v1.ImagePullCommand
-	(*ImagePullResult)(nil),            // 44: agent.v1.ImagePullResult
-	(*ContainerExecCommand)(nil),       // 45: agent.v1.ContainerExecCommand
-	(*ContainerExecInput)(nil),         // 46: agent.v1.ContainerExecInput
-	(*ContainerExecOutput)(nil),        // 47: agent.v1.ContainerExecOutput
-	(*RestartContainerCommand)(nil),    // 48: agent.v1.RestartContainerCommand
-	(*RestartContainerResult)(nil),     // 49: agent.v1.RestartContainerResult
-	(*ContainerInspectCommand)(nil),    // 50: agent.v1.ContainerInspectCommand
-	(*ContainerInspectResult)(nil),     // 51: agent.v1.ContainerInspectResult
-	(*ServerLogsCommand)(nil),          // 52: agent.v1.ServerLogsCommand
-	(*ServerLogsOutput)(nil),           // 53: agent.v1.ServerLogsOutput
-	(*ServerCleanupCommand)(nil),       // 54: agent.v1.ServerCleanupCommand
-	(*ServerCleanupResult)(nil),        // 55: agent.v1.ServerCleanupResult
-	nil,                                // 56: agent.v1.ExecCommand.EnvEntry
-	nil,                                // 57: agent.v1.ContainerMetric.LabelsEntry
-	nil,                                // 58: agent.v1.BuildCommand.BuildArgsEntry
-	nil,                                // 59: agent.v1.DeployCommand.EnvEntry
-	nil,                                // 60: agent.v1.DeployCommand.LabelsEntry
-	nil,                                // 61: agent.v1.ContainerInspectResult.EnvEntry
-	nil,                                // 62: agent.v1.ContainerInspectResult.LabelsEntry
-	(*timestamppb.Timestamp)(nil),      // 63: google.protobuf.Timestamp
+	(*VolumeMount)(nil),                // 34: agent.v1.VolumeMount
+	(*HealthCheckSpec)(nil),            // 35: agent.v1.HealthCheckSpec
+	(*TraefikConfig)(nil),              // 36: agent.v1.TraefikConfig
+	(*TrafficRouteCommand)(nil),        // 37: agent.v1.TrafficRouteCommand
+	(*TrafficBackendGroup)(nil),        // 38: agent.v1.TrafficBackendGroup
+	(*TrafficRouteResult)(nil),         // 39: agent.v1.TrafficRouteResult
+	(*DeployOutput)(nil),               // 40: agent.v1.DeployOutput
+	(*StopContainerCommand)(nil),       // 41: agent.v1.StopContainerCommand
+	(*StopContainerResult)(nil),        // 42: agent.v1.StopContainerResult
+	(*ContainerLogsCommand)(nil),       // 43: agent.v1.ContainerLogsCommand
+	(*ContainerLogsOutput)(nil),        // 44: agent.v1.ContainerLogsOutput
+	(*ImagePullCommand)(nil),           // 45: agent.v1.ImagePullCommand
+	(*ImagePullResult)(nil),            // 46: agent.v1.ImagePullResult
+	(*ContainerExecCommand)(nil),       // 47: agent.v1.ContainerExecCommand
+	(*ContainerExecInput)(nil),         // 48: agent.v1.ContainerExecInput
+	(*ContainerExecOutput)(nil),        // 49: agent.v1.ContainerExecOutput
+	(*RestartContainerCommand)(nil),    // 50: agent.v1.RestartContainerCommand
+	(*RestartContainerResult)(nil),     // 51: agent.v1.RestartContainerResult
+	(*ContainerInspectCommand)(nil),    // 52: agent.v1.ContainerInspectCommand
+	(*ContainerInspectResult)(nil),     // 53: agent.v1.ContainerInspectResult
+	(*ServerLogsCommand)(nil),          // 54: agent.v1.ServerLogsCommand
+	(*ServerLogsOutput)(nil),           // 55: agent.v1.ServerLogsOutput
+	(*ServerCleanupCommand)(nil),       // 56: agent.v1.ServerCleanupCommand
+	(*ServerCleanupResult)(nil),        // 57: agent.v1.ServerCleanupResult
+	(*VolumeCreateCommand)(nil),        // 58: agent.v1.VolumeCreateCommand
+	(*VolumeDeleteCommand)(nil),        // 59: agent.v1.VolumeDeleteCommand
+	(*VolumeMoveCommand)(nil),          // 60: agent.v1.VolumeMoveCommand
+	(*VolumeSnapshotCommand)(nil),      // 61: agent.v1.VolumeSnapshotCommand
+	(*VolumeResizeCommand)(nil),        // 62: agent.v1.VolumeResizeCommand
+	(*VolumeResult)(nil),               // 63: agent.v1.VolumeResult
+	(*DatabaseAlterUserCommand)(nil),   // 64: agent.v1.DatabaseAlterUserCommand
+	(*DatabaseAlterUserResult)(nil),    // 65: agent.v1.DatabaseAlterUserResult
+	(*DatabaseQueryCommand)(nil),       // 66: agent.v1.DatabaseQueryCommand
+	(*DatabaseQueryResult)(nil),        // 67: agent.v1.DatabaseQueryResult
+	(*ColumnMeta)(nil),                 // 68: agent.v1.ColumnMeta
+	(*QueryRow)(nil),                   // 69: agent.v1.QueryRow
+	(*BackupCommand)(nil),              // 70: agent.v1.BackupCommand
+	(*BackupResult)(nil),               // 71: agent.v1.BackupResult
+	(*RestoreCommand)(nil),             // 72: agent.v1.RestoreCommand
+	(*RestoreResult)(nil),              // 73: agent.v1.RestoreResult
+	nil,                                // 74: agent.v1.ExecCommand.EnvEntry
+	nil,                                // 75: agent.v1.ContainerMetric.LabelsEntry
+	nil,                                // 76: agent.v1.BuildCommand.BuildArgsEntry
+	nil,                                // 77: agent.v1.DeployCommand.EnvEntry
+	nil,                                // 78: agent.v1.DeployCommand.LabelsEntry
+	nil,                                // 79: agent.v1.ContainerInspectResult.EnvEntry
+	nil,                                // 80: agent.v1.ContainerInspectResult.LabelsEntry
+	nil,                                // 81: agent.v1.DatabaseQueryCommand.ParamsEntry
+	(*timestamppb.Timestamp)(nil),      // 82: google.protobuf.Timestamp
 }
 var file_agent_v1_agent_proto_depIdxs = []int32{
 	5,  // 0: agent.v1.AgentMessage.heartbeat:type_name -> agent.v1.Heartbeat
@@ -5198,63 +7157,82 @@ var file_agent_v1_agent_proto_depIdxs = []int32{
 	27, // 10: agent.v1.AgentMessage.mesh_health_report:type_name -> agent.v1.MeshHealthReport
 	30, // 11: agent.v1.AgentMessage.dns_update_result:type_name -> agent.v1.DNSUpdateResult
 	32, // 12: agent.v1.AgentMessage.build_output:type_name -> agent.v1.BuildOutput
-	38, // 13: agent.v1.AgentMessage.deploy_output:type_name -> agent.v1.DeployOutput
-	40, // 14: agent.v1.AgentMessage.stop_container_result:type_name -> agent.v1.StopContainerResult
-	44, // 15: agent.v1.AgentMessage.image_pull_result:type_name -> agent.v1.ImagePullResult
-	42, // 16: agent.v1.AgentMessage.container_logs_output:type_name -> agent.v1.ContainerLogsOutput
-	47, // 17: agent.v1.AgentMessage.container_exec_output:type_name -> agent.v1.ContainerExecOutput
-	49, // 18: agent.v1.AgentMessage.restart_container_result:type_name -> agent.v1.RestartContainerResult
-	51, // 19: agent.v1.AgentMessage.container_inspect_result:type_name -> agent.v1.ContainerInspectResult
-	53, // 20: agent.v1.AgentMessage.server_logs_output:type_name -> agent.v1.ServerLogsOutput
-	55, // 21: agent.v1.AgentMessage.server_cleanup_result:type_name -> agent.v1.ServerCleanupResult
-	37, // 22: agent.v1.AgentMessage.traffic_route_result:type_name -> agent.v1.TrafficRouteResult
+	40, // 13: agent.v1.AgentMessage.deploy_output:type_name -> agent.v1.DeployOutput
+	42, // 14: agent.v1.AgentMessage.stop_container_result:type_name -> agent.v1.StopContainerResult
+	46, // 15: agent.v1.AgentMessage.image_pull_result:type_name -> agent.v1.ImagePullResult
+	44, // 16: agent.v1.AgentMessage.container_logs_output:type_name -> agent.v1.ContainerLogsOutput
+	49, // 17: agent.v1.AgentMessage.container_exec_output:type_name -> agent.v1.ContainerExecOutput
+	51, // 18: agent.v1.AgentMessage.restart_container_result:type_name -> agent.v1.RestartContainerResult
+	53, // 19: agent.v1.AgentMessage.container_inspect_result:type_name -> agent.v1.ContainerInspectResult
+	55, // 20: agent.v1.AgentMessage.server_logs_output:type_name -> agent.v1.ServerLogsOutput
+	57, // 21: agent.v1.AgentMessage.server_cleanup_result:type_name -> agent.v1.ServerCleanupResult
+	39, // 22: agent.v1.AgentMessage.traffic_route_result:type_name -> agent.v1.TrafficRouteResult
 	9,  // 23: agent.v1.AgentMessage.metric_report:type_name -> agent.v1.MetricReport
-	6,  // 24: agent.v1.ControlMessage.exec_command:type_name -> agent.v1.ExecCommand
-	13, // 25: agent.v1.ControlMessage.file_transfer:type_name -> agent.v1.FileTransferRequest
-	14, // 26: agent.v1.ControlMessage.cert_rotation:type_name -> agent.v1.CertRotation
-	17, // 27: agent.v1.ControlMessage.provision_command:type_name -> agent.v1.ProvisionCommand
-	19, // 28: agent.v1.ControlMessage.ssh_key_install:type_name -> agent.v1.SSHKeyInstallCommand
-	21, // 29: agent.v1.ControlMessage.wireguard_keygen:type_name -> agent.v1.WireGuardKeyGenCommand
-	23, // 30: agent.v1.ControlMessage.wireguard_apply:type_name -> agent.v1.WireGuardApplyCommand
-	25, // 31: agent.v1.ControlMessage.wireguard_teardown:type_name -> agent.v1.WireGuardTeardownCommand
-	29, // 32: agent.v1.ControlMessage.dns_update_hosts:type_name -> agent.v1.DNSUpdateHostsCommand
-	31, // 33: agent.v1.ControlMessage.build_command:type_name -> agent.v1.BuildCommand
-	33, // 34: agent.v1.ControlMessage.deploy_command:type_name -> agent.v1.DeployCommand
-	39, // 35: agent.v1.ControlMessage.stop_container:type_name -> agent.v1.StopContainerCommand
-	43, // 36: agent.v1.ControlMessage.image_pull:type_name -> agent.v1.ImagePullCommand
-	41, // 37: agent.v1.ControlMessage.container_logs:type_name -> agent.v1.ContainerLogsCommand
-	45, // 38: agent.v1.ControlMessage.container_exec:type_name -> agent.v1.ContainerExecCommand
-	46, // 39: agent.v1.ControlMessage.container_exec_input:type_name -> agent.v1.ContainerExecInput
-	48, // 40: agent.v1.ControlMessage.restart_container:type_name -> agent.v1.RestartContainerCommand
-	50, // 41: agent.v1.ControlMessage.container_inspect:type_name -> agent.v1.ContainerInspectCommand
-	52, // 42: agent.v1.ControlMessage.server_logs:type_name -> agent.v1.ServerLogsCommand
-	54, // 43: agent.v1.ControlMessage.server_cleanup:type_name -> agent.v1.ServerCleanupCommand
-	35, // 44: agent.v1.ControlMessage.traffic_route:type_name -> agent.v1.TrafficRouteCommand
-	63, // 45: agent.v1.Heartbeat.timestamp:type_name -> google.protobuf.Timestamp
-	56, // 46: agent.v1.ExecCommand.env:type_name -> agent.v1.ExecCommand.EnvEntry
-	11, // 47: agent.v1.HealthReport.disks:type_name -> agent.v1.DiskInfo
-	10, // 48: agent.v1.MetricReport.containers:type_name -> agent.v1.ContainerMetric
-	57, // 49: agent.v1.ContainerMetric.labels:type_name -> agent.v1.ContainerMetric.LabelsEntry
-	0,  // 50: agent.v1.FileTransferRequest.direction:type_name -> agent.v1.FileTransferRequest.Direction
-	11, // 51: agent.v1.ResourceReport.disks:type_name -> agent.v1.DiskInfo
-	15, // 52: agent.v1.ResourceReport.network_interfaces:type_name -> agent.v1.NetworkInterface
-	28, // 53: agent.v1.MeshHealthReport.peers:type_name -> agent.v1.PeerHealthInfo
-	58, // 54: agent.v1.BuildCommand.build_args:type_name -> agent.v1.BuildCommand.BuildArgsEntry
-	59, // 55: agent.v1.DeployCommand.env:type_name -> agent.v1.DeployCommand.EnvEntry
-	34, // 56: agent.v1.DeployCommand.traefik:type_name -> agent.v1.TraefikConfig
-	60, // 57: agent.v1.DeployCommand.labels:type_name -> agent.v1.DeployCommand.LabelsEntry
-	36, // 58: agent.v1.TrafficRouteCommand.groups:type_name -> agent.v1.TrafficBackendGroup
-	61, // 59: agent.v1.ContainerInspectResult.env:type_name -> agent.v1.ContainerInspectResult.EnvEntry
-	62, // 60: agent.v1.ContainerInspectResult.labels:type_name -> agent.v1.ContainerInspectResult.LabelsEntry
-	3,  // 61: agent.v1.AgentService.Connect:input_type -> agent.v1.AgentMessage
-	1,  // 62: agent.v1.AgentService.Register:input_type -> agent.v1.RegisterRequest
-	4,  // 63: agent.v1.AgentService.Connect:output_type -> agent.v1.ControlMessage
-	2,  // 64: agent.v1.AgentService.Register:output_type -> agent.v1.RegisterResponse
-	63, // [63:65] is the sub-list for method output_type
-	61, // [61:63] is the sub-list for method input_type
-	61, // [61:61] is the sub-list for extension type_name
-	61, // [61:61] is the sub-list for extension extendee
-	0,  // [0:61] is the sub-list for field type_name
+	63, // 24: agent.v1.AgentMessage.volume_result:type_name -> agent.v1.VolumeResult
+	65, // 25: agent.v1.AgentMessage.database_alter_user_result:type_name -> agent.v1.DatabaseAlterUserResult
+	67, // 26: agent.v1.AgentMessage.database_query_result:type_name -> agent.v1.DatabaseQueryResult
+	71, // 27: agent.v1.AgentMessage.backup_result:type_name -> agent.v1.BackupResult
+	73, // 28: agent.v1.AgentMessage.restore_result:type_name -> agent.v1.RestoreResult
+	6,  // 29: agent.v1.ControlMessage.exec_command:type_name -> agent.v1.ExecCommand
+	13, // 30: agent.v1.ControlMessage.file_transfer:type_name -> agent.v1.FileTransferRequest
+	14, // 31: agent.v1.ControlMessage.cert_rotation:type_name -> agent.v1.CertRotation
+	17, // 32: agent.v1.ControlMessage.provision_command:type_name -> agent.v1.ProvisionCommand
+	19, // 33: agent.v1.ControlMessage.ssh_key_install:type_name -> agent.v1.SSHKeyInstallCommand
+	21, // 34: agent.v1.ControlMessage.wireguard_keygen:type_name -> agent.v1.WireGuardKeyGenCommand
+	23, // 35: agent.v1.ControlMessage.wireguard_apply:type_name -> agent.v1.WireGuardApplyCommand
+	25, // 36: agent.v1.ControlMessage.wireguard_teardown:type_name -> agent.v1.WireGuardTeardownCommand
+	29, // 37: agent.v1.ControlMessage.dns_update_hosts:type_name -> agent.v1.DNSUpdateHostsCommand
+	31, // 38: agent.v1.ControlMessage.build_command:type_name -> agent.v1.BuildCommand
+	33, // 39: agent.v1.ControlMessage.deploy_command:type_name -> agent.v1.DeployCommand
+	41, // 40: agent.v1.ControlMessage.stop_container:type_name -> agent.v1.StopContainerCommand
+	45, // 41: agent.v1.ControlMessage.image_pull:type_name -> agent.v1.ImagePullCommand
+	43, // 42: agent.v1.ControlMessage.container_logs:type_name -> agent.v1.ContainerLogsCommand
+	47, // 43: agent.v1.ControlMessage.container_exec:type_name -> agent.v1.ContainerExecCommand
+	48, // 44: agent.v1.ControlMessage.container_exec_input:type_name -> agent.v1.ContainerExecInput
+	50, // 45: agent.v1.ControlMessage.restart_container:type_name -> agent.v1.RestartContainerCommand
+	52, // 46: agent.v1.ControlMessage.container_inspect:type_name -> agent.v1.ContainerInspectCommand
+	54, // 47: agent.v1.ControlMessage.server_logs:type_name -> agent.v1.ServerLogsCommand
+	56, // 48: agent.v1.ControlMessage.server_cleanup:type_name -> agent.v1.ServerCleanupCommand
+	37, // 49: agent.v1.ControlMessage.traffic_route:type_name -> agent.v1.TrafficRouteCommand
+	58, // 50: agent.v1.ControlMessage.volume_create:type_name -> agent.v1.VolumeCreateCommand
+	59, // 51: agent.v1.ControlMessage.volume_delete:type_name -> agent.v1.VolumeDeleteCommand
+	60, // 52: agent.v1.ControlMessage.volume_move:type_name -> agent.v1.VolumeMoveCommand
+	61, // 53: agent.v1.ControlMessage.volume_snapshot:type_name -> agent.v1.VolumeSnapshotCommand
+	62, // 54: agent.v1.ControlMessage.volume_resize:type_name -> agent.v1.VolumeResizeCommand
+	64, // 55: agent.v1.ControlMessage.database_alter_user:type_name -> agent.v1.DatabaseAlterUserCommand
+	66, // 56: agent.v1.ControlMessage.database_query:type_name -> agent.v1.DatabaseQueryCommand
+	70, // 57: agent.v1.ControlMessage.backup:type_name -> agent.v1.BackupCommand
+	72, // 58: agent.v1.ControlMessage.restore:type_name -> agent.v1.RestoreCommand
+	82, // 59: agent.v1.Heartbeat.timestamp:type_name -> google.protobuf.Timestamp
+	74, // 60: agent.v1.ExecCommand.env:type_name -> agent.v1.ExecCommand.EnvEntry
+	11, // 61: agent.v1.HealthReport.disks:type_name -> agent.v1.DiskInfo
+	10, // 62: agent.v1.MetricReport.containers:type_name -> agent.v1.ContainerMetric
+	75, // 63: agent.v1.ContainerMetric.labels:type_name -> agent.v1.ContainerMetric.LabelsEntry
+	0,  // 64: agent.v1.FileTransferRequest.direction:type_name -> agent.v1.FileTransferRequest.Direction
+	11, // 65: agent.v1.ResourceReport.disks:type_name -> agent.v1.DiskInfo
+	15, // 66: agent.v1.ResourceReport.network_interfaces:type_name -> agent.v1.NetworkInterface
+	28, // 67: agent.v1.MeshHealthReport.peers:type_name -> agent.v1.PeerHealthInfo
+	76, // 68: agent.v1.BuildCommand.build_args:type_name -> agent.v1.BuildCommand.BuildArgsEntry
+	77, // 69: agent.v1.DeployCommand.env:type_name -> agent.v1.DeployCommand.EnvEntry
+	36, // 70: agent.v1.DeployCommand.traefik:type_name -> agent.v1.TraefikConfig
+	78, // 71: agent.v1.DeployCommand.labels:type_name -> agent.v1.DeployCommand.LabelsEntry
+	34, // 72: agent.v1.DeployCommand.volume_mounts:type_name -> agent.v1.VolumeMount
+	35, // 73: agent.v1.DeployCommand.exec_health_check:type_name -> agent.v1.HealthCheckSpec
+	38, // 74: agent.v1.TrafficRouteCommand.groups:type_name -> agent.v1.TrafficBackendGroup
+	79, // 75: agent.v1.ContainerInspectResult.env:type_name -> agent.v1.ContainerInspectResult.EnvEntry
+	80, // 76: agent.v1.ContainerInspectResult.labels:type_name -> agent.v1.ContainerInspectResult.LabelsEntry
+	81, // 77: agent.v1.DatabaseQueryCommand.params:type_name -> agent.v1.DatabaseQueryCommand.ParamsEntry
+	68, // 78: agent.v1.DatabaseQueryResult.columns:type_name -> agent.v1.ColumnMeta
+	69, // 79: agent.v1.DatabaseQueryResult.rows:type_name -> agent.v1.QueryRow
+	3,  // 80: agent.v1.AgentService.Connect:input_type -> agent.v1.AgentMessage
+	1,  // 81: agent.v1.AgentService.Register:input_type -> agent.v1.RegisterRequest
+	4,  // 82: agent.v1.AgentService.Connect:output_type -> agent.v1.ControlMessage
+	2,  // 83: agent.v1.AgentService.Register:output_type -> agent.v1.RegisterResponse
+	82, // [82:84] is the sub-list for method output_type
+	80, // [80:82] is the sub-list for method input_type
+	80, // [80:80] is the sub-list for extension type_name
+	80, // [80:80] is the sub-list for extension extendee
+	0,  // [0:80] is the sub-list for field type_name
 }
 
 func init() { file_agent_v1_agent_proto_init() }
@@ -5287,6 +7265,11 @@ func file_agent_v1_agent_proto_init() {
 		(*AgentMessage_ServerCleanupResult)(nil),
 		(*AgentMessage_TrafficRouteResult)(nil),
 		(*AgentMessage_MetricReport)(nil),
+		(*AgentMessage_VolumeResult)(nil),
+		(*AgentMessage_DatabaseAlterUserResult)(nil),
+		(*AgentMessage_DatabaseQueryResult)(nil),
+		(*AgentMessage_BackupResult)(nil),
+		(*AgentMessage_RestoreResult)(nil),
 	}
 	file_agent_v1_agent_proto_msgTypes[3].OneofWrappers = []any{
 		(*ControlMessage_ExecCommand)(nil),
@@ -5310,6 +7293,15 @@ func file_agent_v1_agent_proto_init() {
 		(*ControlMessage_ServerLogs)(nil),
 		(*ControlMessage_ServerCleanup)(nil),
 		(*ControlMessage_TrafficRoute)(nil),
+		(*ControlMessage_VolumeCreate)(nil),
+		(*ControlMessage_VolumeDelete)(nil),
+		(*ControlMessage_VolumeMove)(nil),
+		(*ControlMessage_VolumeSnapshot)(nil),
+		(*ControlMessage_VolumeResize)(nil),
+		(*ControlMessage_DatabaseAlterUser)(nil),
+		(*ControlMessage_DatabaseQuery)(nil),
+		(*ControlMessage_Backup)(nil),
+		(*ControlMessage_Restore)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -5317,7 +7309,7 @@ func file_agent_v1_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_agent_v1_agent_proto_rawDesc), len(file_agent_v1_agent_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   62,
+			NumMessages:   81,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -16,25 +16,29 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/othmanhaba/nixway-core/internal/agent"
 	"github.com/othmanhaba/nixway-core/internal/api"
 	appsvc "github.com/othmanhaba/nixway-core/internal/app"
 	"github.com/othmanhaba/nixway-core/internal/audit"
 	"github.com/othmanhaba/nixway-core/internal/auth"
-	"github.com/othmanhaba/nixway-core/internal/agent"
 	"github.com/othmanhaba/nixway-core/internal/build"
 	"github.com/othmanhaba/nixway-core/internal/cluster"
 	"github.com/othmanhaba/nixway-core/internal/config"
 	"github.com/othmanhaba/nixway-core/internal/containerlog"
+	"github.com/othmanhaba/nixway-core/internal/database"
+	"github.com/othmanhaba/nixway-core/internal/db"
 	"github.com/othmanhaba/nixway-core/internal/deploy"
+	"github.com/othmanhaba/nixway-core/internal/email"
 	githubsvc "github.com/othmanhaba/nixway-core/internal/github"
 	"github.com/othmanhaba/nixway-core/internal/mesh"
-	"github.com/othmanhaba/nixway-core/internal/db"
-	"github.com/othmanhaba/nixway-core/internal/email"
+	"github.com/othmanhaba/nixway-core/internal/observability"
 	"github.com/othmanhaba/nixway-core/internal/project"
 	"github.com/othmanhaba/nixway-core/internal/provisioner"
-	"github.com/othmanhaba/nixway-core/internal/secret"
 	internalredis "github.com/othmanhaba/nixway-core/internal/redis"
+	"github.com/othmanhaba/nixway-core/internal/secret"
 	"github.com/othmanhaba/nixway-core/internal/server"
+	"github.com/othmanhaba/nixway-core/internal/template"
+	"github.com/othmanhaba/nixway-core/internal/volume"
 	"github.com/redis/go-redis/v9"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 	"github.com/riverqueue/river/rivermigrate"
@@ -57,6 +61,7 @@ type TestEnv struct {
 	Logger      *slog.Logger
 	Config      *config.Config
 	MasterKey   [32]byte
+	DatabaseSvc *database.Service
 	transport   http.RoundTripper // TLS transport that trusts the test server cert
 }
 
@@ -147,6 +152,23 @@ func SetupTestEnv(t *testing.T) *TestEnv {
 	_, err = pool.Exec(ctx, upSQL6)
 	require.NoError(t, err)
 
+	// Apply migrations 7..12 (runtime ops, scaling, autoscaling, traffic,
+	// observability, volumes+databases). Iterating keeps this list short
+	// and lets us add new ones without editing helpers each time.
+	for _, fname := range []string{
+		"00007_runtime_operations.sql",
+		"00008_scaling_load_balancing.sql",
+		"00009_autoscaling_health_lb.sql",
+		"00010_traffic_routing.sql",
+		"00011_observability.sql",
+		"00012_volumes_databases.sql",
+	} {
+		raw, err := os.ReadFile("../../sql/migrations/" + fname)
+		require.NoError(t, err, "read migration %s", fname)
+		_, err = pool.Exec(ctx, extractGooseUp(string(raw)))
+		require.NoError(t, err, "apply migration %s", fname)
+	}
+
 	// --- Run River migrations ---
 	riverMigrator, err := rivermigrate.New(riverpgxv5.New(pool), nil)
 	require.NoError(t, err)
@@ -168,7 +190,7 @@ func SetupTestEnv(t *testing.T) *TestEnv {
 	auditWriter := audit.NewWriter(queries)
 
 	cfg := &config.Config{
-		Server: config.ServerConfig{Host: "0.0.0.0", Port: 8080},
+		Server:   config.ServerConfig{Host: "0.0.0.0", Port: 8080},
 		Database: config.DatabaseConfig{URL: pgURL},
 		Redis:    config.RedisConfig{URL: redisURL},
 		Auth: config.AuthConfig{
@@ -218,7 +240,19 @@ func SetupTestEnv(t *testing.T) *TestEnv {
 	// --- Create API router and test server ---
 	// Use TLS server so that Secure cookies are preserved by the cookie jar.
 	containerLogSvc := containerlog.NewService(queries, logger)
-	router := api.NewRouter(queries, sessionMgr, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc, provisionSvc, clusterSvc, connMgr, meshMgr, githubService, secretSvc, projectSvc, appService, buildSvc, deploySvc, containerLogSvc)
+	observabilitySvc := observability.NewService(
+		queries,
+		logger,
+		cfg.Observability.VictoriaMetricsURL,
+		cfg.Observability.VMAgentConfigPath,
+		cfg.Observability.VMAgentURL,
+	)
+	templateRegistry := template.NewRegistry()
+	volumeSvc := volume.NewService(queries, connMgr, logger)
+	databaseSvc := database.NewService(queries, volumeSvc, templateRegistry, secretSvc, connMgr, meshMgr, nil, logger)
+	deploySvc.SetDatabaseLinkResolver(databaseSvc)
+	databaseSvc.SetRedeployTrigger(deploySvc)
+	router := api.NewRouter(queries, sessionMgr, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc, provisionSvc, clusterSvc, connMgr, meshMgr, githubService, secretSvc, projectSvc, appService, buildSvc, deploySvc, containerLogSvc, observabilitySvc, templateRegistry, volumeSvc, nil, databaseSvc)
 	ts := httptest.NewTLSServer(router)
 	t.Cleanup(func() {
 		ts.Close()
@@ -248,6 +282,7 @@ func SetupTestEnv(t *testing.T) *TestEnv {
 		Logger:      logger,
 		Config:      cfg,
 		MasterKey:   masterKey,
+		DatabaseSvc: databaseSvc,
 		transport:   transport,
 	}
 }
@@ -421,7 +456,6 @@ func indexOf(s, substr string) int {
 	}
 	return -1
 }
-
 
 // SignupAndLogin is a convenience helper that signs up a user, verifies email,
 // and logs in, returning the user ID. Uses the provided HTTP client.

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -253,6 +254,32 @@ func (m *Manager) ensurePeerRecords(ctx context.Context, clusterID uuid.UUID, me
 	}
 }
 
+// ExtraRecordProvider is implemented by anything that contributes hostname/IP
+// pairs to a cluster's hosts file (e.g. the database service contributes
+// `<db>.<project>.cluster.internal` entries). Returning an empty slice is fine.
+type ExtraRecordProvider interface {
+	HostsForCluster(ctx context.Context, clusterID uuid.UUID) ([]dns.Record, error)
+}
+
+// extraProviders are consulted on every DNS push to enrich the hosts file.
+// The provider list is set once at startup via RegisterExtraProvider.
+var (
+	extraProvidersMu sync.RWMutex
+	extraProviders   []ExtraRecordProvider
+)
+
+// RegisterExtraProvider adds a source of extra hosts records that will be
+// included on every DNS push for any cluster. Safe to call before/after the
+// manager exists; the manager reads the slice on each push.
+func (m *Manager) RegisterExtraProvider(p ExtraRecordProvider) {
+	if p == nil {
+		return
+	}
+	extraProvidersMu.Lock()
+	extraProviders = append(extraProviders, p)
+	extraProvidersMu.Unlock()
+}
+
 // UpdateDNSForCluster generates and pushes DNS config to all cluster members.
 func (m *Manager) UpdateDNSForCluster(ctx context.Context, clusterID uuid.UUID, clusterSlug string, memberInfos []MemberInfo) {
 	m.publish(ctx, clusterID, "dns_updating", "Pushing DNS config to cluster members...", nil)
@@ -266,6 +293,7 @@ func (m *Manager) UpdateDNSForCluster(ctx context.Context, clusterID uuid.UUID, 
 	}
 
 	records := dns.BuildRecords(clusterSlug, dnsMembers)
+	records = append(records, m.collectExtraRecords(ctx, clusterID)...)
 	hostsContent := dns.GenerateHostsFile(records)
 	corefileContent := dns.GenerateCorefile(clusterSlug)
 
@@ -288,4 +316,59 @@ func (m *Manager) UpdateDNSForCluster(ctx context.Context, clusterID uuid.UUID, 
 	}
 
 	m.publish(ctx, clusterID, "dns_updated", "DNS config pushed to all members", nil)
+}
+
+// PushDNS regenerates and pushes the hosts file for a cluster, including any
+// records contributed by registered ExtraRecordProviders. Used by services
+// that mutate hosts entries outside the mesh regen path (e.g. database
+// provision/delete pushing DB DNS records).
+func (m *Manager) PushDNS(ctx context.Context, clusterID uuid.UUID) error {
+	cluster, err := m.queries.GetClusterByIDAnyTeam(ctx, clusterID)
+	if err != nil {
+		return fmt.Errorf("get cluster: %w", err)
+	}
+	members, err := m.queries.GetClusterMembersForMesh(ctx, clusterID)
+	if err != nil {
+		return fmt.Errorf("get cluster members: %w", err)
+	}
+
+	infos := make([]MemberInfo, 0, len(members))
+	for _, r := range members {
+		agentID := ""
+		if r.AgentID != nil {
+			agentID = *r.AgentID
+		}
+		infos = append(infos, MemberInfo{
+			MemberID:    r.ID.String(),
+			ServerName:  r.ServerName,
+			AgentID:     agentID,
+			WireGuardIP: r.WireguardIp.String(),
+			PublicKey:   r.WireguardPublicKey,
+			Endpoint:    r.WireguardEndpoint,
+			ListenPort:  int(r.ListenPort),
+		})
+	}
+
+	m.UpdateDNSForCluster(ctx, clusterID, cluster.Slug, infos)
+	return nil
+}
+
+// collectExtraRecords runs every registered provider and concatenates their
+// records. Providers that error are logged and skipped — DNS push must not
+// fail just because one optional source can't supply records.
+func (m *Manager) collectExtraRecords(ctx context.Context, clusterID uuid.UUID) []dns.Record {
+	extraProvidersMu.RLock()
+	providers := append([]ExtraRecordProvider(nil), extraProviders...)
+	extraProvidersMu.RUnlock()
+
+	var out []dns.Record
+	for _, p := range providers {
+		recs, err := p.HostsForCluster(ctx, clusterID)
+		if err != nil {
+			m.logger.Warn("extra DNS provider failed", "cluster_id", clusterID, "error", err)
+			continue
+		}
+		out = append(out, recs...)
+	}
+	return out
 }

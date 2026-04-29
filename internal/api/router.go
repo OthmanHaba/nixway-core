@@ -17,17 +17,21 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/cluster"
 	"github.com/othmanhaba/nixway-core/internal/config"
 	"github.com/othmanhaba/nixway-core/internal/containerlog"
+	"github.com/othmanhaba/nixway-core/internal/database"
 	"github.com/othmanhaba/nixway-core/internal/db"
 	"github.com/othmanhaba/nixway-core/internal/deploy"
 	"github.com/othmanhaba/nixway-core/internal/email"
 	githubsvc "github.com/othmanhaba/nixway-core/internal/github"
 	"github.com/othmanhaba/nixway-core/internal/mesh"
 	"github.com/othmanhaba/nixway-core/internal/observability"
+	"github.com/othmanhaba/nixway-core/internal/platform"
 	"github.com/othmanhaba/nixway-core/internal/project"
 	"github.com/othmanhaba/nixway-core/internal/provisioner"
 	"github.com/othmanhaba/nixway-core/internal/registry"
 	"github.com/othmanhaba/nixway-core/internal/secret"
 	"github.com/othmanhaba/nixway-core/internal/server"
+	"github.com/othmanhaba/nixway-core/internal/template"
+	"github.com/othmanhaba/nixway-core/internal/volume"
 )
 
 func NewRouter(
@@ -52,6 +56,10 @@ func NewRouter(
 	deploySvc *deploy.Service,
 	containerLogSvc *containerlog.Service,
 	observabilitySvc *observability.Service,
+	templateRegistry *template.Registry,
+	volumeSvc *volume.Service,
+	minioClient *platform.MinIOClient,
+	databaseSvc *database.Service,
 ) http.Handler {
 	authH := handler.NewAuthHandler(queries, sessions, emailSender, auditWriter, cfg, logger)
 	teamH := handler.NewTeamHandler(queries, emailSender, auditWriter, cfg, logger)
@@ -75,6 +83,11 @@ func NewRouter(
 	deployH := handler.NewDeployHandler(queries, deploySvc, connMgr, redisClient, containerLogSvc, logger)
 	containerTermH := handler.NewContainerTerminalHandler(queries, connMgr, redisClient, logger)
 	observabilityH := handler.NewObservabilityHandler(queries, observabilitySvc, logger)
+	templateH := handler.NewTemplateHandler(templateRegistry, logger)
+	volumeH := handler.NewVolumeHandler(queries, volumeSvc, logger)
+	platformStorageH := handler.NewPlatformStorageHandler(minioClient, cfg.PlatformStorage)
+	databaseH := handler.NewDatabaseHandler(queries, databaseSvc, redisClient, auditWriter, logger)
+	dbToolingH := handler.NewDBToolingHandler(queries, databaseSvc, connMgr, redisClient, templateRegistry, auditWriter, logger)
 
 	mux := http.NewServeMux()
 
@@ -277,8 +290,68 @@ func NewRouter(
 	protected.HandleFunc("GET /api/v1/teams/{id}/clusters/{clusterId}/observability/scrape-config", observabilityH.ClusterScrapeConfig)
 	protected.HandleFunc("POST /api/v1/teams/{id}/clusters/{clusterId}/observability/scrape-config/sync", observabilityH.SyncClusterScrapeConfig)
 
+	// Service templates (platform-wide catalog, read-only)
+	protected.HandleFunc("GET /api/v1/templates", templateH.List)
+	protected.HandleFunc("GET /api/v1/templates/{slug}", templateH.Get)
+	protected.HandleFunc("GET /api/v1/templates/{slug}/versions", templateH.ListVersions)
+
+	// Volumes
+	protected.HandleFunc("POST /api/v1/teams/{id}/volumes", volumeH.Create)
+	protected.HandleFunc("GET /api/v1/teams/{id}/volumes", volumeH.List)
+	protected.HandleFunc("GET /api/v1/teams/{id}/volumes/{volumeId}", volumeH.Get)
+	protected.HandleFunc("DELETE /api/v1/teams/{id}/volumes/{volumeId}", volumeH.Delete)
+	protected.HandleFunc("POST /api/v1/teams/{id}/volumes/{volumeId}/attach", volumeH.Attach)
+	protected.HandleFunc("POST /api/v1/teams/{id}/volumes/{volumeId}/detach", volumeH.Detach)
+	protected.HandleFunc("POST /api/v1/teams/{id}/volumes/{volumeId}/move", volumeH.Move)
+	protected.HandleFunc("POST /api/v1/teams/{id}/volumes/{volumeId}/snapshot", volumeH.Snapshot)
+	protected.HandleFunc("POST /api/v1/teams/{id}/volumes/{volumeId}/resize", volumeH.Resize)
+	protected.HandleFunc("GET /api/v1/teams/{id}/volumes/{volumeId}/snapshots", volumeH.ListSnapshots)
+
+	// Databases (project-scoped, managed services)
+	protected.HandleFunc("POST /api/v1/projects/{projectId}/databases", databaseH.Provision)
+	protected.HandleFunc("GET /api/v1/projects/{projectId}/databases", databaseH.List)
+	protected.HandleFunc("GET /api/v1/projects/{projectId}/databases/{databaseId}", databaseH.Get)
+	protected.HandleFunc("GET /api/v1/projects/{projectId}/databases/{databaseId}/provision-stream", databaseH.StreamProvisionLogs)
+	protected.HandleFunc("DELETE /api/v1/projects/{projectId}/databases/{databaseId}", databaseH.Delete)
+	protected.HandleFunc("POST /api/v1/projects/{projectId}/databases/{databaseId}/stop", databaseH.Stop)
+	protected.HandleFunc("POST /api/v1/projects/{projectId}/databases/{databaseId}/start", databaseH.Start)
+	protected.HandleFunc("POST /api/v1/projects/{projectId}/databases/{databaseId}/rebind-volume", databaseH.RebindVolume)
+	protected.HandleFunc("POST /api/v1/projects/{projectId}/databases/{databaseId}/links", databaseH.LinkDatabase)
+	protected.HandleFunc("GET /api/v1/projects/{projectId}/databases/{databaseId}/links", databaseH.ListLinks)
+	protected.HandleFunc("DELETE /api/v1/projects/{projectId}/databases/{databaseId}/links/{linkId}", databaseH.UnlinkDatabase)
+	protected.HandleFunc("POST /api/v1/projects/{projectId}/databases/{databaseId}/rotate", databaseH.RotateCredentials)
+	protected.HandleFunc("GET /api/v1/projects/{projectId}/databases/{databaseId}/rotations", databaseH.ListRotations)
+
+	// Database backups + restore (Phase 8.7)
+	protected.HandleFunc("POST /api/v1/projects/{projectId}/databases/{databaseId}/backups", databaseH.CreateBackup)
+	protected.HandleFunc("GET /api/v1/projects/{projectId}/databases/{databaseId}/backups", databaseH.ListBackups)
+	protected.HandleFunc("GET /api/v1/projects/{projectId}/databases/{databaseId}/backups/{backupId}", databaseH.GetBackup)
+	protected.HandleFunc("DELETE /api/v1/projects/{projectId}/databases/{databaseId}/backups/{backupId}", databaseH.DeleteBackup)
+	protected.HandleFunc("POST /api/v1/projects/{projectId}/databases/{databaseId}/restore", databaseH.Restore)
+
+	// Database tooling (terminal, table browser, query runner, redis/mongo inspector, saved queries)
+	protected.HandleFunc("GET /api/v1/databases/{databaseId}", databaseH.GetByID)
+	protected.HandleFunc("GET /api/v1/databases/{databaseId}/terminal", dbToolingH.Terminal)
+	protected.HandleFunc("GET /api/v1/databases/{databaseId}/schemas", dbToolingH.ListSchemas)
+	protected.HandleFunc("GET /api/v1/databases/{databaseId}/schemas/{schema}/tables", dbToolingH.ListTables)
+	protected.HandleFunc("GET /api/v1/databases/{databaseId}/schemas/{schema}/tables/{table}/rows", dbToolingH.GetTableRows)
+	protected.HandleFunc("POST /api/v1/databases/{databaseId}/query", dbToolingH.RunQuery)
+	protected.HandleFunc("GET /api/v1/databases/{databaseId}/query-history", dbToolingH.ListQueryHistory)
+	protected.HandleFunc("GET /api/v1/databases/{databaseId}/redis/keys", dbToolingH.RedisListKeys)
+	protected.HandleFunc("GET /api/v1/databases/{databaseId}/redis/key", dbToolingH.RedisGetKey)
+	protected.HandleFunc("GET /api/v1/databases/{databaseId}/redis/info", dbToolingH.RedisInfo)
+	protected.HandleFunc("GET /api/v1/databases/{databaseId}/redis/config", dbToolingH.RedisConfig)
+	protected.HandleFunc("GET /api/v1/databases/{databaseId}/mongo/collections", dbToolingH.MongoListCollections)
+	protected.HandleFunc("GET /api/v1/databases/{databaseId}/mongo/collections/{collection}/find", dbToolingH.MongoFind)
+	protected.HandleFunc("GET /api/v1/databases/{databaseId}/mongo/collections/{collection}/doc", dbToolingH.MongoGetDocument)
+	protected.HandleFunc("POST /api/v1/projects/{projectId}/saved-queries", dbToolingH.SaveQuery)
+	protected.HandleFunc("GET /api/v1/projects/{projectId}/saved-queries", dbToolingH.ListSavedQueriesByProject)
+
 	// Discovery
 	protected.HandleFunc("POST /api/v1/discover", discoverH.Discover)
+
+	// Platform admin (read-only operator endpoints)
+	protected.HandleFunc("GET /api/v1/admin/platform/storage/status", platformStorageH.Status)
 
 	// Mount protected routes behind auth middleware
 	authMW := middleware.Auth(queries, sessions)
@@ -290,6 +363,10 @@ func NewRouter(
 	mux.Handle("/api/v1/projects/", authMW(protected))
 	mux.Handle("/api/v1/apps/", authMW(protected))
 	mux.Handle("/api/v1/discover", authMW(protected))
+	mux.Handle("/api/v1/templates", authMW(protected))
+	mux.Handle("/api/v1/templates/", authMW(protected))
+	mux.Handle("/api/v1/admin/", authMW(protected))
+	mux.Handle("/api/v1/databases/", authMW(protected))
 
 	// Health check
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {

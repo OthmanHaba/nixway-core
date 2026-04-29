@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '@/lib/api'
@@ -16,7 +16,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { Loader2, Plus, Layers, GitBranch, Box } from 'lucide-react'
+import { Loader2, Plus, Layers, GitBranch, Box, Database as DatabaseIcon } from 'lucide-react'
 
 export const Route = createFileRoute('/_app/projects_/$teamId/$projectId')({
   component: ProjectDetailPage,
@@ -238,7 +238,14 @@ function ProjectDetailPage() {
           <h1 className="text-2xl font-bold">{project.name}</h1>
           <p className="text-muted-foreground text-sm">{project.description || project.slug}</p>
         </div>
-        {statusBadge(project.status)}
+        <div className="flex items-center gap-3">
+          <Button asChild variant="outline" size="sm">
+            <Link to="/databases/$teamId/$projectId" params={{ teamId, projectId }}>
+              <DatabaseIcon className="mr-2 h-4 w-4" /> Databases
+            </Link>
+          </Button>
+          {statusBadge(project.status)}
+        </div>
       </div>
 
       {/* Project info */}

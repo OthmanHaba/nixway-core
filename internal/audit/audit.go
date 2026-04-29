@@ -30,6 +30,121 @@ type Entry struct {
 	IPAddress    netip.Addr
 }
 
+// Action constants for cross-package callers. Existing callers still pass
+// inline strings; keep both styles working.
+const (
+	ActionDatabaseCredentialRotated = "database_credential_rotated"
+	ActionDatabaseQueryExecuted     = "database_query_executed"
+	ActionDatabaseBackupCreated     = "database_backup_created"
+	ActionDatabaseBackupDeleted     = "database_backup_deleted"
+	ActionDatabaseRestored          = "database_restored"
+)
+
+// WriteDatabaseBackupCreated records a manual backup trigger. Best-effort.
+func (w *Writer) WriteDatabaseBackupCreated(ctx context.Context, teamID, actorID, databaseID, backupID uuid.UUID) error {
+	return w.Log(ctx, Entry{
+		TeamID:       &teamID,
+		ActorID:      &actorID,
+		ActorType:    "user",
+		Action:       ActionDatabaseBackupCreated,
+		ResourceType: "database",
+		ResourceID:   &databaseID,
+		Metadata: map[string]any{
+			"backup_id": backupID.String(),
+		},
+	})
+}
+
+// WriteDatabaseBackupDeleted records a backup deletion. Best-effort.
+func (w *Writer) WriteDatabaseBackupDeleted(ctx context.Context, teamID, actorID, databaseID, backupID uuid.UUID) error {
+	return w.Log(ctx, Entry{
+		TeamID:       &teamID,
+		ActorID:      &actorID,
+		ActorType:    "user",
+		Action:       ActionDatabaseBackupDeleted,
+		ResourceType: "database",
+		ResourceID:   &databaseID,
+		Metadata: map[string]any{
+			"backup_id": backupID.String(),
+		},
+	})
+}
+
+// WriteDatabaseRestored records a restore from a backup. The targetMode is
+// "in_place" or "new". When new, the targetDatabaseID may differ from the
+// source databaseID. Best-effort.
+func (w *Writer) WriteDatabaseRestored(ctx context.Context, teamID, actorID, databaseID, backupID, targetDatabaseID uuid.UUID, targetMode string) error {
+	return w.Log(ctx, Entry{
+		TeamID:       &teamID,
+		ActorID:      &actorID,
+		ActorType:    "user",
+		Action:       ActionDatabaseRestored,
+		ResourceType: "database",
+		ResourceID:   &databaseID,
+		Metadata: map[string]any{
+			"backup_id":          backupID.String(),
+			"target_database_id": targetDatabaseID.String(),
+			"target_mode":        targetMode,
+		},
+	})
+}
+
+// WriteDatabaseCredentialRotated records a successful (or partial) rotation
+// of a database's app-user credentials. Best-effort — caller logs but does
+// not abort on failure to avoid losing the rotation success itself.
+func (w *Writer) WriteDatabaseCredentialRotated(ctx context.Context, teamID, actorID, databaseID uuid.UUID, linkedAppCount int) error {
+	return w.Log(ctx, Entry{
+		TeamID:       &teamID,
+		ActorID:      &actorID,
+		ActorType:    "user",
+		Action:       ActionDatabaseCredentialRotated,
+		ResourceType: "database",
+		ResourceID:   &databaseID,
+		Metadata: map[string]any{
+			"linked_apps_restarted": linkedAppCount,
+		},
+	})
+}
+
+// WriteDatabaseQueryExecuted records every query (read or write) the
+// tooling UI runs. The query body is truncated to 500 chars in the audit
+// metadata; the full query text lives in database_query_history. Best-
+// effort — failure is logged by the caller but does not block the response.
+func (w *Writer) WriteDatabaseQueryExecuted(
+	ctx context.Context,
+	teamID, actorID, databaseID uuid.UUID,
+	query string,
+	writeMode bool,
+	rowCount int,
+	executionTimeMS int64,
+	success bool,
+	queryError string,
+) error {
+	q := query
+	if len(q) > 500 {
+		q = q[:500] + "...(truncated)"
+	}
+	meta := map[string]any{
+		"query":             q,
+		"write_mode":        writeMode,
+		"row_count":         rowCount,
+		"execution_time_ms": executionTimeMS,
+		"success":           success,
+	}
+	if queryError != "" {
+		meta["error"] = queryError
+	}
+	return w.Log(ctx, Entry{
+		TeamID:       &teamID,
+		ActorID:      &actorID,
+		ActorType:    "user",
+		Action:       ActionDatabaseQueryExecuted,
+		ResourceType: "database",
+		ResourceID:   &databaseID,
+		Metadata:     meta,
+	})
+}
+
 func (w *Writer) Log(ctx context.Context, e Entry) error {
 	var metadataJSON json.RawMessage
 	if e.Metadata != nil {

@@ -41,6 +41,12 @@ func main() {
 	logger.Info("starting agent", "id", agentID, "server", *server)
 	StartMetricsServer(ctx, agentID, *metricsListen, *metricsPath, logger)
 
+	// Re-mount any loopback-backed volumes that exist on disk. Containers
+	// with `--restart unless-stopped` may have been brought back by Docker
+	// before the agent could mount their backing image; this closes that
+	// gap on every agent boot.
+	reconcileVolumeMounts(ctx, logger)
+
 	for {
 		stream, err := client.ConnectWithRetry(ctx)
 		if err != nil {
@@ -210,6 +216,61 @@ func receiveLoop(
 				"app", p.TrafficRoute.AppSlug,
 			)
 			go HandleTrafficRouteCommand(ctx, p.TrafficRoute, stream, logger)
+
+		case *agentv1.ControlMessage_VolumeCreate:
+			logger.Info("volume create command received", "volume_id", p.VolumeCreate.VolumeId)
+			go HandleVolumeCreate(ctx, p.VolumeCreate, stream, logger)
+
+		case *agentv1.ControlMessage_VolumeDelete:
+			logger.Info("volume delete command received", "volume_id", p.VolumeDelete.VolumeId)
+			go HandleVolumeDelete(ctx, p.VolumeDelete, stream, logger)
+
+		case *agentv1.ControlMessage_VolumeMove:
+			logger.Info("volume move command received", "volume_id", p.VolumeMove.VolumeId, "target", p.VolumeMove.TargetWireguardIp)
+			go HandleVolumeMove(ctx, p.VolumeMove, stream, logger)
+
+		case *agentv1.ControlMessage_VolumeSnapshot:
+			logger.Info("volume snapshot command received", "volume_id", p.VolumeSnapshot.VolumeId)
+			go HandleVolumeSnapshot(ctx, p.VolumeSnapshot, stream, logger)
+
+		case *agentv1.ControlMessage_VolumeResize:
+			logger.Info("volume resize command received", "volume_id", p.VolumeResize.VolumeId)
+			go HandleVolumeResize(ctx, p.VolumeResize, stream, logger)
+
+		case *agentv1.ControlMessage_DatabaseAlterUser:
+			logger.Info("database alter user command received",
+				"database_id", p.DatabaseAlterUser.DatabaseId,
+				"container", p.DatabaseAlterUser.ContainerName,
+				"db_type", p.DatabaseAlterUser.DatabaseType,
+			)
+			go HandleDatabaseAlterUser(ctx, p.DatabaseAlterUser, stream, logger)
+
+		case *agentv1.ControlMessage_DatabaseQuery:
+			logger.Info("database query command received",
+				"database_id", p.DatabaseQuery.DatabaseId,
+				"db_type", p.DatabaseQuery.DatabaseType,
+				"operation", p.DatabaseQuery.Operation,
+				"write_mode", p.DatabaseQuery.WriteMode,
+			)
+			go HandleDatabaseQuery(ctx, p.DatabaseQuery, stream, logger)
+
+		case *agentv1.ControlMessage_Backup:
+			logger.Info("backup command received",
+				"backup_id", p.Backup.BackupId,
+				"database_id", p.Backup.DatabaseId,
+				"container", p.Backup.ContainerName,
+				"tool", p.Backup.Tool,
+			)
+			go HandleBackup(ctx, p.Backup, stream, logger)
+
+		case *agentv1.ControlMessage_Restore:
+			logger.Info("restore command received",
+				"backup_id", p.Restore.BackupId,
+				"database_id", p.Restore.DatabaseId,
+				"container", p.Restore.ContainerName,
+				"tool", p.Restore.Tool,
+			)
+			go HandleRestore(ctx, p.Restore, stream, logger)
 
 		default:
 			logger.Warn("unknown control message payload")

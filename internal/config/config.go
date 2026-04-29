@@ -11,17 +11,18 @@ import (
 )
 
 type Config struct {
-	Server        ServerConfig
-	Database      DatabaseConfig
-	Redis         RedisConfig
-	Auth          AuthConfig
-	Email         EmailConfig
-	Crypto        CryptoConfig
-	Cluster       ClusterConfig
-	GitHub        GitHubConfig
-	Webhook       WebhookConfig
-	Domain        DomainConfig
-	Observability ObservabilityConfig
+	Server          ServerConfig
+	Database        DatabaseConfig
+	Redis           RedisConfig
+	Auth            AuthConfig
+	Email           EmailConfig
+	Crypto          CryptoConfig
+	Cluster         ClusterConfig
+	GitHub          GitHubConfig
+	Webhook         WebhookConfig
+	Domain          DomainConfig
+	Observability   ObservabilityConfig
+	PlatformStorage PlatformStorageConfig
 }
 
 type ServerConfig struct {
@@ -86,6 +87,16 @@ type ObservabilityConfig struct {
 	VictoriaMetricsURL string
 	VMAgentConfigPath  string
 	VMAgentURL         string
+}
+
+type PlatformStorageConfig struct {
+	Endpoint  string // e.g. "http://nw-platform-minio:9000" or external S3/R2 endpoint
+	AccessKey string // platform-managed MinIO root user, or user-provided S3 key
+	SecretKey string
+	Bucket    string // default "nixway-backups"
+	Region    string // for S3/R2 compat; "us-east-1" default
+	UseSSL    bool   // default false for local MinIO, true for S3/R2
+	Provider  string // "minio" (platform), "s3", "r2", "custom"
 }
 
 func Load() (*Config, error) {
@@ -156,6 +167,15 @@ func Load() (*Config, error) {
 	v.SetDefault("observability.victoria_metrics_url", "http://localhost:8428")
 	v.SetDefault("observability.vmagent_config_path", "configs/vmagent.yml")
 	v.SetDefault("observability.vmagent_url", "http://localhost:8429")
+
+	// Platform storage defaults (MinIO / S3 / R2)
+	v.SetDefault("platformstorage.endpoint", "http://localhost:9000")
+	v.SetDefault("platformstorage.bucket", "nixway-backups")
+	v.SetDefault("platformstorage.region", "us-east-1")
+	v.SetDefault("platformstorage.usessl", false)
+	v.SetDefault("platformstorage.provider", "minio")
+	v.SetDefault("platformstorage.accesskey", "")
+	v.SetDefault("platformstorage.secretkey", "")
 
 	// Email defaults
 	v.SetDefault("email.driver", "console")
@@ -228,6 +248,14 @@ func Load() (*Config, error) {
 	cfg.Observability.VictoriaMetricsURL = v.GetString("observability.victoria_metrics_url")
 	cfg.Observability.VMAgentConfigPath = v.GetString("observability.vmagent_config_path")
 	cfg.Observability.VMAgentURL = v.GetString("observability.vmagent_url")
+
+	cfg.PlatformStorage.Endpoint = v.GetString("platformstorage.endpoint")
+	cfg.PlatformStorage.AccessKey = v.GetString("platformstorage.accesskey")
+	cfg.PlatformStorage.SecretKey = v.GetString("platformstorage.secretkey")
+	cfg.PlatformStorage.Bucket = v.GetString("platformstorage.bucket")
+	cfg.PlatformStorage.Region = v.GetString("platformstorage.region")
+	cfg.PlatformStorage.UseSSL = v.GetBool("platformstorage.usessl")
+	cfg.PlatformStorage.Provider = v.GetString("platformstorage.provider")
 
 	return cfg, nil
 }

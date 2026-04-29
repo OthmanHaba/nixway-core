@@ -20,17 +20,21 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/config"
 	"github.com/othmanhaba/nixway-core/internal/containerlog"
 	"github.com/othmanhaba/nixway-core/internal/crypto"
+	"github.com/othmanhaba/nixway-core/internal/database"
 	"github.com/othmanhaba/nixway-core/internal/db"
 	"github.com/othmanhaba/nixway-core/internal/deploy"
 	"github.com/othmanhaba/nixway-core/internal/email"
 	githubsvc "github.com/othmanhaba/nixway-core/internal/github"
 	"github.com/othmanhaba/nixway-core/internal/mesh"
 	"github.com/othmanhaba/nixway-core/internal/observability"
+	"github.com/othmanhaba/nixway-core/internal/platform"
 	"github.com/othmanhaba/nixway-core/internal/project"
 	"github.com/othmanhaba/nixway-core/internal/provisioner"
 	nixredis "github.com/othmanhaba/nixway-core/internal/redis"
 	"github.com/othmanhaba/nixway-core/internal/secret"
 	"github.com/othmanhaba/nixway-core/internal/server"
+	"github.com/othmanhaba/nixway-core/internal/template"
+	"github.com/othmanhaba/nixway-core/internal/volume"
 )
 
 func main() {
@@ -171,8 +175,61 @@ func main() {
 	agentSrv.SetObservabilityRecorder(observabilitySvc)
 	buildSvc.SetDeployTriggerer(deploySvc)
 
+	// Service template registry (static catalog of databases, caches, etc.)
+	templateRegistry := template.NewRegistry()
+
+	// Volume service (bind-mount based, soft quota)
+	volumeSvc := volume.NewService(queries, connMgr, logger)
+	agentSrv.SetVolumeResultHandler(volumeSvc.HandleResult)
+
+	// Platform storage (MinIO by default; backs Phase 8.7 backups). Optional —
+	// the platform must still boot when credentials are not configured. We
+	// initialise this BEFORE the database service so we can inject it into the
+	// constructor.
+	minioClient, err := platform.NewMinIOClient(cfg.PlatformStorage, logger)
+	if err != nil {
+		logger.Warn("platform storage not initialised; backups will be unavailable until configured",
+			"error", err,
+			"endpoint", cfg.PlatformStorage.Endpoint,
+			"bucket", cfg.PlatformStorage.Bucket,
+		)
+		minioClient = nil
+	} else {
+		if err := minioClient.EnsureBucket(ctx); err != nil {
+			logger.Warn("could not ensure platform storage bucket; continuing",
+				"error", err,
+				"bucket", minioClient.Bucket(),
+			)
+		} else {
+			logger.Info("platform storage ready", "endpoint", minioClient.Endpoint(), "bucket", minioClient.Bucket())
+		}
+	}
+
+	// Database service (managed databases via templates + volumes + secrets)
+	databaseSvc := database.NewService(queries, volumeSvc, templateRegistry, secretSvc, connMgr, meshMgr, minioClient, logger)
+	// Cross-wire deploy <-> database to break the import cycle:
+	//  - deploy.BuildEnv uses database.BuildEnvForApp to inject linked DB env
+	//  - database.RotateAppUserCredential uses deploy.RedeployAppLatest to roll
+	deploySvc.SetDatabaseLinkResolver(databaseSvc)
+	databaseSvc.SetRedeployTrigger(deploySvc)
+	// Register the agent callback for credential-rotation ALTER USER results.
+	agentSrv.SetDatabaseAlterUserResultHandler(databaseSvc.HandleAlterUserResult)
+	// Register the agent callback for database query results (tooling UI relay).
+	agentSrv.SetDatabaseQueryResultHandler(databaseSvc.HandleQueryResult)
+	// Register the agent callbacks for backup + restore results (Phase 8.7).
+	agentSrv.SetBackupResultHandler(databaseSvc.HandleBackupResult)
+	agentSrv.SetRestoreResultHandler(databaseSvc.HandleRestoreResult)
+	// Route DeployOutput for in-flight database provisions to the database
+	// service so the row only flips to 'running' after the agent reports
+	// healthy. App-deployment outputs flow through the standard path.
+	agentSrv.SetDatabaseDeployResultHandler(databaseSvc.HandleDeployResult)
+	// Wire Redis into the database service for query rate-limiting.
+	databaseSvc.SetRedis(redisClient)
+	// Launch the cron-eval goroutine that triggers scheduled backups.
+	databaseSvc.StartBackupScheduler(ctx)
+
 	// Router & Server
-	router := api.NewRouter(queries, sessions, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc, provisionSvc, clusterSvc, connMgr, meshMgr, githubService, secretSvc, projectSvc, appService, buildSvc, deploySvc, containerLogSvc, observabilitySvc)
+	router := api.NewRouter(queries, sessions, emailSender, auditWriter, cfg, logger, redisClient, masterKey, onboardingSvc, provisionSvc, clusterSvc, connMgr, meshMgr, githubService, secretSvc, projectSvc, appService, buildSvc, deploySvc, containerLogSvc, observabilitySvc, templateRegistry, volumeSvc, minioClient, databaseSvc)
 	srv := api.NewServer(router, cfg.Server.Host, cfg.Server.Port, logger)
 
 	if err := srv.Start(); err != nil {

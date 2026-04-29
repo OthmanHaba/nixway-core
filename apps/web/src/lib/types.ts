@@ -553,3 +553,163 @@ export interface TerminalSession {
   ended_at: string | null
   duration_seconds: number | null
 }
+
+export interface Volume {
+  id: string
+  team_id: string
+  cluster_id: string
+  server_id: string
+  name: string
+  size_gb: number
+  used_bytes: number
+  filesystem: string
+  mount_path: string | null
+  container_name: string | null
+  status: string
+  host_path: string
+  created_at: string
+  updated_at: string
+}
+
+export interface VolumeSnapshot {
+  id: string
+  volume_id: string
+  size_bytes: number
+  storage_type: string
+  storage_path: string
+  created_at: string
+}
+
+export interface ServiceTemplateSummary {
+  slug: string
+  name: string
+  category: string
+  description?: string
+  ports: number[]
+  default_resources: { milli_cpu: number; memory_mb: number }
+  volume_spec: { mount_path: string; default_gib?: number }
+  credential_policy: string
+  version_count: number
+}
+
+export interface ServiceTemplateVersion {
+  version: string
+  image: string
+  default?: boolean
+}
+
+export interface ServiceTemplateDetail extends ServiceTemplateSummary {
+  versions: ServiceTemplateVersion[]
+  health_check: { command: string; interval?: number; timeout?: number; retries?: number }
+  conn_string_fmt: string
+  env_template: Record<string, string>
+  shell_command: string
+  command?: string
+}
+
+export interface Database {
+  id: string
+  team_id: string
+  project_id: string
+  cluster_id: string
+  server_id: string
+  volume_id: string | null
+  template_slug: string
+  version: string
+  name: string
+  container_name: string
+  status: string
+  port: number
+  dns_record: string | null
+  superuser_secret_id: string | null
+  appuser_secret_id: string | null
+  resource_cpu_millicores: number
+  resource_memory_mb: number
+  backup_schedule: string | null
+  backup_retention_days: number | null
+  backup_storage_type: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DatabaseProvisionResult {
+  database: Database
+  superuser_password: string
+  appuser_password: string
+}
+
+// --- Database tooling (Phase 8.6) ---
+
+export interface SchemaList {
+  schemas: string[]
+}
+
+export interface TableInfo {
+  name: string
+  row_count: number
+}
+
+export interface TableList {
+  tables: TableInfo[]
+}
+
+export interface QueryColumn {
+  name: string
+  type_name?: string
+}
+
+export interface QueryRow {
+  values: string[]
+  nulls: boolean[]
+}
+
+export interface RowPage {
+  columns: QueryColumn[]
+  rows: QueryRow[]
+  page: number
+  limit: number
+  total: number
+}
+
+export interface QueryResult {
+  success: boolean
+  error?: string
+  execution_time_ms: number
+  columns?: QueryColumn[]
+  rows?: QueryRow[]
+  affected_rows?: number
+  raw_text?: string
+  query_history_id: string
+  truncated?: boolean
+}
+
+export interface QueryHistoryEntry {
+  id: string
+  user_id: string
+  database_id: string
+  query_text: string
+  write_mode: boolean
+  execution_time_ms: number | null
+  row_count: number | null
+  error: string | null
+  created_at: string
+}
+
+export interface SavedQuery {
+  id: string
+  project_id: string
+  user_id: string
+  database_id: { Bytes?: string; Valid: boolean } | null
+  name: string
+  query_text: string
+  created_at: string
+  updated_at: string
+}
+
+export interface DatabaseLink {
+  id: string
+  database_id: string
+  app_id: string
+  env_prefix: string
+  created_at: string
+}

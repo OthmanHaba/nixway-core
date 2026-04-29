@@ -39,16 +39,47 @@ type MeshRegenerator interface {
 	OnTeardownResult(ctx context.Context, clusterID uuid.UUID, memberID uuid.UUID, serverName string, success bool)
 }
 
+// VolumeResultHandler is invoked when an agent reports the outcome of a volume command.
+type VolumeResultHandler func(ctx context.Context, result *agentv1.VolumeResult)
+
+// DatabaseAlterUserResultHandler is invoked when an agent reports the outcome
+// of a DatabaseAlterUser command (used by credential rotation).
+type DatabaseAlterUserResultHandler func(ctx context.Context, result *agentv1.DatabaseAlterUserResult)
+
+// DatabaseQueryResultHandler is invoked when an agent reports the result of a
+// DatabaseQuery command (used by the database tooling UI).
+type DatabaseQueryResultHandler func(ctx context.Context, result *agentv1.DatabaseQueryResult)
+
+// BackupResultHandler is invoked when an agent reports the outcome of a Backup
+// command (used by the backup pipeline in Phase 8.7).
+type BackupResultHandler func(ctx context.Context, result *agentv1.BackupResult)
+
+// RestoreResultHandler is invoked when an agent reports the outcome of a
+// Restore command (used by the restore pipeline in Phase 8.7).
+type RestoreResultHandler func(ctx context.Context, result *agentv1.RestoreResult)
+
+// DatabaseDeployResultHandler is invoked when a DeployOutput arrives that may
+// belong to a database provision flow (rather than an app deployment-target).
+// The handler returns true if it claimed the deploy_id and the standard
+// deployment-target update path should be skipped.
+type DatabaseDeployResultHandler func(ctx context.Context, result *agentv1.DeployOutput) bool
+
 // Server implements agentv1.AgentServiceServer.
 type Server struct {
 	agentv1.UnimplementedAgentServiceServer
-	conn     *ConnManager
-	queries  *db.Queries
-	redis    *redis.Client
-	logger   *slog.Logger
-	meshReg  MeshRegenerator
-	deployer DeployTriggerer
-	obs      ObservabilityRecorder
+	conn              *ConnManager
+	queries           *db.Queries
+	redis             *redis.Client
+	logger            *slog.Logger
+	meshReg           MeshRegenerator
+	deployer          DeployTriggerer
+	obs               ObservabilityRecorder
+	volumeResult      VolumeResultHandler
+	dbAlterUserResult DatabaseAlterUserResultHandler
+	dbQueryResult     DatabaseQueryResultHandler
+	backupResult      BackupResultHandler
+	restoreResult     RestoreResultHandler
+	dbDeployResult    DatabaseDeployResultHandler
 }
 
 func NewServer(conn *ConnManager, queries *db.Queries, redisClient *redis.Client, logger *slog.Logger) *Server {
@@ -68,6 +99,42 @@ func (s *Server) SetDeployTriggerer(dt DeployTriggerer) {
 // SetObservabilityRecorder stores health reports as historical metrics.
 func (s *Server) SetObservabilityRecorder(obs ObservabilityRecorder) {
 	s.obs = obs
+}
+
+// SetVolumeResultHandler registers the callback that receives volume command results.
+func (s *Server) SetVolumeResultHandler(h VolumeResultHandler) {
+	s.volumeResult = h
+}
+
+// SetDatabaseAlterUserResultHandler registers the callback for credential
+// rotation results sent back by the agent.
+func (s *Server) SetDatabaseAlterUserResultHandler(h DatabaseAlterUserResultHandler) {
+	s.dbAlterUserResult = h
+}
+
+// SetDatabaseQueryResultHandler registers the callback for database query
+// results from the tooling UI relay.
+func (s *Server) SetDatabaseQueryResultHandler(h DatabaseQueryResultHandler) {
+	s.dbQueryResult = h
+}
+
+// SetBackupResultHandler registers the callback for backup completion results
+// (Phase 8.7).
+func (s *Server) SetBackupResultHandler(h BackupResultHandler) {
+	s.backupResult = h
+}
+
+// SetRestoreResultHandler registers the callback for restore completion
+// results (Phase 8.7).
+func (s *Server) SetRestoreResultHandler(h RestoreResultHandler) {
+	s.restoreResult = h
+}
+
+// SetDatabaseDeployResultHandler registers a callback that gets first refusal
+// of every DeployOutput. If it returns true, the deploy belongs to a database
+// provision flow and the standard deployment_targets update path is skipped.
+func (s *Server) SetDatabaseDeployResultHandler(h DatabaseDeployResultHandler) {
+	s.dbDeployResult = h
 }
 
 // Register handles agent registration, issuing an agent ID.
@@ -378,6 +445,69 @@ func (s *Server) Connect(stream agentv1.AgentService_ConnectServer) error {
 			if s.redis != nil {
 				data, _ := json.Marshal(tr)
 				s.redis.Publish(stream.Context(), "traffic-route:"+tr.RequestId, string(data))
+			}
+
+		case *agentv1.AgentMessage_VolumeResult:
+			vr := p.VolumeResult
+			s.logger.Info("volume result",
+				"agent_id", agentID,
+				"request_id", vr.RequestId,
+				"volume_id", vr.VolumeId,
+				"success", vr.Success,
+			)
+			if s.volumeResult != nil {
+				s.volumeResult(stream.Context(), vr)
+			}
+
+		case *agentv1.AgentMessage_DatabaseAlterUserResult:
+			ar := p.DatabaseAlterUserResult
+			s.logger.Info("database alter user result",
+				"agent_id", agentID,
+				"request_id", ar.RequestId,
+				"database_id", ar.DatabaseId,
+				"success", ar.Success,
+			)
+			if s.dbAlterUserResult != nil {
+				s.dbAlterUserResult(stream.Context(), ar)
+			}
+
+		case *agentv1.AgentMessage_DatabaseQueryResult:
+			qr := p.DatabaseQueryResult
+			s.logger.Info("database query result",
+				"agent_id", agentID,
+				"request_id", qr.RequestId,
+				"success", qr.Success,
+				"rows", len(qr.Rows),
+				"truncated", qr.Truncated,
+				"execution_time_ms", qr.ExecutionTimeMs,
+			)
+			if s.dbQueryResult != nil {
+				s.dbQueryResult(stream.Context(), qr)
+			}
+
+		case *agentv1.AgentMessage_BackupResult:
+			br := p.BackupResult
+			s.logger.Info("backup result",
+				"agent_id", agentID,
+				"request_id", br.RequestId,
+				"backup_id", br.BackupId,
+				"success", br.Success,
+				"size_bytes", br.SizeBytes,
+			)
+			if s.backupResult != nil {
+				s.backupResult(stream.Context(), br)
+			}
+
+		case *agentv1.AgentMessage_RestoreResult:
+			rr := p.RestoreResult
+			s.logger.Info("restore result",
+				"agent_id", agentID,
+				"request_id", rr.RequestId,
+				"backup_id", rr.BackupId,
+				"success", rr.Success,
+			)
+			if s.restoreResult != nil {
+				s.restoreResult(stream.Context(), rr)
 			}
 
 		default:
@@ -706,6 +836,15 @@ func (s *Server) handleBuildOutput(ctx context.Context, agentID string, bo *agen
 }
 
 func (s *Server) handleDeployOutput(ctx context.Context, do *agentv1.DeployOutput) {
+	// Database provision flows reuse DeployCommand/DeployOutput but key off
+	// the database UUID rather than a deployment_targets row. Give the
+	// database service first refusal so we don't run the app-deployment
+	// update path with a non-matching target_id (which silently no-ops and
+	// leaves the DB row stuck in 'provisioning').
+	if s.dbDeployResult != nil && s.dbDeployResult(ctx, do) {
+		return
+	}
+
 	if s.queries == nil {
 		return
 	}

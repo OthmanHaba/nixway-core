@@ -68,7 +68,27 @@ func HandleDeployCommand(ctx context.Context, cmd *agentv1.DeployCommand, stream
 		args = append(args, "--cpus", fmt.Sprintf("%.2f", cpus))
 	}
 
+	// Volume bind mounts (for stateful workloads like databases). The host_path
+	// is created on demand to avoid Docker creating an empty directory owned by
+	// root that the container then can't initialize.
+	for _, mount := range cmd.VolumeMounts {
+		if mount == nil || mount.HostPath == "" || mount.ContainerPath == "" {
+			continue
+		}
+		_ = os.MkdirAll(mount.HostPath, 0o755)
+		spec := fmt.Sprintf("%s:%s", mount.HostPath, mount.ContainerPath)
+		if mount.ReadOnly {
+			spec += ":ro"
+		}
+		args = append(args, "-v", spec)
+	}
+
 	args = append(args, cmd.ImageTag)
+
+	// Optional CMD override (e.g. `redis-server --requirepass $REDIS_PASSWORD`).
+	if cmd.ContainerCommand != "" {
+		args = append(args, "sh", "-c", cmd.ContainerCommand)
+	}
 
 	out, err := exec.CommandContext(ctx, "docker", args...).CombinedOutput()
 	if err != nil {
@@ -94,6 +114,43 @@ func HandleDeployCommand(ctx context.Context, cmd *agentv1.DeployCommand, stream
 	}
 
 	deadline := time.Now().Add(timeout)
+
+	// Exec-based health check path (used by databases and other non-HTTP services).
+	if cmd.ExecHealthCheck != nil && cmd.ExecHealthCheck.Command != "" {
+		execInterval := time.Duration(cmd.ExecHealthCheck.IntervalSeconds) * time.Second
+		if execInterval == 0 {
+			execInterval = interval
+		}
+		for time.Now().Before(deadline) {
+			inspectOut, err := exec.CommandContext(ctx, "docker", "inspect", "-f", "{{.State.Running}}", cmd.ContainerName).Output()
+			if err != nil || strings.TrimSpace(string(inspectOut)) != "true" {
+				logs, _ := exec.CommandContext(ctx, "docker", "logs", "--tail", "50", cmd.ContainerName).CombinedOutput()
+				sendOutput("failed", containerID, true, false, fmt.Sprintf("container exited unexpectedly. Logs:\n%s", string(logs)))
+				return
+			}
+			if err := exec.CommandContext(ctx, "docker", "exec", cmd.ContainerName, "sh", "-c", cmd.ExecHealthCheck.Command).Run(); err == nil {
+				// Database containers ship as the engine's superuser; create
+				// the application-scoped user before declaring healthy so
+				// linked apps can connect on the very first deploy.
+				if cmd.Labels["nixway.kind"] == "database" {
+					sendOutput("post_init", containerID, false, false, "")
+					if initErr := runDatabasePostInit(ctx, cmd, logger); initErr != nil {
+						logs, _ := exec.CommandContext(ctx, "docker", "logs", "--tail", "50", cmd.ContainerName).CombinedOutput()
+						sendOutput("failed", containerID, true, false, fmt.Sprintf("post-init failed: %v\n%s", initErr, string(logs)))
+						return
+					}
+				}
+				if !cmd.SkipTraefik && cmd.Traefik != nil {
+					writeTraefikConfig(cmd.Traefik, cmd.Port, cmd.ContainerName)
+				}
+				sendOutput("healthy", containerID, true, true, "")
+				return
+			}
+			time.Sleep(execInterval)
+		}
+		sendOutput("failed", containerID, true, false, "exec health check timed out")
+		return
+	}
 
 	// Get container IP on nixway network for health check
 	var containerIP string
@@ -129,7 +186,7 @@ func HandleDeployCommand(ctx context.Context, cmd *agentv1.DeployCommand, stream
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode >= 200 && resp.StatusCode < 400 {
-				if cmd.Traefik != nil {
+				if !cmd.SkipTraefik && cmd.Traefik != nil {
 					writeTraefikConfig(cmd.Traefik, cmd.Port, cmd.ContainerName)
 				}
 				sendOutput("healthy", containerID, true, true, "")

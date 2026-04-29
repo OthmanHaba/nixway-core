@@ -17,11 +17,20 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// DatabaseLinkResolver resolves the env-var map injected at deploy time from
+// the databases linked to an app. Implemented by database.Service. Kept as an
+// interface to avoid an import cycle (database depends on deploy for the
+// rotation -> redeploy hook).
+type DatabaseLinkResolver interface {
+	BuildEnvForApp(ctx context.Context, appID uuid.UUID) (map[string]string, error)
+}
+
 type Service struct {
 	queries   *db.Queries
 	redis     *redis.Client
 	connMgr   *agent.ConnManager
 	secretSvc *secret.Service
+	dbLinks   DatabaseLinkResolver
 	logger    *slog.Logger
 }
 
@@ -78,6 +87,37 @@ func NewService(queries *db.Queries, redisClient *redis.Client, connMgr *agent.C
 		secretSvc: secretSvc,
 		logger:    logger,
 	}
+}
+
+// SetDatabaseLinkResolver wires the DB-link env injector. Called after both
+// services are constructed to break the import cycle. Safe to leave nil; if
+// nil, deploys do not get DB env injected (legacy behaviour).
+func (s *Service) SetDatabaseLinkResolver(r DatabaseLinkResolver) {
+	s.dbLinks = r
+}
+
+// RedeployAppLatest triggers a fresh deploy of an app using its last-healthy
+// build into its production environment. Used by database.Service after a
+// link/unlink/rotation so apps pick up the new env. Returns a permission-style
+// error when there is no healthy deployment to re-roll (the app needs an
+// initial deploy first).
+func (s *Service) RedeployAppLatest(ctx context.Context, appID uuid.UUID) (db.Deployment, error) {
+	app, err := s.queries.GetApp(ctx, appID)
+	if err != nil {
+		return db.Deployment{}, fmt.Errorf("get app: %w", err)
+	}
+	envID, err := s.productionEnvironment(ctx, app.ProjectID)
+	if err != nil {
+		return db.Deployment{}, err
+	}
+	lastHealthy, err := s.queries.GetLastHealthyDeployment(ctx, db.GetLastHealthyDeploymentParams{
+		AppID:         appID,
+		EnvironmentID: envID,
+	})
+	if err != nil {
+		return db.Deployment{}, fmt.Errorf("no healthy deployment to redeploy: %w", err)
+	}
+	return s.TriggerDeploy(ctx, appID, envID, lastHealthy.BuildID, nil)
 }
 
 func (s *Service) StartAutoscalerLoop(ctx context.Context) {
@@ -180,6 +220,19 @@ func (s *Service) TriggerDeploy(ctx context.Context, appID, envID, buildID uuid.
 			resolved, err := s.secretSvc.BulkResolve(ctx, project.TeamID, env.Slug, keys, nil, "system")
 			if err == nil {
 				envVars = resolved
+			}
+		}
+	}
+	// Merge env vars derived from database links. Linked-DB vars OVERRIDE any
+	// matching user secret so a freshly-rotated password always takes effect
+	// even if the operator left a stale DATABASE_URL secret behind.
+	if s.dbLinks != nil {
+		dbEnv, err := s.dbLinks.BuildEnvForApp(ctx, appID)
+		if err != nil {
+			s.logger.Warn("build database link env failed; deploying without DB env", "app_id", appID, "error", err)
+		} else {
+			for k, v := range dbEnv {
+				envVars[k] = v
 			}
 		}
 	}

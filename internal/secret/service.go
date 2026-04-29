@@ -40,6 +40,9 @@ func (s *Service) encryptionContext(teamID uuid.UUID) string {
 
 // uuidToPgtype converts a uuid.UUID to pgtype.UUID.
 func uuidToPgtype(id uuid.UUID) pgtype.UUID {
+	if id == uuid.Nil {
+		return pgtype.UUID{Valid: false}
+	}
 	return pgtype.UUID{Bytes: id, Valid: true}
 }
 
@@ -178,6 +181,29 @@ func (s *Service) List(ctx context.Context, teamID uuid.UUID, environment string
 		return nil, fmt.Errorf("list secrets: %w", err)
 	}
 	return secrets, nil
+}
+
+// CreateDatabaseSecrets creates two secrets scoped to a team for a database's
+// superuser and app-user credentials. Returns the secret IDs. Used by database
+// provisioning to atomically store credentials with the reveal-once flag.
+//
+// NOTE: secrets are scoped to (team, environment, key). The current schema
+// does not support project scoping; we use environment="database:<dbname>" as
+// a namespace to avoid colliding with regular env-secret keys.
+func (s *Service) CreateDatabaseSecrets(ctx context.Context, teamID, projectID uuid.UUID, dbName, superPassword, appPassword string) (uuid.UUID, uuid.UUID, error) {
+	env := "database:" + dbName
+	creator := uuid.Nil // system-created; no user actor at provision time
+	superSecret, err := s.Create(ctx, teamID, env, "SUPERUSER_PASSWORD", superPassword, creator)
+	if err != nil {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("create superuser secret: %w", err)
+	}
+	appSecret, err := s.Create(ctx, teamID, env, "APP_PASSWORD", appPassword, creator)
+	if err != nil {
+		// Best-effort cleanup of superuser secret to avoid an orphaned row.
+		_ = s.queries.DeleteSecret(ctx, db.DeleteSecretParams{ID: superSecret.ID, TeamID: teamID})
+		return uuid.Nil, uuid.Nil, fmt.Errorf("create app secret: %w", err)
+	}
+	return superSecret.ID, appSecret.ID, nil
 }
 
 // Delete removes a secret and logs the deletion action.

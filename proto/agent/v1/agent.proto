@@ -50,6 +50,11 @@ message AgentMessage {
     ServerCleanupResult server_cleanup_result = 22;
     TrafficRouteResult traffic_route_result = 23;
     MetricReport metric_report = 24;
+    VolumeResult volume_result = 25;
+    DatabaseAlterUserResult database_alter_user_result = 26;
+    DatabaseQueryResult database_query_result = 27;
+    BackupResult backup_result = 28;
+    RestoreResult restore_result = 29;
   }
 }
 
@@ -76,6 +81,15 @@ message ControlMessage {
     ServerLogsCommand server_logs = 19;
     ServerCleanupCommand server_cleanup = 20;
     TrafficRouteCommand traffic_route = 21;
+    VolumeCreateCommand volume_create = 22;
+    VolumeDeleteCommand volume_delete = 23;
+    VolumeMoveCommand volume_move = 24;
+    VolumeSnapshotCommand volume_snapshot = 25;
+    VolumeResizeCommand volume_resize = 26;
+    DatabaseAlterUserCommand database_alter_user = 27;
+    DatabaseQueryCommand database_query = 28;
+    BackupCommand backup = 29;
+    RestoreCommand restore = 30;
   }
 }
 
@@ -311,6 +325,23 @@ message DeployCommand {
   int32 memory_limit_mb = 11;
   int32 cpu_limit_millicores = 12;
   map<string, string> labels = 13;
+  repeated VolumeMount volume_mounts = 14;
+  string container_command = 15;     // optional CMD override (template Command field)
+  HealthCheckSpec exec_health_check = 16; // optional exec-based health check (databases)
+  bool skip_traefik = 17;            // databases are not HTTP-routed
+}
+
+message VolumeMount {
+  string host_path = 1;
+  string container_path = 2;
+  bool read_only = 3;
+}
+
+message HealthCheckSpec {
+  string command = 1;         // shell command run inside the container
+  int32 interval_seconds = 2;
+  int32 timeout_seconds = 3;
+  int32 retries = 4;
 }
 
 message TraefikConfig {
@@ -494,5 +525,187 @@ message ServerCleanupResult {
   string request_id = 1;
   bool success = 2;
   string output = 3;
+  string error = 4;
+}
+
+// --- Volume Messages ---
+
+message VolumeCreateCommand {
+  string request_id = 1;
+  string volume_id = 2;
+  string host_path = 3;
+  // Declared size of the loopback-backed ext4 volume in GiB. Required on
+  // first create; the agent re-uses the existing image's size on retries.
+  int32 size_gb = 4;
+}
+
+message VolumeDeleteCommand {
+  string request_id = 1;
+  string volume_id = 2;
+  string host_path = 3;
+}
+
+message VolumeMoveCommand {
+  string request_id = 1;
+  string volume_id = 2;
+  string source_path = 3;
+  string target_wireguard_ip = 4;
+  string target_path = 5;
+}
+
+message VolumeSnapshotCommand {
+  string request_id = 1;
+  string volume_id = 2;
+  string source_path = 3;
+  string snapshot_id = 4;
+  string output_path = 5;
+}
+
+message VolumeResizeCommand {
+  string request_id = 1;
+  string volume_id = 2;
+  string host_path = 3;
+  int32 new_size_gb = 4;
+}
+
+message VolumeResult {
+  string request_id = 1;
+  string volume_id = 2;
+  bool success = 3;
+  string error = 4;
+  int64 size_bytes = 5;
+  int64 used_bytes = 6;
+  string snapshot_path = 7;
+}
+
+// --- Database User Alter (credential rotation) ---
+
+// DatabaseAlterUserCommand asks the agent to change a database user's password
+// in the running container. The agent constructs the proper CLI invocation per
+// database_type and execs it via `docker exec`. The new_password field is
+// transmitted over WireGuard-protected gRPC and MUST NOT be logged.
+message DatabaseAlterUserCommand {
+  string request_id = 1;
+  string database_id = 2;
+  string container_name = 3;
+  string database_type = 4;       // "postgresql", "mysql", "mongodb", "redis"
+  string username = 5;            // user to alter (e.g. "app_user")
+  string new_password = 6;        // plaintext (never logged)
+}
+
+message DatabaseAlterUserResult {
+  string request_id = 1;
+  string database_id = 2;
+  bool success = 3;
+  string error = 4;
+}
+
+// --- Database Query Relay (Phase 8.6) ---
+
+// DatabaseQueryCommand asks the agent to execute a query against a managed
+// database using the appropriate driver (pgx/mysql/mongo/redis). The agent
+// connects locally to the database and returns a single
+// DatabaseQueryResult. Passwords cross gRPC over WireGuard; the agent MUST
+// NOT log them.
+message DatabaseQueryCommand {
+  string request_id = 1;
+  string database_id = 2;
+  string database_type = 3;       // "postgresql" | "mysql" | "mongodb" | "redis"
+  string container_name = 4;      // for terminal-style fallback (not used in v1 query relay)
+  string host = 5;                // dns_record OR "localhost"
+  int32 port = 6;
+  string username = 7;            // typically "app_user"
+  string password = 8;            // plaintext; never logged
+  string dbname = 9;
+  string query = 10;              // SQL, Redis command line, or Mongo JSON filter
+  bool write_mode = 11;
+  int32 timeout_seconds = 12;     // default 30
+  int32 max_rows = 13;            // default 1000
+
+  // Operation hint for non-SQL or DB-specific calls. Empty/"select" runs the
+  // query verbatim. Recognised values include:
+  //   "select", "list_schemas", "list_tables", "get_rows",
+  //   "redis_keys", "redis_get", "redis_info", "redis_config", "redis_type", "redis_ttl",
+  //   "mongo_list_collections", "mongo_find", "mongo_get_doc"
+  string operation = 14;
+  map<string, string> params = 15; // operation-specific params
+}
+
+// DatabaseQueryResult is returned once per command. For SQL/structured
+// results, columns + rows are populated. For Redis INFO, raw text dumps,
+// or Mongo JSON arrays, raw_text carries the payload.
+message DatabaseQueryResult {
+  string request_id = 1;
+  bool success = 2;
+  string error = 3;
+  int64 execution_time_ms = 4;
+
+  repeated ColumnMeta columns = 5;
+  repeated QueryRow rows = 6;
+  int32 affected_rows = 7;
+
+  string raw_text = 8;
+  bool truncated = 9;
+}
+
+message ColumnMeta {
+  string name = 1;
+  string type_name = 2;
+}
+
+message QueryRow {
+  repeated string values = 1;
+  repeated bool nulls = 2;
+}
+
+// --- Database Backup + Restore (Phase 8.7) ---
+
+// BackupCommand asks the agent to dump a managed database to a local file
+// inside /var/lib/nixway/backups/, then upload the dump to MinIO via the
+// supplied presigned PUT URL. Superuser credentials are used so dumps capture
+// the entire database (the app_user typically can't). Passwords cross gRPC
+// over WireGuard; the agent MUST NOT log them.
+message BackupCommand {
+  string request_id = 1;
+  string backup_id = 2;
+  string database_id = 3;
+  string container_name = 4;
+  string database_type = 5;       // "postgresql" | "mysql" | "mongodb" | "redis"
+  string superuser = 6;           // typically "postgres", "root", "admin"
+  string superuser_password = 7;  // plaintext; never logged
+  string dbname = 8;
+  string tool = 9;                // "pg_dump" | "mysqldump" | "mongodump" | "redis-bgsave"
+  string output_filename = 10;    // local filename within /var/lib/nixway/backups/
+  string upload_url = 11;         // MinIO presigned PUT URL
+}
+
+message BackupResult {
+  string request_id = 1;
+  string backup_id = 2;
+  bool success = 3;
+  string error = 4;
+  int64 size_bytes = 5;
+  string storage_path = 6;        // bucket-relative key, e.g. "backups/<db>/<id>.dump"
+}
+
+// RestoreCommand asks the agent to download a backup file from MinIO via the
+// supplied presigned GET URL and apply it to a target database container.
+message RestoreCommand {
+  string request_id = 1;
+  string backup_id = 2;
+  string database_id = 3;
+  string container_name = 4;
+  string database_type = 5;
+  string superuser = 6;
+  string superuser_password = 7;  // plaintext; never logged
+  string dbname = 8;
+  string tool = 9;                // "pg_restore" | "mysql" | "mongorestore" | "redis-load"
+  string download_url = 10;       // MinIO presigned GET URL
+}
+
+message RestoreResult {
+  string request_id = 1;
+  string backup_id = 2;
+  bool success = 3;
   string error = 4;
 }
