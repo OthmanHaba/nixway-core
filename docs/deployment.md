@@ -73,9 +73,26 @@ The deploy script ensures these values are present in `.env`:
 ```bash
 NIXWAY_PUBLIC_DOMAIN=
 NIXWAY_TRAEFIK_ACME_EMAIL=
+NIXWAY_TRAEFIK_LOG_LEVEL=INFO
+NIXWAY_TRAEFIK_ACCESS_LOG=false
 NIXWAY_SERVER_PUBLIC_URL=http://localhost:8080
 NIXWAY_SERVER_GRPC_PORT=9090
 NIXWAY_SERVER_AGENT_BINARY_DIR=/app/agent/bin
 ```
 
 When `NIXWAY_PUBLIC_DOMAIN` is set, the deploy script sets `NIXWAY_SERVER_PUBLIC_URL=https://<domain>` unless you explicitly override it. The API derives the public gRPC endpoint for agents from that host plus `NIXWAY_SERVER_GRPC_PORT`.
+
+## Traefik Debugging
+
+Traefik logs are quiet by default. To temporarily enable debug and access logs:
+
+```bash
+NIXWAY_TRAEFIK_LOG_LEVEL=DEBUG NIXWAY_TRAEFIK_ACCESS_LOG=true make deploy
+docker compose --profile traefik logs -f traefik
+```
+
+After diagnosis, return to production defaults:
+
+```bash
+NIXWAY_TRAEFIK_LOG_LEVEL=INFO NIXWAY_TRAEFIK_ACCESS_LOG=false make deploy
+```

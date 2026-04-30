@@ -7,6 +7,8 @@ services:
     command:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
+      - "--log.level=${NIXWAY_TRAEFIK_LOG_LEVEL:-INFO}"
+      - "--accesslog=${NIXWAY_TRAEFIK_ACCESS_LOG:-false}"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
@@ -163,7 +165,7 @@ services:
     depends_on:
       - api
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/healthz"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
       interval: 10s
       timeout: 5s
       retries: 10
