@@ -161,8 +161,7 @@ services:
     ports:
       - "${NIXWAY_WEB_PORT:-5173}:80"
     depends_on:
-      api:
-        condition: service_healthy
+      - api
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost/healthz"]
       interval: 10s
