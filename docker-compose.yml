@@ -21,6 +21,8 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - traefik_letsencrypt:/letsencrypt
+    networks:
+      - public
 
   postgres:
     image: postgres:16-alpine
@@ -32,11 +34,13 @@ services:
       POSTGRES_PASSWORD: ${NIXWAY_POSTGRES_PASSWORD:-nixway-dev-secret-change-me}
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks:
+      - internal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 1
 
   redis:
     image: redis:7-alpine
@@ -44,6 +48,8 @@ services:
       - "127.0.0.1:${NIXWAY_REDIS_PORT:-6379}:6379"
     volumes:
       - redisdata:/data
+    networks:
+      - internal
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -60,6 +66,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - internal
 
   api:
     build:
@@ -123,6 +131,10 @@ services:
       - "traefik.http.routers.nixway-api.tls.certresolver=letsencrypt"
       - "traefik.http.routers.nixway-api.priority=100"
       - "traefik.http.services.nixway-api.loadbalancer.server.port=8080"
+      - "traefik.docker.network=${NIXWAY_DOCKER_PUBLIC_NETWORK:-nixway-public}"
+    networks:
+      - public
+      - internal
 
   worker:
     build:
@@ -139,6 +151,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - internal
 
   web:
     build:
@@ -161,6 +175,10 @@ services:
       - "traefik.http.routers.nixway-web.tls.certresolver=letsencrypt"
       - "traefik.http.routers.nixway-web.priority=10"
       - "traefik.http.services.nixway-web.loadbalancer.server.port=80"
+      - "traefik.docker.network=${NIXWAY_DOCKER_PUBLIC_NETWORK:-nixway-public}"
+    networks:
+      - public
+      - internal
 
   victoria-metrics:
     image: victoriametrics/victoria-metrics:latest
@@ -172,6 +190,8 @@ services:
       - "-downsampling.period=30d:5m"
     volumes:
       - vmdata:/victoria-metrics-data
+    networks:
+      - internal
 
   vmagent:
     image: victoriametrics/vmagent:latest
@@ -185,6 +205,8 @@ services:
       - ./configs/vmagent.yml:/etc/vmagent/prometheus.yml:ro
     depends_on:
       - victoria-metrics
+    networks:
+      - internal
 
   minio:
     image: minio/minio:latest
@@ -197,6 +219,8 @@ services:
     command: server /data --console-address ":9001"
     volumes:
       - miniodata:/data
+    networks:
+      - internal
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
@@ -209,3 +233,9 @@ volumes:
   vmdata:
   miniodata:
   traefik_letsencrypt:
+
+networks:
+  public:
+    name: ${NIXWAY_DOCKER_PUBLIC_NETWORK:-nixway-public}
+  internal:
+    name: ${NIXWAY_DOCKER_INTERNAL_NETWORK:-nixway-internal}

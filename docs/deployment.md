@@ -47,6 +47,17 @@ The deploy command is idempotent. It creates or updates `.env`, generates `NIXWA
 
 Host ports can be changed in `.env` with `NIXWAY_WEB_PORT`, `NIXWAY_API_PORT`, `NIXWAY_GRPC_PORT`, `NIXWAY_HTTP_PORT`, and `NIXWAY_HTTPS_PORT`. The API container listens on the same gRPC port that is published to the host so provisioned agents receive the correct address.
 
+## Docker Networks
+
+Compose creates two explicit Docker networks:
+
+| Network | Default name | Services | Purpose |
+| --- | --- | --- | --- |
+| `public` | `nixway-public` | `traefik`, `web`, `api` | Public reverse-proxy traffic. Traefik routes to services on this network. |
+| `internal` | `nixway-internal` | app and infra services | Private backend traffic between API, web, worker, Postgres, Redis, MinIO, and metrics. |
+
+The network names can be changed with `NIXWAY_DOCKER_PUBLIC_NETWORK` and `NIXWAY_DOCKER_INTERNAL_NETWORK`.
+
 With Traefik enabled, public traffic should use:
 
 ```text
