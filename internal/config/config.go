@@ -122,6 +122,7 @@ func Load() (*Config, error) {
 	v.AddConfigPath(".")
 	v.AddConfigPath("/etc/nixway")
 	v.SetEnvPrefix("NIXWAY")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 
 	// Server defaults
