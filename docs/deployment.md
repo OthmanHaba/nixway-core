@@ -1,0 +1,57 @@
+# Nixway Deployment
+
+## Simple Deploy
+
+```bash
+make deploy
+```
+
+For a public server, set the URL remote agents and webhooks can reach:
+
+```bash
+NIXWAY_SERVER_PUBLIC_URL=https://nixway.example.com make deploy
+```
+
+The deploy command is idempotent. It creates or updates `.env`, generates `NIXWAY_CRYPTO_MASTER_KEY` when missing, builds the containers, starts infrastructure services, runs SQL migrations, and starts the API, worker, and web UI.
+
+## What Runs In Docker
+
+| Service | Image/build | Purpose |
+| --- | --- | --- |
+| `web` | `apps/web/Dockerfile` | React/Vite static UI served by Nginx; proxies `/api` and WebSocket/SSE traffic to the API. |
+| `api` | root `Dockerfile` target `api` | Go HTTP API plus agent gRPC control plane. Includes Linux agent binaries for `/agent/download/{arch}`. |
+| `worker` | root `Dockerfile` target `worker` | River background worker for async jobs and email work. |
+| `migrate` | root `Dockerfile` target `migrate` | One-shot goose migration runner for `sql/migrations`. |
+| `postgres` | `postgres:16-alpine` | Primary Nixway database. |
+| `redis` | `redis:7-alpine` | Sessions, job coordination, and runtime events. |
+| `victoria-metrics` | `victoriametrics/victoria-metrics` | Metrics storage. |
+| `vmagent` | `victoriametrics/vmagent` | Prometheus scrape/remote-write agent. |
+| `minio` | `minio/minio` | S3-compatible platform storage for backups. |
+
+## Exposed Ports
+
+| Host port | Container | Use |
+| --- | --- | --- |
+| `5173` | `web:80` | Web UI. |
+| `8080` | `api:8080` | HTTP API, health check, webhooks, and agent binary downloads. |
+| `9090` | `api:9090` | Agent gRPC control plane. Must be reachable by provisioned agents. |
+| `127.0.0.1:5432` | `postgres:5432` | Local database access only. |
+| `127.0.0.1:6379` | `redis:6379` | Local Redis access only. |
+| `8428` | `victoria-metrics:8428` | VictoriaMetrics HTTP API. |
+| `8429` | `vmagent:8429` | vmagent HTTP/debug endpoint. |
+| `9000` | `minio:9000` | MinIO S3 API. |
+| `9001` | `minio:9001` | MinIO console. |
+
+Host ports can be changed in `.env` with `NIXWAY_WEB_PORT`, `NIXWAY_API_PORT`, and `NIXWAY_GRPC_PORT`. The API container listens on the same gRPC port that is published to the host so provisioned agents receive the correct address.
+
+## Agent-Related Environment
+
+The deploy script ensures these values are present in `.env`:
+
+```bash
+NIXWAY_SERVER_PUBLIC_URL=http://localhost:8080
+NIXWAY_SERVER_GRPC_PORT=9090
+NIXWAY_SERVER_AGENT_BINARY_DIR=/app/agent/bin
+```
+
+`NIXWAY_SERVER_PUBLIC_URL` is the important production value. The API derives the public gRPC endpoint for agents from that host plus `NIXWAY_SERVER_GRPC_PORT`.

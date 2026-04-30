@@ -1,10 +1,13 @@
-.PHONY: up down migrate generate build-agent lab-up lab-bootstrap lab-info lab-status lab-registry lab-down lab-destroy
+.PHONY: up down deploy migrate generate build-agent lab-up lab-bootstrap lab-info lab-status lab-registry lab-down lab-destroy
 
 up:
 	docker compose up -d
 
 down:
 	docker compose down
+
+deploy:
+	scripts/deploy
 
 migrate:
 	cd internal && go run github.com/pressly/goose/v3/cmd/goose@latest -dir ../sql/migrations postgres "$(DATABASE_URL)" up

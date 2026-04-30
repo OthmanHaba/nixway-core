@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/url"
 	"os"
+	"strings"
 
 	"google.golang.org/grpc"
 
@@ -124,7 +126,7 @@ func main() {
 	// Onboarding service
 	// Build the public gRPC address that remote agents will connect to.
 	// Use PublicURL's host (strip scheme) + gRPC port.
-	publicGRPCAddr := fmt.Sprintf("%s:%d", stripScheme(cfg.Server.PublicURL), cfg.Server.GRPCPort)
+	publicGRPCAddr := fmt.Sprintf("%s:%d", grpcHostFromPublicURL(cfg.Server.PublicURL), cfg.Server.GRPCPort)
 	logger.Info("public URL for agent connections", "url", cfg.Server.PublicURL, "grpc_addr", publicGRPCAddr)
 	onboardingSvc := server.NewOnboardingService(queries, logger, masterKey, cfg.Server.PublicURL, publicGRPCAddr)
 
@@ -242,14 +244,19 @@ func main() {
 	logger.Info("gRPC server stopped")
 }
 
-// stripScheme removes the http:// or https:// prefix from a URL,
-// returning just the host (and port if present in the URL).
-func stripScheme(rawURL string) string {
-	u := rawURL
-	for _, prefix := range []string{"https://", "http://"} {
-		if len(u) > len(prefix) && u[:len(prefix)] == prefix {
-			return u[len(prefix):]
-		}
+// grpcHostFromPublicURL extracts only the hostname from the HTTP public URL so
+// the agent gRPC address can use its own port.
+func grpcHostFromPublicURL(rawURL string) string {
+	host := rawURL
+	if parsed, err := url.Parse(rawURL); err == nil && parsed.Host != "" {
+		host = parsed.Host
 	}
-	return u
+
+	if slash := strings.Index(host, "/"); slash >= 0 {
+		host = host[:slash]
+	}
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		return h
+	}
+	return strings.TrimPrefix(strings.TrimPrefix(host, "https://"), "http://")
 }

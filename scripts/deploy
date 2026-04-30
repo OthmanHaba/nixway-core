@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ENV_FILE="${ROOT_DIR}/.env"
+
+usage() {
+  cat <<'EOF'
+Usage: scripts/deploy
+
+Environment overrides:
+  NIXWAY_SERVER_PUBLIC_URL   Public HTTP URL agents and webhooks use.
+  NIXWAY_PUBLIC_HOST         Host used when NIXWAY_SERVER_PUBLIC_URL is empty.
+  NIXWAY_WEB_PORT            Host port for the web UI. Default: 5173.
+  NIXWAY_API_PORT            Host port for the API. Default: 8080.
+  NIXWAY_GRPC_PORT           Host port for agent gRPC. Default: 9090.
+
+Examples:
+  make deploy
+  NIXWAY_SERVER_PUBLIC_URL=https://nixway.example.com make deploy
+EOF
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+need_cmd() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "Missing required command: $1" >&2
+    exit 1
+  fi
+}
+
+generate_hex_key() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 32
+  else
+    od -An -N32 -tx1 /dev/urandom | tr -d ' \n'
+  fi
+}
+
+env_value() {
+  local key="$1"
+  if [[ -f "${ENV_FILE}" ]]; then
+    awk -F= -v key="${key}" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "${ENV_FILE}"
+  fi
+}
+
+default_value() {
+  local key="$1"
+  local fallback="$2"
+  local value
+  value="$(env_value "${key}")"
+  printf "%s" "${value:-${fallback}}"
+}
+
+upsert_env() {
+  local key="$1"
+  local value="$2"
+  local tmp
+  tmp="$(mktemp)"
+  if [[ -f "${ENV_FILE}" ]] && grep -qE "^${key}=" "${ENV_FILE}"; then
+    awk -v key="${key}" -v value="${value}" '
+      BEGIN { replaced = 0 }
+      $0 ~ "^" key "=" { print key "=" value; replaced = 1; next }
+      { print }
+      END { if (!replaced) print key "=" value }
+    ' "${ENV_FILE}" > "${tmp}"
+  else
+    if [[ -f "${ENV_FILE}" ]]; then
+      cat "${ENV_FILE}" > "${tmp}"
+      printf '\n%s=%s\n' "${key}" "${value}" >> "${tmp}"
+    else
+      printf '%s=%s\n' "${key}" "${value}" > "${tmp}"
+    fi
+  fi
+  mv "${tmp}" "${ENV_FILE}"
+}
+
+need_cmd docker
+
+cd "${ROOT_DIR}"
+
+if [[ ! -f "${ENV_FILE}" ]]; then
+  cp .env.example "${ENV_FILE}"
+fi
+
+public_host="${NIXWAY_PUBLIC_HOST:-localhost}"
+web_port="${NIXWAY_WEB_PORT:-$(default_value NIXWAY_WEB_PORT 5173)}"
+api_port="${NIXWAY_API_PORT:-$(default_value NIXWAY_API_PORT 8080)}"
+grpc_port="${NIXWAY_GRPC_PORT:-$(default_value NIXWAY_GRPC_PORT 9090)}"
+postgres_user="${NIXWAY_POSTGRES_USER:-$(default_value NIXWAY_POSTGRES_USER nixway)}"
+postgres_password="${NIXWAY_POSTGRES_PASSWORD:-$(default_value NIXWAY_POSTGRES_PASSWORD nixway-dev-secret-change-me)}"
+postgres_db="${NIXWAY_POSTGRES_DB:-$(default_value NIXWAY_POSTGRES_DB nixway_core)}"
+minio_user="${NIXWAY_MINIO_ROOT_USER:-$(default_value NIXWAY_MINIO_ROOT_USER nixway)}"
+minio_password="${NIXWAY_MINIO_ROOT_PASSWORD:-$(default_value NIXWAY_MINIO_ROOT_PASSWORD nixway-dev-secret-change-me)}"
+server_public_url="${NIXWAY_SERVER_PUBLIC_URL:-$(default_value NIXWAY_SERVER_PUBLIC_URL "http://${public_host}:${api_port}")}"
+email_base_url="${NIXWAY_EMAIL_BASE_URL:-$(default_value NIXWAY_EMAIL_BASE_URL "http://${public_host}:${web_port}")}"
+
+upsert_env NIXWAY_WEB_PORT "${web_port}"
+upsert_env NIXWAY_API_PORT "${api_port}"
+upsert_env NIXWAY_GRPC_PORT "${grpc_port}"
+upsert_env NIXWAY_POSTGRES_USER "${postgres_user}"
+upsert_env NIXWAY_POSTGRES_PASSWORD "${postgres_password}"
+upsert_env NIXWAY_POSTGRES_DB "${postgres_db}"
+upsert_env NIXWAY_MINIO_ROOT_USER "${minio_user}"
+upsert_env NIXWAY_MINIO_ROOT_PASSWORD "${minio_password}"
+upsert_env NIXWAY_DATABASE_URL "postgres://${postgres_user}:${postgres_password}@postgres:5432/${postgres_db}?sslmode=disable"
+upsert_env NIXWAY_REDIS_URL "redis://redis:6379/0"
+upsert_env NIXWAY_SERVER_HOST "0.0.0.0"
+upsert_env NIXWAY_SERVER_PORT "8080"
+upsert_env NIXWAY_SERVER_GRPC_PORT "${grpc_port}"
+upsert_env NIXWAY_SERVER_PUBLIC_URL "${server_public_url}"
+upsert_env NIXWAY_SERVER_AGENT_BINARY_DIR "/app/agent/bin"
+upsert_env NIXWAY_EMAIL_BASE_URL "${email_base_url}"
+upsert_env NIXWAY_OBSERVABILITY_VICTORIA_METRICS_URL "http://victoria-metrics:8428"
+upsert_env NIXWAY_OBSERVABILITY_VMAGENT_URL "http://vmagent:8429"
+upsert_env NIXWAY_OBSERVABILITY_VMAGENT_CONFIG_PATH "/etc/vmagent/prometheus.yml"
+upsert_env NIXWAY_PLATFORMSTORAGE_ENDPOINT "http://minio:9000"
+upsert_env NIXWAY_PLATFORMSTORAGE_BUCKET "nixway-backups"
+upsert_env NIXWAY_PLATFORMSTORAGE_REGION "us-east-1"
+upsert_env NIXWAY_PLATFORMSTORAGE_USESSL "false"
+upsert_env NIXWAY_PLATFORMSTORAGE_PROVIDER "minio"
+upsert_env NIXWAY_PLATFORMSTORAGE_ACCESSKEY "${minio_user}"
+upsert_env NIXWAY_PLATFORMSTORAGE_SECRETKEY "${minio_password}"
+
+if [[ -z "$(env_value NIXWAY_CRYPTO_MASTER_KEY)" ]]; then
+  upsert_env NIXWAY_CRYPTO_MASTER_KEY "$(generate_hex_key)"
+fi
+
+echo "Building and starting Nixway..."
+docker compose build api worker web migrate
+docker compose up -d postgres redis victoria-metrics vmagent minio
+docker compose run --rm migrate
+docker compose up -d api worker web
+
+cat <<EOF
+
+Nixway is deployed.
+  Web UI:      http://localhost:${web_port}
+  API:         http://localhost:${api_port}
+  Agent gRPC:  localhost:${grpc_port}
+  MinIO:       http://localhost:9001
+
+For remote agents, make sure this URL is reachable:
+  NIXWAY_SERVER_PUBLIC_URL=${server_public_url}
+EOF
