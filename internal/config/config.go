@@ -192,7 +192,11 @@ func Load() (*Config, error) {
 	cfg.Server.Port = v.GetInt("server.port")
 	cfg.Server.GRPCPort = v.GetInt("server.grpc_port")
 	cfg.Server.PublicURL = v.GetString("server.public_url")
-	cfg.Server.AgentGRPCHost = v.GetString("server.agent_grpc_host")
+	// Read directly from env — viper has issues with nested underscore keys.
+	cfg.Server.AgentGRPCHost = os.Getenv("NIXWAY_SERVER_AGENT_GRPC_HOST")
+	if cfg.Server.AgentGRPCHost == "" {
+		cfg.Server.AgentGRPCHost = v.GetString("server.agent_grpc_host")
+	}
 	cfg.Server.AgentBinaryDir = v.GetString("server.agent_binary_dir")
 
 	// If no public URL set, try reading from .tunnel-url file (written by cloudflared tunnel)
