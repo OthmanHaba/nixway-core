@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/othmanhaba/nixway-core/internal/api/middleware"
 	"github.com/othmanhaba/nixway-core/internal/api/respond"
 	"github.com/othmanhaba/nixway-core/internal/app"
@@ -442,6 +443,53 @@ func parseUUIDList(values []string) ([]uuid.UUID, error) {
 		ids = append(ids, id)
 	}
 	return ids, nil
+}
+
+// SetRegistryCredential handles PUT /api/v1/apps/{appId}/registry-credential.
+// Used to attach a registry credential to an app that pre-dates the new
+// build/push flow, or to re-point an app at a different registry.
+func (h *AppHandler) SetRegistryCredential(w http.ResponseWriter, r *http.Request) {
+	authCtx := middleware.GetAuthContext(r)
+	if authCtx == nil {
+		respond.Error(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	appID, err := uuid.Parse(r.PathValue("appId"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid app ID")
+		return
+	}
+
+	var req struct {
+		RegistryCredentialID *string `json:"registry_credential_id"`
+	}
+	if err := respond.DecodeJSON(r, &req); err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	var credID pgtype.UUID
+	if req.RegistryCredentialID != nil && *req.RegistryCredentialID != "" {
+		id, err := uuid.Parse(*req.RegistryCredentialID)
+		if err != nil {
+			respond.Error(w, http.StatusBadRequest, "invalid registry_credential_id")
+			return
+		}
+		credID = pgtype.UUID{Bytes: id, Valid: true}
+	}
+
+	updated, err := h.queries.UpdateAppRegistryCredential(r.Context(), db.UpdateAppRegistryCredentialParams{
+		ID:                   appID,
+		RegistryCredentialID: credID,
+	})
+	if err != nil {
+		h.logger.Error("failed to set registry credential", "error", err)
+		respond.Error(w, http.StatusInternalServerError, "failed to set registry credential")
+		return
+	}
+
+	respond.JSON(w, http.StatusOK, updated)
 }
 
 // UpdateResources handles PUT /api/v1/apps/{appId}/resources

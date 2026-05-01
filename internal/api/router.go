@@ -270,6 +270,9 @@ func NewRouter(
 	// Resource limits
 	protected.HandleFunc("PUT /api/v1/apps/{appId}/resources", appH.UpdateResources)
 
+	// Registry credential (for apps that pre-date the new build/push flow)
+	protected.HandleFunc("PUT /api/v1/apps/{appId}/registry-credential", appH.SetRegistryCredential)
+
 	// Container terminal (WebSocket)
 	protected.HandleFunc("GET /api/v1/apps/{appId}/terminal", containerTermH.Connect)
 

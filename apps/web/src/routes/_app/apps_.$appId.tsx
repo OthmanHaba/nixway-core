@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '@/lib/api'
-import type { App, Build, Deployment, DeploymentTarget, ContainerReplica, ContainerInspect, ContainerLogEntry, ScalingEvent, AutoscalingRule, AutoscaleEvaluation, TrafficView } from '@/lib/types'
+import type { App, Build, Deployment, DeploymentTarget, ContainerReplica, ContainerInspect, ContainerLogEntry, ScalingEvent, AutoscalingRule, AutoscaleEvaluation, TrafficView, RegistryCredential } from '@/lib/types'
 import { useTeamContext } from '@/hooks/use-team-context'
 import { ObservabilityPanel } from '@/components/observability-panel'
 import { Button } from '@/components/ui/button'
@@ -513,6 +513,64 @@ function InspectPanel({ appId }: { appId: string }) {
         </p>
       )}
     </div>
+  )
+}
+
+// --- Registry Credential Panel ---
+
+function RegistryCredentialPanel({ app, appId, teamId }: { app: App; appId: string; teamId: string }) {
+  const queryClient = useQueryClient()
+  const [selected, setSelected] = useState(app.registry_credential_id || '')
+
+  const { data: registries = [] } = useQuery({
+    queryKey: ['teams', teamId, 'registries'],
+    queryFn: () => api.get<RegistryCredential[]>(`/teams/${teamId}/registries`),
+  })
+
+  const setRegistry = useMutation({
+    mutationFn: (registryCredentialId: string) =>
+      api.put(`/apps/${appId}/registry-credential`, {
+        registry_credential_id: registryCredentialId || null,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['apps', appId] })
+    },
+  })
+
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-sm">Image Registry</CardTitle></CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-xs text-muted-foreground">
+          Where built images are pushed and pulled from. Required for GitHub-source apps so deploys
+          on different servers than the build host can pull the image.
+        </p>
+        {registries.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No registries configured for this team. Add one in <strong>Settings → Registries</strong>.
+          </p>
+        ) : (
+          <Select value={selected} onValueChange={setSelected}>
+            <SelectTrigger><SelectValue placeholder="Select a registry" /></SelectTrigger>
+            <SelectContent>
+              {registries.map((r) => (
+                <SelectItem key={r.id} value={r.id}>
+                  {r.name} ({r.registry_type})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <Button
+          size="sm"
+          onClick={() => setRegistry.mutate(selected)}
+          disabled={setRegistry.isPending || !selected || selected === (app.registry_credential_id || '')}
+        >
+          {setRegistry.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Save Registry
+        </Button>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -1593,7 +1651,10 @@ function AppDetailPage() {
         </TabsContent>
 
         {/* Resources */}
-        <TabsContent value="resources" className="mt-4">
+        <TabsContent value="resources" className="mt-4 space-y-4">
+          {currentTeam && (
+            <RegistryCredentialPanel app={app} appId={appId} teamId={currentTeam.id} />
+          )}
           <ResourceLimitsPanel app={app} appId={appId} />
         </TabsContent>
 

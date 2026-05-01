@@ -63,3 +63,9 @@ SET replicas = $2,
     updated_at = now()
 WHERE id = $1
 RETURNING *;
+
+-- name: UpdateAppRegistryCredential :one
+UPDATE apps
+SET registry_credential_id = $2, updated_at = now()
+WHERE id = $1
+RETURNING *;
