@@ -16,5 +16,9 @@ func TestGenerateManifest_UsesTeamScopedWebhookURL(t *testing.T) {
 	assert.Equal(t, "https://hooks.example.test/api/v1/webhooks/github/team/team-123", hookAttrs["url"])
 
 	perms := manifest["default_permissions"].(map[string]any)
-	assert.Equal(t, "write", perms["webhooks"])
+	assert.Equal(t, "read", perms["contents"])
+	assert.Equal(t, "read", perms["metadata"])
+	assert.Equal(t, "read", perms["pull_requests"])
+	_, hasWebhooks := perms["webhooks"]
+	assert.False(t, hasWebhooks, "webhooks is not a valid GitHub App permission")
 }

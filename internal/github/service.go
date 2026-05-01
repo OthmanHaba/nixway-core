@@ -74,7 +74,6 @@ func (s *Service) GenerateManifest(teamID, teamSlug string) map[string]any {
 			"contents":      "read",
 			"metadata":      "read",
 			"pull_requests": "read",
-			"webhooks":      "write",
 		},
 		"default_events": []string{"push", "pull_request", "create"},
 	}
