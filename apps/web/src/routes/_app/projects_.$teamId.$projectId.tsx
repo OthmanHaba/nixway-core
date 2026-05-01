@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '@/lib/api'
-import type { Project, Environment, App, GitHubApp, GitHubInstallation, GitHubRepository } from '@/lib/types'
+import type { Project, Environment, App, GitHubApp, GitHubInstallation, GitHubRepository, RegistryCredential } from '@/lib/types'
 import { ObservabilityPanel } from '@/components/observability-panel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -111,6 +111,7 @@ function ProjectDetailPage() {
   const [appBuilder, setAppBuilder] = useState('auto')
   const [appPort, setAppPort] = useState('3000')
   const [appHealthPath, setAppHealthPath] = useState('/')
+  const [appRegistryCredentialId, setAppRegistryCredentialId] = useState('')
   const [appError, setAppError] = useState('')
 
   const { data: project, isLoading } = useQuery({
@@ -154,6 +155,14 @@ function ProjectDetailPage() {
     enabled: !!appInstallationId,
   })
 
+  // Registry credentials for the team — required so the build agent can push
+  // the image and the deploy agent can pull it from a shared location.
+  const { data: registries = [] } = useQuery({
+    queryKey: ['teams', teamId, 'registries'],
+    queryFn: () => api.get<RegistryCredential[]>(`/teams/${teamId}/registries`),
+    enabled: appOpen,
+  })
+
   const createEnvironment = useMutation({
     mutationFn: (data: { name: string; is_production: boolean }) =>
       api.post<Environment>(`/projects/${projectId}/environments`, data),
@@ -192,6 +201,7 @@ function ProjectDetailPage() {
     setAppBuilder('auto')
     setAppPort('3000')
     setAppHealthPath('/')
+    setAppRegistryCredentialId('')
     setAppError('')
   }
 
@@ -199,6 +209,7 @@ function ProjectDetailPage() {
     if (!appName.trim()) { setAppError('Name is required'); return }
     if (appSourceType === 'github' && !appRepo) { setAppError('Select a repository'); return }
     if (appSourceType === 'github' && !appInstallationId) { setAppError('Select a GitHub installation'); return }
+    if (appSourceType === 'github' && !appRegistryCredentialId) { setAppError('Select a registry to push images to'); return }
     if (appSourceType === 'docker_image' && !appDockerImage.trim()) { setAppError('Docker image is required'); return }
 
     const payload: Record<string, unknown> = {
@@ -216,8 +227,12 @@ function ProjectDetailPage() {
       }
       payload.repo_full_name = appRepo
       payload.branch = appBranch
+      payload.registry_credential_id = appRegistryCredentialId
     } else {
       payload.docker_image = appDockerImage
+      if (appRegistryCredentialId) {
+        payload.registry_credential_id = appRegistryCredentialId
+      }
     }
     createApp.mutate(payload)
   }
@@ -501,6 +516,37 @@ function ProjectDetailPage() {
               <div>
                 <Label htmlFor="app-image">Docker Image</Label>
                 <Input id="app-image" value={appDockerImage} onChange={(e) => setAppDockerImage(e.target.value)} placeholder="nginx:latest" />
+              </div>
+            )}
+
+            {appSourceType === 'github' && (
+              <div>
+                <Label htmlFor="app-registry">Push images to</Label>
+                {registries.length === 0 ? (
+                  <div className="mt-1 text-sm text-muted-foreground">
+                    No registries configured.{' '}
+                    <span
+                      className="underline cursor-pointer text-blue-500"
+                      onClick={() => navigate({ to: '/settings/$teamId', params: { teamId } })}
+                    >
+                      Add one in Settings
+                    </span>{' '}
+                    so the build can push and other servers can pull.
+                  </div>
+                ) : (
+                  <Select value={appRegistryCredentialId} onValueChange={setAppRegistryCredentialId}>
+                    <SelectTrigger id="app-registry">
+                      <SelectValue placeholder="Select a registry" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {registries.map((r) => (
+                        <SelectItem key={r.id} value={r.id}>
+                          {r.name} ({r.registry_type})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             )}
 

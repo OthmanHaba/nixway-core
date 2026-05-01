@@ -12,6 +12,7 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/agent"
 	agentv1 "github.com/othmanhaba/nixway-core/internal/agent/proto/agent/v1"
 	"github.com/othmanhaba/nixway-core/internal/db"
+	"github.com/othmanhaba/nixway-core/internal/registry"
 	"github.com/othmanhaba/nixway-core/internal/scheduler"
 	"github.com/othmanhaba/nixway-core/internal/secret"
 	"github.com/redis/go-redis/v9"
@@ -30,6 +31,7 @@ type Service struct {
 	redis     *redis.Client
 	connMgr   *agent.ConnManager
 	secretSvc *secret.Service
+	resolver  *registry.Resolver
 	dbLinks   DatabaseLinkResolver
 	logger    *slog.Logger
 }
@@ -79,12 +81,13 @@ type TrafficWeight struct {
 	Weight    int32     `json:"weight"`
 }
 
-func NewService(queries *db.Queries, redisClient *redis.Client, connMgr *agent.ConnManager, secretSvc *secret.Service, logger *slog.Logger) *Service {
+func NewService(queries *db.Queries, redisClient *redis.Client, connMgr *agent.ConnManager, secretSvc *secret.Service, masterKey [32]byte, logger *slog.Logger) *Service {
 	return &Service{
 		queries:   queries,
 		redis:     redisClient,
 		connMgr:   connMgr,
 		secretSvc: secretSvc,
+		resolver:  registry.NewResolver(masterKey),
 		logger:    logger,
 	}
 }
@@ -971,6 +974,29 @@ func (s *Service) dispatchDeploy(ctx context.Context, deployment db.Deployment, 
 	envVars["DEPLOY_ID"] = deployID
 	envVars["GIT_SHA"] = build.CommitSha
 
+	// Resolve registry credentials so the agent can `docker pull` private
+	// images. Apps without a credential (legacy or public docker_image source)
+	// proceed without auth — Docker will treat the tag as a public ref.
+	var registryAuth *agentv1.RegistryAuth
+	if app.RegistryCredentialID.Valid && s.resolver != nil {
+		credID, _ := uuid.FromBytes(app.RegistryCredentialID.Bytes[:])
+		cred, err := s.queries.GetRegistryCredentialByID(ctx, db.GetRegistryCredentialByIDParams{
+			ID:     credID,
+			TeamID: project.TeamID,
+		})
+		if err != nil {
+			s.logger.Warn("deploy: load registry credential failed; will try unauthenticated pull", "deploy_id", deployID, "error", err)
+		} else if auth, err := s.resolver.Resolve(ctx, cred, project.TeamID); err != nil {
+			s.logger.Warn("deploy: resolve registry credential failed; will try unauthenticated pull", "deploy_id", deployID, "error", err)
+		} else {
+			registryAuth = &agentv1.RegistryAuth{
+				Server:   auth.Server,
+				Username: auth.Username,
+				Password: auth.Password,
+			}
+		}
+	}
+
 	cmd := &agentv1.DeployCommand{
 		DeployId:                   deployID,
 		TargetId:                   targetID,
@@ -981,6 +1007,7 @@ func (s *Service) dispatchDeploy(ctx context.Context, deployment db.Deployment, 
 		HealthCheckPath:            app.HealthCheckPath,
 		HealthCheckIntervalSeconds: app.HealthCheckInterval,
 		HealthCheckTimeoutSeconds:  app.HealthCheckTimeout,
+		Registry:                   registryAuth,
 		Traefik: &agentv1.TraefikConfig{
 			AppSlug: app.Slug,
 			Domains: domains,

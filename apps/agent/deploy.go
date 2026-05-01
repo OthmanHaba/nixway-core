@@ -83,7 +83,17 @@ func HandleDeployCommand(ctx context.Context, cmd *agentv1.DeployCommand, stream
 		args = append(args, "-v", spec)
 	}
 
-	args = append(args, cmd.ImageTag)
+	// Pull the image up-front so registry/auth failures surface a clean
+	// error instead of getting buried inside `docker run` output. With
+	// credentials we log in and out around the pull so the daemon's
+	// config.json doesn't accumulate stale creds across deploys.
+	if err := pullDeployImage(ctx, cmd.Registry, cmd.ImageTag); err != nil {
+		sendOutput("failed", "", true, false, err.Error())
+		return
+	}
+
+	// --pull never: image is already local from the explicit pull above.
+	args = append(args, "--pull", "never", cmd.ImageTag)
 
 	// Optional CMD override (e.g. `redis-server --requirepass $REDIS_PASSWORD`).
 	if cmd.ContainerCommand != "" {
@@ -380,4 +390,24 @@ func HandleImagePullCommand(ctx context.Context, cmd *agentv1.ImagePullCommand, 
 			},
 		},
 	})
+}
+
+// pullDeployImage logs in (if creds were supplied), explicitly pulls the
+// image, then logs out. A clean error from this step is far easier to act
+// on than the same error wrapped in `docker run` output.
+func pullDeployImage(ctx context.Context, auth *agentv1.RegistryAuth, imageTag string) error {
+	if auth != nil && auth.Server != "" {
+		loginCmd := exec.CommandContext(ctx, "docker", "login", "-u", auth.Username, "--password-stdin", auth.Server)
+		loginCmd.Stdin = strings.NewReader(auth.Password)
+		if out, err := loginCmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("docker login %s: %s: %w", auth.Server, strings.TrimSpace(string(out)), err)
+		}
+		defer func() { _ = exec.Command("docker", "logout", auth.Server).Run() }()
+	}
+
+	pullOut, err := exec.CommandContext(ctx, "docker", "pull", imageTag).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("docker pull %s: %s: %w", imageTag, strings.TrimSpace(string(pullOut)), err)
+	}
+	return nil
 }

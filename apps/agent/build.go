@@ -119,8 +119,46 @@ func HandleBuildCommand(ctx context.Context, cmd *agentv1.BuildCommand, stream a
 		return
 	}
 
+	// Phase 4: Push to registry. Without this, the image only exists on the
+	// build host and any deploy that lands on a different agent fails to pull.
+	if cmd.Registry != nil && cmd.Registry.Server != "" {
+		if err := pushImage(ctx, cmd.Registry, cmd.ImageTag, sendOutput); err != nil {
+			sendOutput("pushing", "", true, false, fmt.Sprintf("push failed: %v", err), "")
+			cleanup(buildDir)
+			return
+		}
+	}
+
 	sendOutput("building", "Build completed successfully.\n", true, true, "", cmd.ImageTag)
 	cleanup(buildDir)
+}
+
+// pushImage logs in, pushes the image, and logs out. Streams output as the
+// "pushing" phase so build logs show progress in real time.
+func pushImage(ctx context.Context, auth *agentv1.RegistryAuth, imageTag string, send outputFn) error {
+	send("pushing", fmt.Sprintf("Logging in to %s...\n", auth.Server), false, false, "", "")
+
+	loginCmd := exec.CommandContext(ctx, "docker", "login", "-u", auth.Username, "--password-stdin", auth.Server)
+	loginCmd.Stdin = strings.NewReader(auth.Password)
+	loginOut, err := loginCmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("docker login: %s: %w", strings.TrimSpace(string(loginOut)), err)
+	}
+
+	send("pushing", fmt.Sprintf("Pushing %s...\n", imageTag), false, false, "", "")
+	pushCmd := exec.CommandContext(ctx, "docker", "push", imageTag)
+	if _, err := runCommandStreamingExec(ctx, pushCmd, send, "pushing"); err != nil {
+		// Always logout on failure so creds don't linger.
+		_ = exec.Command("docker", "logout", auth.Server).Run()
+		return fmt.Errorf("docker push: %w", err)
+	}
+
+	if err := exec.Command("docker", "logout", auth.Server).Run(); err != nil {
+		// Logout failure is non-fatal — image already pushed.
+		send("pushing", fmt.Sprintf("Warning: docker logout failed: %v\n", err), false, false, "", "")
+	}
+	send("pushing", "Push completed.\n", false, false, "", "")
+	return nil
 }
 
 // detectBuilder inspects the working directory to determine the best builder.

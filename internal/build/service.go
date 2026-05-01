@@ -13,6 +13,7 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/crypto"
 	"github.com/othmanhaba/nixway-core/internal/db"
 	githubsvc "github.com/othmanhaba/nixway-core/internal/github"
+	"github.com/othmanhaba/nixway-core/internal/registry"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -26,6 +27,7 @@ type Service struct {
 	redis     *redis.Client
 	connMgr   *agent.ConnManager
 	githubSvc *githubsvc.Service
+	resolver  *registry.Resolver
 	masterKey [32]byte
 	logger    *slog.Logger
 	deployer  DeployTriggerer
@@ -42,6 +44,7 @@ func NewService(queries *db.Queries, redisClient *redis.Client, connMgr *agent.C
 		redis:     redisClient,
 		connMgr:   connMgr,
 		githubSvc: githubSvc,
+		resolver:  registry.NewResolver(masterKey),
 		masterKey: masterKey,
 		logger:    logger,
 	}
@@ -115,15 +118,54 @@ func (s *Service) dispatchBuild(ctx context.Context, b db.Build, app db.App) {
 		return
 	}
 
+	// Resolve registry credentials. Required for any source that produces an
+	// image we need to push (i.e. github source). docker_image source skips
+	// the build path entirely a few lines below, so this gate only affects
+	// real builds.
+	var registryAuth *agentv1.RegistryAuth
+	var imageTag string
+	if app.SourceType == "github" {
+		if !app.RegistryCredentialID.Valid {
+			s.failBuild(ctx, b.ID, "app has no registry credential — set one in app settings before deploying")
+			return
+		}
+		credID, _ := uuid.FromBytes(app.RegistryCredentialID.Bytes[:])
+		cred, err := s.queries.GetRegistryCredentialByID(ctx, db.GetRegistryCredentialByIDParams{
+			ID:     credID,
+			TeamID: project.TeamID,
+		})
+		if err != nil {
+			s.logger.Error("build dispatch: load registry credential failed", "build_id", buildID, "error", err)
+			s.failBuild(ctx, b.ID, "registry credential not found")
+			return
+		}
+		auth, err := s.resolver.Resolve(ctx, cred, project.TeamID)
+		if err != nil {
+			s.logger.Error("build dispatch: resolve registry credential failed", "build_id", buildID, "error", err)
+			s.failBuild(ctx, b.ID, fmt.Sprintf("resolve registry credential: %v", err))
+			return
+		}
+		registryAuth = &agentv1.RegistryAuth{
+			Server:   auth.Server,
+			Username: auth.Username,
+			Password: auth.Password,
+		}
+		imageTag = fmt.Sprintf("%s%s:%s", auth.TagPrefix, app.Slug, buildID[:8])
+	} else {
+		// Fallback path; not used by the github builder branch.
+		imageTag = fmt.Sprintf("%s:%s", app.Slug, buildID[:8])
+	}
+
 	// Build the command
 	cmd := &agentv1.BuildCommand{
 		BuildId:        buildID,
 		Builder:        app.Builder,
 		DockerfilePath: app.DockerfilePath,
-		ImageTag:       fmt.Sprintf("nixway/%s:%s", app.Slug, buildID[:8]),
+		ImageTag:       imageTag,
 		CommitSha:      b.CommitSha,
 		Branch:         b.Branch,
 		RootPath:       app.RootPath,
+		Registry:       registryAuth,
 	}
 
 	// Resolve repo URL and auth token for GitHub source

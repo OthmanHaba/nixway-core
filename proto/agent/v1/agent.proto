@@ -295,8 +295,18 @@ message BuildCommand {
   string root_path = 6;         // subdirectory within repo
   string builder = 7;           // 'auto', 'dockerfile', 'nixpacks', 'buildpacks', 'railpack'
   string dockerfile_path = 8;
-  string image_tag = 9;         // target image tag
+  string image_tag = 9;         // target image tag (registry-qualified)
   map<string, string> build_args = 10;
+  RegistryAuth registry = 11;   // credentials used to push the built image
+}
+
+// RegistryAuth carries the docker-login material for a single registry.
+// Server is the hostname (no scheme), e.g. "ghcr.io" or
+// "<acct>.dkr.ecr.<region>.amazonaws.com".
+message RegistryAuth {
+  string server = 1;
+  string username = 2;
+  string password = 3;
 }
 
 message BuildOutput {
@@ -329,6 +339,7 @@ message DeployCommand {
   string container_command = 15;     // optional CMD override (template Command field)
   HealthCheckSpec exec_health_check = 16; // optional exec-based health check (databases)
   bool skip_traefik = 17;            // databases are not HTTP-routed
+  RegistryAuth registry = 18;        // credentials used to pull the image
 }
 
 message VolumeMount {

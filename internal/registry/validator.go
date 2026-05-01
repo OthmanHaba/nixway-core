@@ -3,9 +3,6 @@ package registry
 import (
 	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -108,62 +105,11 @@ func (v *Validator) validateECR(ctx context.Context, region, accessKeyID, secret
 		return fmt.Errorf("ecr: AWS access key ID and secret access key are required")
 	}
 
-	endpoint := fmt.Sprintf("https://ecr.%s.amazonaws.com/", region)
-	payload := `{"registryIds":[]}`
-	payloadHash := sha256Hex([]byte(payload))
-
-	now := time.Now().UTC()
-	amzDate := now.Format("20060102T150405Z")
-	dateStamp := now.Format("20060102")
-
-	headers := map[string]string{
-		"content-type": "application/x-amz-json-1.1",
-		"host":         fmt.Sprintf("ecr.%s.amazonaws.com", region),
-		"x-amz-date":  amzDate,
-		"x-amz-target": "AmazonEC2ContainerRegistry_V20150921.GetAuthorizationToken",
-	}
-
-	// Canonical headers (sorted by key).
-	canonicalHeaders := "" +
-		"content-type:" + headers["content-type"] + "\n" +
-		"host:" + headers["host"] + "\n" +
-		"x-amz-date:" + headers["x-amz-date"] + "\n" +
-		"x-amz-target:" + headers["x-amz-target"] + "\n"
-	signedHeaders := "content-type;host;x-amz-date;x-amz-target"
-
-	canonicalRequest := strings.Join([]string{
-		"POST",
-		"/",
-		"",
-		canonicalHeaders,
-		signedHeaders,
-		payloadHash,
-	}, "\n")
-
-	credentialScope := strings.Join([]string{dateStamp, region, "ecr", "aws4_request"}, "/")
-	stringToSign := strings.Join([]string{
-		"AWS4-HMAC-SHA256",
-		amzDate,
-		credentialScope,
-		sha256Hex([]byte(canonicalRequest)),
-	}, "\n")
-
-	signingKey := deriveSigningKey(secretAccessKey, dateStamp, region, "ecr")
-	signature := hex.EncodeToString(hmacSHA256(signingKey, []byte(stringToSign)))
-
-	authHeader := fmt.Sprintf(
-		"AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s",
-		accessKeyID, credentialScope, signedHeaders, signature,
-	)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(payload))
+	req, err := signedECRRequest(ctx, region, accessKeyID, secretAccessKey,
+		"AmazonEC2ContainerRegistry_V20150921.GetAuthorizationToken", `{"registryIds":[]}`)
 	if err != nil {
 		return fmt.Errorf("ecr: failed to build request: %w", err)
 	}
-	req.Header.Set("Content-Type", headers["content-type"])
-	req.Header.Set("X-Amz-Date", amzDate)
-	req.Header.Set("X-Amz-Target", headers["x-amz-target"])
-	req.Header.Set("Authorization", authHeader)
 
 	resp, err := v.client.Do(req)
 	if err != nil {
@@ -205,24 +151,3 @@ func (v *Validator) validateGeneric(ctx context.Context, registryURL, username, 
 	return nil
 }
 
-// sha256Hex returns the lowercase hex SHA-256 digest of data.
-func sha256Hex(data []byte) string {
-	h := sha256.Sum256(data)
-	return hex.EncodeToString(h[:])
-}
-
-// hmacSHA256 returns the HMAC-SHA256 of data using key.
-func hmacSHA256(key, data []byte) []byte {
-	mac := hmac.New(sha256.New, key)
-	mac.Write(data)
-	return mac.Sum(nil)
-}
-
-// deriveSigningKey derives the AWS Signature V4 signing key.
-func deriveSigningKey(secretKey, dateStamp, region, service string) []byte {
-	kDate := hmacSHA256([]byte("AWS4"+secretKey), []byte(dateStamp))
-	kRegion := hmacSHA256(kDate, []byte(region))
-	kService := hmacSHA256(kRegion, []byte(service))
-	kSigning := hmacSHA256(kService, []byte("aws4_request"))
-	return kSigning
-}
