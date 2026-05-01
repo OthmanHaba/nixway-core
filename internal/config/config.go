@@ -28,8 +28,9 @@ type Config struct {
 type ServerConfig struct {
 	Host           string
 	Port           int
-	PublicURL      string // Public URL for agent connections (e.g. cloudflare tunnel URL)
+	PublicURL      string // Public URL for HTTP traffic (webhooks, agent download). May be a Cloudflare-proxied domain.
 	GRPCPort       int
+	AgentGRPCHost  string // Optional override for the host agents dial for gRPC. Use when PublicURL is proxied (e.g. set to raw EC2 IP).
 	AgentBinaryDir string // Directory containing pre-built agent binaries
 }
 
@@ -130,6 +131,7 @@ func Load() (*Config, error) {
 	v.SetDefault("server.port", 8080)
 	v.SetDefault("server.public_url", "") // Set via NIXWAY_SERVER_PUBLIC_URL or .tunnel-url file
 	v.SetDefault("server.grpc_port", 9090)
+	v.SetDefault("server.agent_grpc_host", "") // Optional: raw host (e.g. EC2 IP) agents should dial for gRPC; falls back to host of public_url
 	v.SetDefault("server.agent_binary_dir", "apps/agent/bin")
 
 	// Database defaults
@@ -190,6 +192,7 @@ func Load() (*Config, error) {
 	cfg.Server.Port = v.GetInt("server.port")
 	cfg.Server.GRPCPort = v.GetInt("server.grpc_port")
 	cfg.Server.PublicURL = v.GetString("server.public_url")
+	cfg.Server.AgentGRPCHost = v.GetString("server.agent_grpc_host")
 	cfg.Server.AgentBinaryDir = v.GetString("server.agent_binary_dir")
 
 	// If no public URL set, try reading from .tunnel-url file (written by cloudflared tunnel)

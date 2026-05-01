@@ -126,7 +126,11 @@ func main() {
 	// Onboarding service
 	// Build the public gRPC address that remote agents will connect to.
 	// Use PublicURL's host (strip scheme) + gRPC port.
-	publicGRPCAddr := fmt.Sprintf("%s:%d", grpcHostFromPublicURL(cfg.Server.PublicURL), cfg.Server.GRPCPort)
+	grpcHost := cfg.Server.AgentGRPCHost
+	if grpcHost == "" {
+		grpcHost = grpcHostFromPublicURL(cfg.Server.PublicURL)
+	}
+	publicGRPCAddr := fmt.Sprintf("%s:%d", grpcHost, cfg.Server.GRPCPort)
 	logger.Info("public URL for agent connections", "url", cfg.Server.PublicURL, "grpc_addr", publicGRPCAddr)
 	onboardingSvc := server.NewOnboardingService(queries, logger, masterKey, cfg.Server.PublicURL, publicGRPCAddr)
 
