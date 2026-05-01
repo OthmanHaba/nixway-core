@@ -69,7 +69,7 @@ func (s *Service) Create(ctx context.Context, p CreateParams) (db.App, error) {
 		Subdomain:            p.Subdomain,
 		PlacementStrategy:    defaultPlacementStrategy(p.PlacementStrategy),
 		PlacementConstraints: scheduler.EncodeConstraints(p.PlacementConstraints),
-		PinnedServerIds:      p.PinnedServerIDs,
+		PinnedServerIds:      nilToEmptyUUIDs(p.PinnedServerIDs),
 	}
 
 	if p.GithubInstallationID != nil {
@@ -115,8 +115,15 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, p UpdateParams) (db.
 		Status:               p.Status,
 		PlacementStrategy:    defaultPlacementStrategy(p.PlacementStrategy),
 		PlacementConstraints: scheduler.EncodeConstraints(p.PlacementConstraints),
-		PinnedServerIds:      p.PinnedServerIDs,
+		PinnedServerIds:      nilToEmptyUUIDs(p.PinnedServerIDs),
 	})
+}
+
+func nilToEmptyUUIDs(ids []uuid.UUID) []uuid.UUID {
+	if ids == nil {
+		return []uuid.UUID{}
+	}
+	return ids
 }
 
 type UpdateParams struct {
