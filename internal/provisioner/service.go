@@ -75,8 +75,13 @@ func (s *Service) resolvePublicURL() string {
 }
 
 // resolveGRPCAddr returns the gRPC address the agent should connect to.
-// In dev, agents use localhost:9090 via SSH reverse tunnel from the controller.
+// Uses the configured public gRPC address (derived from NIXWAY_SERVER_PUBLIC_URL
+// + NIXWAY_SERVER_GRPC_PORT). Falls back to localhost:9090 for dev setups that
+// rely on an SSH reverse tunnel from the controller.
 func (s *Service) resolveGRPCAddr() string {
+	if s.grpcAddr != "" {
+		return s.grpcAddr
+	}
 	return "localhost:9090"
 }
 
