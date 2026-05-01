@@ -214,37 +214,48 @@ func (s *Service) ListInstallations(ctx context.Context, appID int64, privateKey
 }
 
 // ListRepositories returns repositories accessible to the given installation token.
+// Pages through GitHub's /installation/repositories endpoint until all are fetched.
 func (s *Service) ListRepositories(ctx context.Context, token string) ([]Repository, error) {
-	url := fmt.Sprintf("%s/installation/repositories", s.apiURL)
+	const perPage = 100
+	var all []Repository
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Accept", "application/vnd.github+json")
+	for page := 1; ; page++ {
+		url := fmt.Sprintf("%s/installation/repositories?per_page=%d&page=%d", s.apiURL, perPage, page)
 
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("list repositories: %w", err)
-	}
-	defer resp.Body.Close()
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return nil, fmt.Errorf("create request: %w", err)
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Accept", "application/vnd.github+json")
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read response: %w", err)
+		resp, err := s.client.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("list repositories: %w", err)
+		}
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("read response: %w", err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("list repositories: unexpected status %d: %s", resp.StatusCode, body)
+		}
+
+		var result struct {
+			TotalCount   int          `json:"total_count"`
+			Repositories []Repository `json:"repositories"`
+		}
+		if err := json.Unmarshal(body, &result); err != nil {
+			return nil, fmt.Errorf("decode repositories: %w", err)
+		}
+
+		all = append(all, result.Repositories...)
+		if len(result.Repositories) < perPage || len(all) >= result.TotalCount {
+			break
+		}
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("list repositories: unexpected status %d: %s", resp.StatusCode, body)
-	}
-
-	var result struct {
-		Repositories []Repository `json:"repositories"`
-	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, fmt.Errorf("decode repositories: %w", err)
-	}
-
-	return result.Repositories, nil
+	return all, nil
 }
