@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -294,6 +295,8 @@ func (s *Service) Provision(ctx context.Context, req ProvisionRequest) (*Provisi
 
 	superSecretID, appSecretID, err := s.secretSvc.CreateDatabaseSecrets(ctx, req.TeamID, req.ProjectID, name, superPass, appPass)
 	if err != nil {
+		// Roll back the volume so a failed credential write doesn't leak disk.
+		s.rollbackProvision(ctx, req.TeamID, vol.ID, uuid.Nil, uuid.Nil)
 		return nil, fmt.Errorf("store credentials: %w", err)
 	}
 
@@ -332,6 +335,9 @@ func (s *Service) Provision(ctx context.Context, req ProvisionRequest) (*Provisi
 	})
 	if err != nil {
 		s.logger.Error("create database row failed", "error", err, "name", name)
+		// Roll back volume + secrets so a UNIQUE collision or other insert
+		// failure doesn't leak disk and orphaned secret rows.
+		s.rollbackProvision(ctx, req.TeamID, vol.ID, superSecretID, appSecretID)
 		return nil, fmt.Errorf("create database: %w", err)
 	}
 
@@ -659,6 +665,16 @@ func (s *Service) Delete(ctx context.Context, dbID uuid.UUID) error {
 	if err := s.sendStop(ctx, &d, 30); err != nil {
 		s.logger.Warn("stop container during delete failed; removing row anyway", "error", err, "id", dbID)
 	}
+	// Detach the volume so its row leaves 'attached' state with a stale
+	// container_name. The volume itself is retained (per the retention policy
+	// above); marking it unattached lets operators reuse it via RebindVolume
+	// or delete it cleanly later.
+	if d.VolumeID.Valid {
+		volID := uuid.UUID(d.VolumeID.Bytes)
+		if _, err := s.volumeSvc.Detach(ctx, d.TeamID, volID); err != nil {
+			s.logger.Warn("detach volume during delete failed", "error", err, "id", dbID, "volume_id", volID)
+		}
+	}
 	if err := s.queries.DeleteDatabase(ctx, dbID); err != nil {
 		return err
 	}
@@ -686,9 +702,13 @@ func (s *Service) Stop(ctx context.Context, dbID uuid.UUID) (db.Database, error)
 	})
 }
 
-// Start sends a start command (re-runs the deploy) to the agent. For now we
-// re-issue the original DeployCommand with regenerated env from the secrets
-// store. NOTE: this requires the secrets to still be retrievable; we rely on
+// Start sends a start command (re-runs the deploy) to the agent. The
+// synchronous portion validates inputs and flips the row to 'provisioning';
+// the deploy dispatch + health wait runs in a goroutine and updates the row
+// to 'running' or 'error' based on the agent's DeployOutput. Callers should
+// subscribe to ProvisionChannel(dbID) for live progress just like Provision.
+//
+// NOTE: this requires the secrets to still be retrievable; we rely on
 // BulkResolve which bypasses the reveal-once flag.
 func (s *Service) Start(ctx context.Context, dbID uuid.UUID) (db.Database, error) {
 	d, err := s.queries.GetDatabase(ctx, dbID)
@@ -718,17 +738,110 @@ func (s *Service) Start(ctx context.Context, dbID uuid.UUID) (db.Database, error
 	var vol *db.Volume
 	if d.VolumeID.Valid {
 		v, err := s.queries.GetVolumeAnyTeam(ctx, d.VolumeID.Bytes)
-		if err == nil {
-			vol = &v
+		if err != nil {
+			// Hard fail: continuing without the volume would silently start the
+			// container with empty storage and overwrite/lose data on next deploy.
+			return db.Database{}, fmt.Errorf("get volume: %w", err)
 		}
+		vol = &v
 	}
 
-	if err := s.dispatchDeploy(ctx, uuid.NewString(), d.TeamID, d.ServerID, &d, &tmpl, &version, derefVolume(vol), envMap); err != nil {
-		return db.Database{}, fmt.Errorf("dispatch deploy: %w", err)
-	}
-	return s.queries.UpdateDatabaseStatus(ctx, db.UpdateDatabaseStatusParams{
-		ID: dbID, Status: StatusRunning,
+	// Flip to 'provisioning' so List/Get callers see the in-flight state
+	// rather than a stale 'stopped'. The async deploy will move it to
+	// 'running' on success or 'error' on failure.
+	updated, err := s.queries.UpdateDatabaseStatus(ctx, db.UpdateDatabaseStatusParams{
+		ID: dbID, Status: StatusProvisioning,
 	})
+	if err != nil {
+		return db.Database{}, fmt.Errorf("update status: %w", err)
+	}
+
+	go s.runStartAsync(d, tmpl, version, vol, envMap)
+	return updated, nil
+}
+
+// runStartAsync dispatches the deploy and waits for healthy, then flips the
+// row to 'running'. Mirrors runProvisionAsync's deploy phase but skips the
+// volume/secret/DNS bootstrap steps since they were done at provision time.
+func (s *Service) runStartAsync(
+	d db.Database,
+	tmpl template.Template,
+	version template.Version,
+	vol *db.Volume,
+	envMap map[string]string,
+) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	dbID := d.ID
+	s.publishProvision(ctx, dbID, ProvisionEvent{
+		Step:    "init",
+		Level:   "info",
+		Message: fmt.Sprintf("starting %s (template=%s version=%s)", d.Name, tmpl.Slug, version.Version),
+	})
+
+	deployID := uuid.NewString()
+	resultCh := s.registerDeploy(deployID)
+	defer s.unregisterDeploy(deployID)
+
+	if err := s.dispatchDeploy(ctx, deployID, d.TeamID, d.ServerID, &d, &tmpl, &version, vol, envMap); err != nil {
+		s.markError(ctx, dbID, err)
+		s.publishProvision(ctx, dbID, ProvisionEvent{
+			Step:     "deploy",
+			Level:    "error",
+			Message:  fmt.Sprintf("dispatch deploy failed: %v", err),
+			Terminal: true,
+			Success:  false,
+		})
+		return
+	}
+
+	if !s.awaitDeployHealthy(ctx, dbID, deployID, resultCh) {
+		// awaitDeployHealthy already set status=error and published a
+		// terminal failure event.
+		return
+	}
+
+	if _, err := s.queries.UpdateDatabaseStatus(ctx, db.UpdateDatabaseStatusParams{
+		ID: dbID, Status: StatusRunning,
+	}); err != nil {
+		s.logger.Warn("update status to running failed", "error", err, "id", dbID)
+	}
+
+	s.publishProvision(ctx, dbID, ProvisionEvent{
+		Step:     "done",
+		Level:    "info",
+		Message:  fmt.Sprintf("database %s is running", d.Name),
+		Terminal: true,
+		Success:  true,
+	})
+}
+
+// rollbackProvision best-effort cleans up a volume and credential secrets
+// created earlier in Provision when a later step (secret write, row insert)
+// fails. Each failure is logged but does not propagate — the caller is
+// already in an error path and the goal is to avoid leaks, not to mask the
+// original error.
+func (s *Service) rollbackProvision(ctx context.Context, teamID, volID, superSecretID, appSecretID uuid.UUID) {
+	if volID != uuid.Nil {
+		if err := s.volumeSvc.Delete(ctx, teamID, volID); err != nil {
+			s.logger.Warn("rollback: delete volume failed",
+				"team_id", teamID, "volume_id", volID, "error", err)
+		}
+	}
+	var zeroIP netip.Addr
+	if superSecretID != uuid.Nil {
+		if err := s.secretSvc.Delete(ctx, superSecretID, teamID, nil, "system", zeroIP); err != nil {
+			s.logger.Warn("rollback: delete superuser secret failed",
+				"team_id", teamID, "secret_id", superSecretID, "error", err)
+		}
+	}
+	if appSecretID != uuid.Nil {
+		if err := s.secretSvc.Delete(ctx, appSecretID, teamID, nil, "system", zeroIP); err != nil {
+			s.logger.Warn("rollback: delete app secret failed",
+				"team_id", teamID, "secret_id", appSecretID, "error", err)
+		}
+	}
 }
 
 // resolvePlacement returns the chosen server. If a server is pinned the
@@ -953,10 +1066,6 @@ func randomSuffix(n int) (string, error) {
 	}
 	return hex.EncodeToString(b), nil
 }
-
-// derefVolume converts a *db.Volume that may be nil into the same value;
-// kept as a helper to keep dispatchDeploy's signature explicit.
-func derefVolume(v *db.Volume) *db.Volume { return v }
 
 // RebindVolume detaches the volume currently held by oldDBID and attaches it
 // to newDBID. The new database must be in the same project + cluster as the

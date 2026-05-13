@@ -110,13 +110,16 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO "%s";
 		appUser, appUser,
 	)
 
-	args := []string{
-		"exec",
-		"-e", "PGPASSWORD=" + superPass,
+	// Feed the SQL — which embeds appPass — via stdin so it never appears in
+	// argv on the host. `-i` keeps stdin attached through docker exec; psql
+	// with no -c/-f reads queries from stdin until EOF.
+	execCmd := exec.CommandContext(ctx, "docker", "exec",
+		"-i",
+		"-e", "PGPASSWORD="+superPass,
 		container,
-		"psql", "-v", "ON_ERROR_STOP=1", "-U", superUser, "-d", dbName, "-c", sql,
-	}
-	out, err := exec.CommandContext(ctx, "docker", args...).CombinedOutput()
+		"psql", "-v", "ON_ERROR_STOP=1", "-U", superUser, "-d", dbName)
+	execCmd.Stdin = strings.NewReader(sql)
+	out, err := execCmd.CombinedOutput()
 	if err != nil {
 		logger.Warn("postgres post-init failed",
 			"container", container,
@@ -154,15 +157,17 @@ if (existing) {
 		jsSingleQuote(appUser), jsSingleQuote(appPass), jsSingleQuote(dbName),
 	)
 
-	// Use mongosh first; fall back to legacy `mongo` shell if mongosh is
-	// unavailable (mongo:4 and earlier).
+	// Feed the JS — which embeds appPass — via stdin so it never appears in
+	// argv on the host. mongosh/mongo in non-TTY mode read commands from
+	// stdin until EOF. The superuser password remains on argv via `-p`;
+	// removing it requires either a config file inside the container or a
+	// connection-URI rewrite, both of which are bigger refactors.
 	for _, shell := range []string{"mongosh", "mongo"} {
-		args := []string{
-			"exec", container, shell, "--quiet",
-			"-u", superUser, "-p", superPass, "--authenticationDatabase", "admin",
-			"--eval", js,
-		}
-		out, err := exec.CommandContext(ctx, "docker", args...).CombinedOutput()
+		execCmd := exec.CommandContext(ctx, "docker", "exec",
+			"-i", container, shell, "--quiet",
+			"-u", superUser, "-p", superPass, "--authenticationDatabase", "admin")
+		execCmd.Stdin = strings.NewReader(js)
+		out, err := execCmd.CombinedOutput()
 		if err == nil {
 			return nil
 		}
