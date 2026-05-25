@@ -3,10 +3,15 @@ import { UserMenu } from "./UserMenu";
 import { ThemeToggle } from "./ThemeToggle";
 import type { CurrentUser } from "@/lib/api";
 
-export function Topbar({ user }: { user: CurrentUser }) {
+interface TopbarProps {
+  user: CurrentUser;
+  activeTeamName?: string | null;
+}
+
+export function Topbar({ user, activeTeamName }: TopbarProps) {
   return (
     <header className="h-14 shrink-0 border-b border-line-1 bg-surface-1/80 backdrop-blur-sm flex items-center gap-3 px-4 sm:px-6">
-      <Breadcrumb />
+      <Breadcrumb team={activeTeamName} />
 
       <div className="flex-1 hidden md:flex justify-center max-w-md mx-auto w-full">
         <CommandHint />
@@ -21,12 +26,18 @@ export function Topbar({ user }: { user: CurrentUser }) {
   );
 }
 
-function Breadcrumb() {
-  // Phase 1: minimal — we'll wire real breadcrumbs when feature pages exist.
+function Breadcrumb({ team }: { team: string | null | undefined }) {
   return (
-    <nav aria-label="Breadcrumb" className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-3">
-      <span>Control</span>
-      <span className="text-ink-4">/</span>
+    <nav
+      aria-label="Breadcrumb"
+      className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-3"
+    >
+      {team && (
+        <>
+          <span className="text-ink-2 truncate max-w-[12rem]">{team}</span>
+          <span className="text-ink-4">/</span>
+        </>
+      )}
       <span className="text-ink-1">Overview</span>
     </nav>
   );

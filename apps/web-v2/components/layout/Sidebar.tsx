@@ -15,8 +15,10 @@ import {
   Activity,
 } from "lucide-react";
 import { Logo } from "./Logo";
+import { TeamSwitcher } from "./TeamSwitcher";
 import { Separator } from "@/components/primitives/Separator";
 import { cn } from "@/lib/cn";
+import type { Team } from "@/lib/types";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }>; section: string };
 
@@ -36,15 +38,24 @@ const NAV: NavItem[] = [
   { section: "Access",         href: "/settings",   label: "Settings",  icon: Settings },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  teams: Team[];
+  activeTeam: Team | null;
+}
+
+export function Sidebar({ teams, activeTeam }: SidebarProps) {
   const pathname = usePathname();
   const sections = Array.from(new Set(NAV.map((n) => n.section)));
 
   return (
     <aside className="hidden md:flex flex-col w-[228px] shrink-0 border-r border-line-1 bg-surface-1">
-      <div className="h-14 px-5 flex items-center border-b border-line-1">
-        <Link href="/dashboard"><Logo /></Link>
+      <div className="px-3 pt-3 pb-2 flex items-center justify-between">
+        <Link href="/dashboard" className="px-2"><Logo /></Link>
       </div>
+      <div className="px-3 pb-3">
+        <TeamSwitcher teams={teams} activeTeam={activeTeam} />
+      </div>
+      <Separator />
 
       <nav className="flex-1 overflow-y-auto py-5 px-3 space-y-6">
         {sections.map((section) => (
