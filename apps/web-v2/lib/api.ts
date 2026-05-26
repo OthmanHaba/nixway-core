@@ -17,6 +17,9 @@ import type {
   Cluster,
   ClusterMember,
   MeshPeer,
+  Project,
+  Environment,
+  App,
 } from "./types";
 
 const BASE = "/api/v1";
@@ -265,4 +268,38 @@ export const meshApi = {
     api.get<MeshPeer[]>(`/teams/${teamId}/clusters/${clusterId}/mesh`),
   regenerate: (teamId: string, clusterId: string) =>
     api.post<void>(`/teams/${teamId}/clusters/${clusterId}/mesh/regenerate`),
+};
+
+/* ─── Projects ─── */
+
+export interface CreateProjectInput {
+  name: string;
+  cluster_id: string;
+  description?: string;
+}
+
+export interface UpdateProjectInput {
+  name?: string;
+  description?: string;
+}
+
+export const projectsApi = {
+  list:   (teamId: string)                                        => api.get<Project[]>(`/teams/${teamId}/projects`),
+  get:    (teamId: string, projectId: string)                     => api.get<Project>(`/teams/${teamId}/projects/${projectId}`),
+  create: (teamId: string, input: CreateProjectInput)             => api.post<Project>(`/teams/${teamId}/projects`, input),
+  update: (teamId: string, projectId: string, patch: UpdateProjectInput) =>
+    api.put<Project>(`/teams/${teamId}/projects/${projectId}`, patch),
+  remove: (teamId: string, projectId: string)                     => api.delete<void>(`/teams/${teamId}/projects/${projectId}`),
+};
+
+export const environmentsApi = {
+  list:   (projectId: string)                       => api.get<Environment[]>(`/projects/${projectId}/environments`),
+  create: (projectId: string, name: string)         => api.post<Environment>(`/projects/${projectId}/environments`, { name }),
+};
+
+/* ─── Apps (read surface for 3d-i; full CRUD in 3d-ii) ─── */
+
+export const appsApi = {
+  list: (projectId: string)            => api.get<App[]>(`/projects/${projectId}/apps`),
+  get:  (appId: string)                => api.get<App>(`/apps/${appId}`),
 };

@@ -199,6 +199,50 @@ export interface Project {
   cluster_name?: string;
 }
 
+export interface Environment {
+  id: string;
+  project_id: string;
+  name: string;
+  slug: string;
+  is_production: boolean;
+  created_at: string;
+}
+
+export type AppSourceType = "github" | "docker_image" | string;
+export type AppStatus = "active" | "paused" | "error" | "building" | "deploying" | string;
+
+/**
+ * App as returned by GET /projects/{id}/apps. Many fields are optional
+ * because they only apply to specific source types.
+ */
+export interface App {
+  id: string;
+  project_id: string;
+  name: string;
+  slug: string;
+  source_type: AppSourceType;
+  github_installation_id?: string | null;
+  repo_full_name?: string | null;
+  branch?: string | null;
+  root_path?: string;
+  auto_deploy?: boolean;
+  docker_image?: string | null;
+  registry_credential_id?: string | null;
+  builder?: string;
+  dockerfile_path?: string;
+  port?: number;
+  health_check_path?: string;
+  replicas?: number;
+  placement_strategy?: string;
+  status: AppStatus;
+  resource_cpu_millicores?: number;
+  resource_memory_mb?: number;
+  custom_domain?: string | null;
+  custom_domain_verified?: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Database {
   id: string;
   team_id: string;
