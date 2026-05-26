@@ -2,7 +2,18 @@
  * Client-side API wrapper. Talks to the Go API at /api/v1, with cookies.
  * Mirrors the error envelope: { error: string, code?: string }
  */
-import type { Team, TeamMember, TeamInvite, Role, ApiToken, AuditLog } from "./types";
+import type {
+  Team,
+  TeamMember,
+  TeamInvite,
+  Role,
+  ApiToken,
+  AuditLog,
+  Server,
+  ServerTag,
+  SshKey,
+  SshKeyType,
+} from "./types";
 
 const BASE = "/api/v1";
 
@@ -164,4 +175,51 @@ export const auditApi = {
     const suffix = qs.toString() ? `?${qs}` : "";
     return api.get<AuditLog[]>(`/teams/${teamId}/audit-logs${suffix}`);
   },
+};
+
+/* ─── Servers ─── */
+
+export interface CreateServerInput {
+  name: string;
+  hostname: string;
+  public_ip: string;
+  ssh_port?: number;
+  ssh_user?: string;
+  ssh_key_id: string;
+}
+
+export const serversApi = {
+  list:    (teamId: string)                            => api.get<Server[]>(`/teams/${teamId}/servers`),
+  get:     (teamId: string, serverId: string)          => api.get<Server>(`/teams/${teamId}/servers/${serverId}`),
+  create:  (teamId: string, input: CreateServerInput)  => api.post<Server>(`/teams/${teamId}/servers`, input),
+  update:  (teamId: string, serverId: string, patch: Partial<CreateServerInput>) =>
+    api.put<Server>(`/teams/${teamId}/servers/${serverId}`, patch),
+  remove:  (teamId: string, serverId: string)          => api.delete<void>(`/teams/${teamId}/servers/${serverId}`),
+  cleanup: (teamId: string, serverId: string)          => api.post<void>(`/teams/${teamId}/servers/${serverId}/cleanup`),
+};
+
+export const tagsApi = {
+  list:   (teamId: string, serverId: string) => api.get<ServerTag[]>(`/teams/${teamId}/servers/${serverId}/tags`),
+  set:    (teamId: string, serverId: string, key: string, value: string) =>
+    api.post<ServerTag>(`/teams/${teamId}/servers/${serverId}/tags`, { key, value }),
+  remove: (teamId: string, serverId: string, key: string) =>
+    api.delete<void>(`/teams/${teamId}/servers/${serverId}/tags/${encodeURIComponent(key)}`),
+};
+
+/* ─── SSH keys ─── */
+
+export interface CreateSshKeyInput {
+  name: string;
+  /** When key_type is provided alone, the server generates a fresh pair. */
+  key_type?: SshKeyType;
+  /** Both public_key and private_key together upload an existing pair. */
+  public_key?: string;
+  private_key?: string;
+}
+
+export const sshKeysApi = {
+  list:   (teamId: string)                           => api.get<SshKey[]>(`/teams/${teamId}/ssh-keys`),
+  get:    (teamId: string, keyId: string)            => api.get<SshKey>(`/teams/${teamId}/ssh-keys/${keyId}`),
+  create: (teamId: string, input: CreateSshKeyInput) => api.post<SshKey>(`/teams/${teamId}/ssh-keys`, input),
+  remove: (teamId: string, keyId: string)            => api.delete<void>(`/teams/${teamId}/ssh-keys/${keyId}`),
 };

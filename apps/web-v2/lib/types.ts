@@ -95,6 +95,29 @@ export interface Server {
   updated_at: string;
 }
 
+export interface ServerTag {
+  id?: string;
+  server_id?: string;
+  key: string;
+  value: string;
+  created_at?: string;
+}
+
+export type SshKeyType = "ed25519" | "rsa";
+
+export interface SshKey {
+  id: string;
+  team_id: string;
+  name: string;
+  public_key: string;
+  key_type: SshKeyType | string;
+  fingerprint: string;
+  created_at: string;
+  updated_at?: string;
+  /** Only present on freshly generated keys (one-time reveal). */
+  private_key?: string;
+}
+
 export interface Cluster {
   id: string;
   team_id: string;
