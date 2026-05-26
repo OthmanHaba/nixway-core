@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/primitives/DropdownMenu";
+import { CreateTeamDialog } from "@/components/teams/CreateTeamDialog";
 import { cn } from "@/lib/cn";
 import { TEAM_COOKIE } from "@/lib/team-cookie";
 import type { Team } from "@/lib/types";
@@ -32,13 +33,17 @@ export function TeamSwitcher({ teams, activeTeam }: TeamSwitcherProps) {
 
   if (!activeTeam) {
     return (
-      <button
-        type="button"
-        className="w-full flex items-center gap-2.5 h-9 px-2 rounded-[var(--radius-sm)] border border-dashed border-line-2 text-ink-3 hover:text-ink-1 hover:bg-surface-2 transition-colors"
-      >
-        <Plus className="h-3.5 w-3.5" />
-        <span className="text-[12px]">Create your first team</span>
-      </button>
+      <CreateTeamDialog
+        trigger={
+          <button
+            type="button"
+            className="w-full flex items-center gap-2.5 h-9 px-2 rounded-[var(--radius-sm)] border border-dashed border-line-2 text-ink-3 hover:text-ink-1 hover:bg-surface-2 transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span className="text-[12px]">Create your first team</span>
+          </button>
+        }
+      />
     );
   }
 
@@ -88,11 +93,14 @@ export function TeamSwitcher({ teams, activeTeam }: TeamSwitcherProps) {
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled className="text-ink-3">
-          <Plus className="h-3.5 w-3.5" />
-          Create team
-          <span className="ml-auto font-mono text-[10px] text-ink-4">soon</span>
-        </DropdownMenuItem>
+        <CreateTeamDialog
+          trigger={
+            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+              <Plus className="h-3.5 w-3.5" />
+              Create team
+            </DropdownMenuItem>
+          }
+        />
       </DropdownMenuContent>
     </DropdownMenu>
   );

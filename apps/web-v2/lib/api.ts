@@ -2,6 +2,7 @@
  * Client-side API wrapper. Talks to the Go API at /api/v1, with cookies.
  * Mirrors the error envelope: { error: string, code?: string }
  */
+import type { Team, TeamMember, TeamInvite, Role } from "./types";
 
 const BASE = "/api/v1";
 
@@ -96,4 +97,30 @@ export const authApi = {
     api.post<void>("/auth/reset-password", { token, password }),
   verifyEmail: (token: string) =>
     api.post<void>("/auth/verify-email", { token }),
+};
+
+/* ─── Teams ─── */
+
+export const teamsApi = {
+  list:   ()                                    => api.get<Team[]>("/teams"),
+  get:    (id: string)                          => api.get<Team>(`/teams/${id}`),
+  create: (name: string)                        => api.post<Team>("/teams", { name }),
+  update: (id: string, name: string)            => api.put<Team>(`/teams/${id}`, { name }),
+  remove: (id: string)                          => api.delete<void>(`/teams/${id}`),
+};
+
+export const membersApi = {
+  list:       (teamId: string)                                => api.get<TeamMember[]>(`/teams/${teamId}/members`),
+  updateRole: (teamId: string, userId: string, role: Role)    =>
+    api.put<TeamMember>(`/teams/${teamId}/members/${userId}`, { role }),
+  remove:     (teamId: string, userId: string)                =>
+    api.delete<void>(`/teams/${teamId}/members/${userId}`),
+};
+
+export const invitesApi = {
+  list:   (teamId: string)                              => api.get<TeamInvite[]>(`/teams/${teamId}/invites`),
+  create: (teamId: string, email: string, role: Role)   =>
+    api.post<TeamInvite>(`/teams/${teamId}/invites`, { email, role }),
+  cancel: (teamId: string, inviteId: string)            =>
+    api.delete<void>(`/teams/${teamId}/invites/${inviteId}`),
 };
