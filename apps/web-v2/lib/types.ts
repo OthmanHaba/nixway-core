@@ -103,6 +103,27 @@ export interface ServerTag {
   created_at?: string;
 }
 
+/**
+ * Hardware/runtime snapshot reported by the server's agent. All fields are
+ * optional because the agent populates them asynchronously after onboarding.
+ */
+export interface ServerResources {
+  server_id: string;
+  cpu_model: string | null;
+  cpu_cores: number | null;
+  memory_total: number | null;     // bytes
+  memory_available: number | null; // bytes
+  kernel_version: string | null;
+  docker_version: string | null;
+  disks: unknown;                  // JSONB — opaque on the client for now
+  network_interfaces: unknown;     // JSONB — opaque on the client for now
+  updated_at: string;
+}
+
+export interface ServerDetail extends Server {
+  resources?: ServerResources | null;
+}
+
 export type SshKeyType = "ed25519" | "rsa";
 
 export interface SshKey {

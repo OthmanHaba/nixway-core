@@ -10,6 +10,7 @@ import type {
   ApiToken,
   AuditLog,
   Server,
+  ServerDetail,
   ServerTag,
   SshKey,
   SshKeyType,
@@ -190,10 +191,10 @@ export interface CreateServerInput {
 
 export const serversApi = {
   list:    (teamId: string)                            => api.get<Server[]>(`/teams/${teamId}/servers`),
-  get:     (teamId: string, serverId: string)          => api.get<Server>(`/teams/${teamId}/servers/${serverId}`),
+  get:     (teamId: string, serverId: string)          => api.get<ServerDetail>(`/teams/${teamId}/servers/${serverId}`),
   create:  (teamId: string, input: CreateServerInput)  => api.post<Server>(`/teams/${teamId}/servers`, input),
-  update:  (teamId: string, serverId: string, patch: Partial<CreateServerInput>) =>
-    api.put<Server>(`/teams/${teamId}/servers/${serverId}`, patch),
+  rename:  (teamId: string, serverId: string, name: string) =>
+    api.put<Server>(`/teams/${teamId}/servers/${serverId}`, { name }),
   remove:  (teamId: string, serverId: string)          => api.delete<void>(`/teams/${teamId}/servers/${serverId}`),
   cleanup: (teamId: string, serverId: string)          => api.post<void>(`/teams/${teamId}/servers/${serverId}/cleanup`),
 };
