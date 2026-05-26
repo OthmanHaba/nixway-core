@@ -7,8 +7,8 @@ import { cn } from "@/lib/cn";
 interface FieldProps {
   id: string;
   label: string;
-  hint?: string;
-  error?: string;
+  hint?: React.ReactNode;
+  error?: React.ReactNode;
   trailing?: React.ReactNode;
   className?: string;
   children: React.ReactElement;

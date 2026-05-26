@@ -1,14 +1,24 @@
-import { Settings as SettingsIcon } from "lucide-react";
-import { EmptyState } from "@/components/primitives/EmptyState";
+import { notFound } from "next/navigation";
+import { serverApi, ServerApiError } from "@/lib/server-api";
+import { TeamSettingsClient } from "@/components/teams/TeamSettingsClient";
+import type { Team } from "@/lib/types";
 
 export const metadata = { title: "Team Settings · Nixway Core" };
 
-export default function SettingsPage() {
-  return (
-    <EmptyState
-      icon={<SettingsIcon className="h-4 w-4" />}
-      title="Team settings — coming in 2c"
-      body="Rename the team, delete it, and configure platform-level defaults."
-    />
-  );
+export default async function SettingsPage({
+  params,
+}: {
+  params: Promise<{ teamId: string }>;
+}) {
+  const { teamId } = await params;
+  let team: Team;
+  try {
+    team = await serverApi.get<Team>(`/teams/${teamId}`);
+  } catch (err) {
+    if (err instanceof ServerApiError && (err.status === 404 || err.status === 403)) {
+      notFound();
+    }
+    throw err;
+  }
+  return <TeamSettingsClient team={team} />;
 }

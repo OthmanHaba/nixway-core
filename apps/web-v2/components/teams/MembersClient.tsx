@@ -1,13 +1,14 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MoreHorizontal, UserPlus, Trash2, Mail, X } from "lucide-react";
+import { MoreHorizontal, UserPlus, Trash2, Mail } from "lucide-react";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/primitives/Table";
 import { Avatar } from "@/components/primitives/Avatar";
 import { Badge } from "@/components/primitives/Badge";
 import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { Alert } from "@/components/primitives/Alert";
+import { ConfirmDialog } from "@/components/primitives/Confirm";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -180,18 +181,34 @@ export function MembersClient({
                                 <DropdownMenuSeparator />
                               </>
                             )}
-                            <DropdownMenuItem
-                              disabled={removeMember.isPending}
-                              onSelect={() => {
-                                if (typeof window === "undefined") return;
-                                if (window.confirm(`Remove ${member.user_name || member.email} from the team?`)) {
-                                  removeMember.mutate({ userId: member.user_id });
-                                }
-                              }}
-                            >
-                              <Trash2 className="h-3.5 w-3.5 text-alert" />
-                              <span className="text-alert">Remove</span>
-                            </DropdownMenuItem>
+                            <ConfirmDialog
+                              destructive
+                              title="Remove member?"
+                              description={
+                                <>
+                                  This removes <span className="text-ink-1">{member.user_name || member.email}</span> from the team
+                                  immediately. They lose access to all team resources.
+                                </>
+                              }
+                              confirmLabel="Remove member"
+                              onConfirm={() =>
+                                new Promise<void>((resolve, reject) =>
+                                  removeMember.mutate(
+                                    { userId: member.user_id },
+                                    { onSuccess: () => resolve(), onError: (e) => reject(e) },
+                                  ),
+                                )
+                              }
+                              trigger={
+                                <DropdownMenuItem
+                                  disabled={removeMember.isPending}
+                                  onSelect={(e) => e.preventDefault()}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5 text-alert" />
+                                  <span className="text-alert">Remove</span>
+                                </DropdownMenuItem>
+                              }
+                            />
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}
@@ -238,20 +255,35 @@ export function MembersClient({
                     <TD><span className="font-mono text-[11px] text-ink-3 num">{formatDate(inv.expires_at)}</span></TD>
                     <TD align="right">
                       {canManage && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (typeof window === "undefined") return;
-                            if (window.confirm(`Cancel invite for ${inv.email}?`)) {
-                              cancelInvite.mutate({ inviteId: inv.id });
-                            }
-                          }}
-                          disabled={cancelInvite.isPending}
-                          className="h-7 w-7 grid place-items-center rounded-[var(--radius-sm)] text-ink-3 hover:text-alert hover:bg-surface-2 transition-colors disabled:opacity-50"
-                          aria-label="Cancel invite"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
+                        <ConfirmDialog
+                          destructive
+                          title="Cancel invite?"
+                          description={
+                            <>
+                              The link sent to <span className="text-ink-1">{inv.email}</span> will stop working.
+                              You can issue a new one anytime.
+                            </>
+                          }
+                          confirmLabel="Cancel invite"
+                          onConfirm={() =>
+                            new Promise<void>((resolve, reject) =>
+                              cancelInvite.mutate(
+                                { inviteId: inv.id },
+                                { onSuccess: () => resolve(), onError: (e) => reject(e) },
+                              ),
+                            )
+                          }
+                          trigger={
+                            <button
+                              type="button"
+                              disabled={cancelInvite.isPending}
+                              className="h-7 w-7 grid place-items-center rounded-[var(--radius-sm)] text-ink-3 hover:text-alert hover:bg-surface-2 transition-colors disabled:opacity-50"
+                              aria-label="Cancel invite"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          }
+                        />
                       )}
                     </TD>
                   </TR>

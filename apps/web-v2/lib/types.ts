@@ -135,8 +135,8 @@ export interface Database {
   updated_at: string;
 }
 
-/** Paginated audit-log response. */
-export interface AuditLogPage {
-  entries: AuditLog[];
-  next_cursor?: string | null;
-}
+/**
+ * The Go API returns audit logs as a plain array. Pagination is via the
+ * `before=<RFC3339>` query parameter using the last entry's `created_at`.
+ */
+export type AuditLogList = AuditLog[];

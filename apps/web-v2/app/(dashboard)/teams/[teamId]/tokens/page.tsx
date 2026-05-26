@@ -1,14 +1,15 @@
-import { KeyRound } from "lucide-react";
-import { EmptyState } from "@/components/primitives/EmptyState";
+import { tryGet } from "@/lib/server-api";
+import { TokensClient } from "@/components/teams/TokensClient";
+import type { ApiToken } from "@/lib/types";
 
 export const metadata = { title: "API Tokens · Nixway Core" };
 
-export default function TokensPage() {
-  return (
-    <EmptyState
-      icon={<KeyRound className="h-4 w-4" />}
-      title="API tokens — coming in 2c"
-      body="Create scoped tokens for CI, automation, and external services. One-time reveal, full scope grid, instant revocation."
-    />
-  );
+export default async function TokensPage({
+  params,
+}: {
+  params: Promise<{ teamId: string }>;
+}) {
+  const { teamId } = await params;
+  const tokens = await tryGet<ApiToken[]>(`/teams/${teamId}/tokens`, []);
+  return <TokensClient teamId={teamId} initialTokens={tokens} />;
 }

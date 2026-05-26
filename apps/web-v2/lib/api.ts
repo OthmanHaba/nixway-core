@@ -2,7 +2,7 @@
  * Client-side API wrapper. Talks to the Go API at /api/v1, with cookies.
  * Mirrors the error envelope: { error: string, code?: string }
  */
-import type { Team, TeamMember, TeamInvite, Role } from "./types";
+import type { Team, TeamMember, TeamInvite, Role, ApiToken, AuditLog } from "./types";
 
 const BASE = "/api/v1";
 
@@ -123,4 +123,45 @@ export const invitesApi = {
     api.post<TeamInvite>(`/teams/${teamId}/invites`, { email, role }),
   cancel: (teamId: string, inviteId: string)            =>
     api.delete<void>(`/teams/${teamId}/invites/${inviteId}`),
+};
+
+/* ─── API tokens ─── */
+
+export interface CreateTokenInput {
+  name: string;
+  scopes: string[];
+  /** Go-style duration string, e.g. "720h" for 30 days. Optional. */
+  expires_in?: string;
+}
+
+export const tokensApi = {
+  list:   (teamId: string) => api.get<ApiToken[]>(`/teams/${teamId}/tokens`),
+  create: (teamId: string, input: CreateTokenInput) =>
+    api.post<ApiToken>(`/teams/${teamId}/tokens`, input),
+  revoke: (teamId: string, tokenId: string) =>
+    api.delete<void>(`/teams/${teamId}/tokens/${tokenId}`),
+};
+
+/* ─── Audit log ─── */
+
+export interface AuditFilters {
+  action?: string;
+  resource_type?: string;
+  actor_id?: string;
+  /** RFC3339 timestamp — paginate by passing the last row's created_at. */
+  before?: string;
+  page_size?: number;
+}
+
+export const auditApi = {
+  list: (teamId: string, filters: AuditFilters = {}) => {
+    const qs = new URLSearchParams();
+    if (filters.action)        qs.set("action", filters.action);
+    if (filters.resource_type) qs.set("resource_type", filters.resource_type);
+    if (filters.actor_id)      qs.set("actor_id", filters.actor_id);
+    if (filters.before)        qs.set("before", filters.before);
+    if (filters.page_size)     qs.set("page_size", String(filters.page_size));
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return api.get<AuditLog[]>(`/teams/${teamId}/audit-logs${suffix}`);
+  },
 };
