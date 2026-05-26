@@ -139,6 +139,8 @@ export interface SshKey {
   private_key?: string;
 }
 
+export type ClusterStatus = "active" | "degraded" | "error" | "provisioning";
+
 export interface Cluster {
   id: string;
   team_id: string;
@@ -147,9 +149,41 @@ export interface Cluster {
   description: string;
   region: string;
   cidr: string;
-  status: "active" | "degraded" | "error";
+  status: ClusterStatus | string;
   created_at: string;
   updated_at: string;
+}
+
+export interface ClusterMember {
+  id: string;
+  cluster_id: string;
+  server_id: string;
+  wireguard_ip: string;
+  public_key?: string;
+  status: string;
+  /** Joined from servers — present when the API joins on lookup. */
+  server_name?: string;
+  server_hostname?: string;
+  created_at: string;
+}
+
+/**
+ * Each peer is a directional edge in the WireGuard mesh, joined with
+ * member + server info on the API side.
+ */
+export interface MeshPeer {
+  id: string;
+  member_id: string;
+  peer_member_id: string;
+  status: string;
+  last_handshake_at: string | null;
+  last_check_at: string | null;
+  rtt_ms: number | null;
+  created_at: string;
+  from_ip: string;
+  from_server_name: string;
+  to_ip: string;
+  to_server_name: string;
 }
 
 export interface Project {

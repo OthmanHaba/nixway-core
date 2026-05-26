@@ -14,6 +14,9 @@ import type {
   ServerTag,
   SshKey,
   SshKeyType,
+  Cluster,
+  ClusterMember,
+  MeshPeer,
 } from "./types";
 
 const BASE = "/api/v1";
@@ -223,4 +226,43 @@ export const sshKeysApi = {
   get:    (teamId: string, keyId: string)            => api.get<SshKey>(`/teams/${teamId}/ssh-keys/${keyId}`),
   create: (teamId: string, input: CreateSshKeyInput) => api.post<SshKey>(`/teams/${teamId}/ssh-keys`, input),
   remove: (teamId: string, keyId: string)            => api.delete<void>(`/teams/${teamId}/ssh-keys/${keyId}`),
+};
+
+/* ─── Clusters ─── */
+
+export interface CreateClusterInput {
+  name: string;
+  description?: string;
+  region?: string;
+}
+
+export interface UpdateClusterInput {
+  name?: string;
+  description?: string;
+  region?: string;
+}
+
+export const clustersApi = {
+  list:   (teamId: string)                                 => api.get<Cluster[]>(`/teams/${teamId}/clusters`),
+  get:    (teamId: string, clusterId: string)              => api.get<Cluster>(`/teams/${teamId}/clusters/${clusterId}`),
+  create: (teamId: string, input: CreateClusterInput)      => api.post<Cluster>(`/teams/${teamId}/clusters`, input),
+  update: (teamId: string, clusterId: string, patch: UpdateClusterInput) =>
+    api.put<Cluster>(`/teams/${teamId}/clusters/${clusterId}`, patch),
+  remove: (teamId: string, clusterId: string)              => api.delete<void>(`/teams/${teamId}/clusters/${clusterId}`),
+};
+
+export const clusterMembersApi = {
+  list:   (teamId: string, clusterId: string) =>
+    api.get<ClusterMember[]>(`/teams/${teamId}/clusters/${clusterId}/members`),
+  add:    (teamId: string, clusterId: string, serverId: string) =>
+    api.post<ClusterMember>(`/teams/${teamId}/clusters/${clusterId}/members`, { server_id: serverId }),
+  remove: (teamId: string, clusterId: string, serverId: string) =>
+    api.delete<void>(`/teams/${teamId}/clusters/${clusterId}/members/${serverId}`),
+};
+
+export const meshApi = {
+  health:     (teamId: string, clusterId: string) =>
+    api.get<MeshPeer[]>(`/teams/${teamId}/clusters/${clusterId}/mesh`),
+  regenerate: (teamId: string, clusterId: string) =>
+    api.post<void>(`/teams/${teamId}/clusters/${clusterId}/mesh/regenerate`),
 };
