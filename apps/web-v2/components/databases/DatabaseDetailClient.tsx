@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -15,6 +16,7 @@ import {
   Play,
   Plus,
   RotateCw,
+  SquareTerminal,
   Trash2,
   TriangleAlert,
   Undo2,
@@ -193,6 +195,12 @@ export function DatabaseDetailClient({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href={`/databases/${db.id}/query`}
+            className="h-9 px-3 inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-line-1 bg-surface-1 text-ink-2 hover:text-ink-1 hover:bg-surface-2 font-mono uppercase tracking-[0.14em] text-[11px] transition-colors"
+          >
+            <SquareTerminal className="h-3.5 w-3.5" /> Console
+          </Link>
           {db.status === "stopped" ? (
             <Button
               type="button"

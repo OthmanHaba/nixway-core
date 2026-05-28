@@ -462,6 +462,69 @@ export interface VolumeSnapshot {
   created_at: string;
 }
 
+/* ─── Database tooling (SQL terminal + browser) ─── */
+
+export interface SchemaList {
+  schemas: string[];
+}
+
+export interface TableInfo {
+  name: string;
+  row_count: number;
+}
+
+export interface TableList {
+  tables: TableInfo[];
+}
+
+export interface QueryColumn {
+  name: string;
+  type_name?: string;
+}
+
+export interface QueryRow {
+  values: string[];
+  nulls: boolean[];
+}
+
+/**
+ * Result of POST /databases/{id}/query. `success=false` carries the error in
+ * `error`; UI must surface that prominently. `columns`/`rows` are only set
+ * for SELECT-shaped results, while `affected_rows` covers writes.
+ */
+export interface QueryResult {
+  success: boolean;
+  error?: string;
+  execution_time_ms: number;
+  columns?: QueryColumn[];
+  rows?: QueryRow[];
+  affected_rows?: number;
+  raw_text?: string;
+  query_history_id: string;
+}
+
+/** Paged rows for the table browser. `total` may be -1 when COUNT(*) was skipped. */
+export interface RowPage {
+  columns: QueryColumn[];
+  rows: QueryRow[];
+  page: number;
+  limit: number;
+  total: number;
+}
+
+/** Persisted entry from /databases/{id}/query-history. */
+export interface QueryHistoryEntry {
+  id: string;
+  user_id: string;
+  database_id: string;
+  query_text: string;
+  write_mode: boolean;
+  execution_time_ms: number | null;
+  row_count: number | null;
+  error: string | null;
+  created_at: string;
+}
+
 /**
  * The Go API returns audit logs as a plain array. Pagination is via the
  * `before=<RFC3339>` query parameter using the last entry's `created_at`.

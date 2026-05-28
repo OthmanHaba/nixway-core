@@ -42,6 +42,11 @@ import type {
   TemplateVersion,
   Volume,
   VolumeSnapshot,
+  SchemaList,
+  TableList,
+  RowPage,
+  QueryResult,
+  QueryHistoryEntry,
 } from "./types";
 
 const BASE = "/api/v1";
@@ -614,4 +619,45 @@ export const volumesApi = {
     api.post<VolumeSnapshot>(`/teams/${teamId}/volumes/${volumeId}/snapshot`),
   listSnapshots: (teamId: string, volumeId: string)    =>
     api.get<VolumeSnapshot[]>(`/teams/${teamId}/volumes/${volumeId}/snapshots`),
+};
+
+/* ─── Database tooling (SQL terminal + browser) ─── */
+
+export interface RowsQuery {
+  page?: number;
+  limit?: number;
+  sort?: string;
+  order?: "asc" | "desc";
+}
+
+export interface RunQueryInput {
+  sql: string;
+  /** Must be true for INSERT/UPDATE/DELETE/DDL — guards against accidental writes. */
+  write_mode?: boolean;
+}
+
+export const dbToolingApi = {
+  listSchemas: (dbId: string) => api.get<SchemaList>(`/databases/${dbId}/schemas`),
+  listTables:  (dbId: string, schema: string) =>
+    api.get<TableList>(`/databases/${dbId}/schemas/${encodeURIComponent(schema)}/tables`),
+  getTableRows: (
+    dbId: string,
+    schema: string,
+    table: string,
+    q: RowsQuery = {},
+  ) => {
+    const qs = new URLSearchParams();
+    if (q.page  != null) qs.set("page",  String(q.page));
+    if (q.limit != null) qs.set("limit", String(q.limit));
+    if (q.sort)          qs.set("sort", q.sort);
+    if (q.order)         qs.set("order", q.order);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return api.get<RowPage>(
+      `/databases/${dbId}/schemas/${encodeURIComponent(schema)}/tables/${encodeURIComponent(table)}/rows${suffix}`,
+    );
+  },
+  runQuery: (dbId: string, input: RunQueryInput) =>
+    api.post<QueryResult>(`/databases/${dbId}/query`, input),
+  listQueryHistory: (dbId: string, limit = 50) =>
+    api.get<QueryHistoryEntry[]>(`/databases/${dbId}/query-history?limit=${limit}`),
 };
