@@ -389,6 +389,12 @@ export interface DeploymentTarget {
   healthy_at?: string | null;
   stopped_at?: string | null;
   error?: string | null;
+  /** Set when the cluster has an edge LB and this replica is reachable via mesh. */
+  host_port?: number | null;
+  bind_address?: string | null;
+  /** Joined from servers in ListDeploymentTargets. */
+  server_name?: string;
+  public_ip?: string;
 }
 
 /**

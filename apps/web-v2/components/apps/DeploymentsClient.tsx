@@ -310,29 +310,47 @@ function TargetsList({ targets }: { targets: DeploymentTarget[] }) {
   }
   return (
     <ul className="rounded-[var(--radius-sm)] border border-line-1 bg-surface-2/40 divide-y divide-line-1">
-      {targets.map((t) => (
-        <li key={t.id} className="flex items-center gap-3 px-3 py-2 text-[12px]">
-          <ServerIcon className="h-3.5 w-3.5 text-ink-3" />
-          <span className="font-mono text-ink-2">{t.server_id.slice(0, 8)}</span>
-          <span className="text-ink-4">·</span>
-          <span className="font-mono text-ink-2 truncate flex-1">
-            {t.container_id ? t.container_id.slice(0, 12) : "no container"}
-          </span>
-          <span className="font-mono uppercase tracking-[0.14em] text-[10px] text-ink-3">
-            {t.status}
-          </span>
-          {t.healthy_at && (
-            <span className="font-mono text-[10px] text-online num">
-              healthy {formatRelative(t.healthy_at)}
+      {targets.map((t) => {
+        const onMesh = t.host_port != null && t.bind_address != null;
+        return (
+          <li key={t.id} className="flex items-center gap-3 px-3 py-2 text-[12px]">
+            <ServerIcon className="h-3.5 w-3.5 text-ink-3" />
+            <span className="font-mono text-ink-2">{t.server_name ?? t.server_id.slice(0, 8)}</span>
+            <span className="text-ink-4">·</span>
+            <span className="font-mono text-ink-2 truncate flex-1">
+              {t.container_id ? t.container_id.slice(0, 12) : "no container"}
             </span>
-          )}
-          {t.error && (
-            <span className="font-mono text-[10px] text-alert truncate max-w-[200px]">
-              {t.error}
+            {onMesh ? (
+              <span
+                className="font-mono text-[10px] text-signal border border-signal/40 bg-signal/5 rounded-[3px] px-1.5 py-0.5 num"
+                title="Reachable on the WireGuard mesh — edge LB routes here"
+              >
+                mesh {t.bind_address}:{t.host_port}
+              </span>
+            ) : (
+              <span
+                className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-4"
+                title="Edge LB not enabled — node-local Traefik handles this replica"
+              >
+                local
+              </span>
+            )}
+            <span className="font-mono uppercase tracking-[0.14em] text-[10px] text-ink-3">
+              {t.status}
             </span>
-          )}
-        </li>
-      ))}
+            {t.healthy_at && (
+              <span className="font-mono text-[10px] text-online num">
+                healthy {formatRelative(t.healthy_at)}
+              </span>
+            )}
+            {t.error && (
+              <span className="font-mono text-[10px] text-alert truncate max-w-[200px]">
+                {t.error}
+              </span>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }
