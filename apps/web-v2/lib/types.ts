@@ -330,3 +330,19 @@ export interface Database {
  * `before=<RFC3339>` query parameter using the last entry's `created_at`.
  */
 export type AuditLogList = AuditLog[];
+
+/**
+ * Team-scoped encrypted secret. The plaintext value is never returned
+ * by list/get — call /reveal once to obtain it. `revealed_at` records the
+ * one-time disclosure timestamp.
+ */
+export interface Secret {
+  id: string;
+  team_id: string;
+  environment: string;
+  key: string;
+  version: number;
+  revealed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}

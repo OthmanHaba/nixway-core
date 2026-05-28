@@ -9,6 +9,7 @@ export function TeamTabsNav({ teamId }: { teamId: string }) {
   const tabs = [
     { href: `/teams/${teamId}/members`,    label: "Members" },
     { href: `/teams/${teamId}/tokens`,     label: "API Tokens" },
+    { href: `/teams/${teamId}/secrets`,    label: "Secrets" },
     { href: `/teams/${teamId}/audit-log`,  label: "Audit Log" },
     { href: `/teams/${teamId}/settings`,   label: "Settings" },
   ];

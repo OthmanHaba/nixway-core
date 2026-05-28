@@ -23,6 +23,7 @@ import type {
   Build,
   Deployment,
   DeploymentTarget,
+  Secret,
 } from "./types";
 
 const BASE = "/api/v1";
@@ -384,4 +385,28 @@ export const deploymentsApi = {
   get:     (appId: string, deployId: string)                => api.get<Deployment>(`/apps/${appId}/deployments/${deployId}`),
   targets: (appId: string, deployId: string)                => api.get<DeploymentTarget[]>(`/apps/${appId}/deployments/${deployId}/targets`),
   logsUrl: (appId: string, deployId: string)                => `/api/v1/apps/${appId}/deployments/${deployId}/logs`,
+};
+
+/* ─── Secrets ─── */
+
+export interface CreateSecretInput {
+  environment: string;
+  key: string;
+  value: string;
+}
+
+export const secretsApi = {
+  list:   (teamId: string, environment?: string) => {
+    const qs = environment ? `?environment=${encodeURIComponent(environment)}` : "";
+    return api.get<Secret[]>(`/teams/${teamId}/secrets${qs}`);
+  },
+  get:    (teamId: string, secretId: string)             => api.get<Secret>(`/teams/${teamId}/secrets/${secretId}`),
+  create: (teamId: string, input: CreateSecretInput)     => api.post<Secret>(`/teams/${teamId}/secrets`, input),
+  /** Rotate the value, bumping the version. */
+  update: (teamId: string, secretId: string, value: string) =>
+    api.put<Secret>(`/teams/${teamId}/secrets/${secretId}`, { value }),
+  /** One-time reveal — 409 ApiError if already revealed. */
+  reveal: (teamId: string, secretId: string)             =>
+    api.post<{ value: string }>(`/teams/${teamId}/secrets/${secretId}/reveal`),
+  remove: (teamId: string, secretId: string)             => api.delete<void>(`/teams/${teamId}/secrets/${secretId}`),
 };
