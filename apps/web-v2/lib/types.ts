@@ -159,6 +159,17 @@ export interface ServerMetric {
 /** State machine for a server-provisioning job (Ansible-style component runs). */
 export type ProvisioningJobStatus = "pending" | "running" | "completed" | "failed";
 
+/** Per-component state inside a job. Mirrors the JSONB row written by the service. */
+export type ProvisioningStepStatus = "pending" | "running" | "succeeded" | "failed";
+
+export interface ProvisioningStep {
+  component: ProvisioningComponent | string;
+  status: ProvisioningStepStatus;
+  started_at?: string | null;
+  completed_at?: string | null;
+  error?: string;
+}
+
 /**
  * One SSH-driven provisioning run on a server. Each job installs a chosen set
  * of components (docker, traefik, nixpacks, buildpacks, railpack, agent) and
@@ -175,6 +186,8 @@ export interface ProvisioningJob {
   completed_at: string | null;
   error: string | null;
   created_at: string;
+  /** Structured per-component progress; empty array on older jobs. */
+  steps: ProvisioningStep[];
 }
 
 /** Components installable via the platform's SSH-driven provisioner. */

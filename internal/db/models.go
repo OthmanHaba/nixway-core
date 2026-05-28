@@ -423,6 +423,7 @@ type ProvisioningJob struct {
 	CompletedAt pgtype.Timestamptz `json:"completed_at"`
 	Error       *string            `json:"error"`
 	CreatedAt   time.Time          `json:"created_at"`
+	Steps       json.RawMessage    `json:"steps"`
 }
 
 type RegistryCredential struct {
