@@ -246,6 +246,71 @@ export interface App {
   updated_at: string;
 }
 
+export type BuildStatus =
+  | "pending"
+  | "cloning"
+  | "building"
+  | "built"
+  | "failed"
+  | "cancelled"
+  | string;
+
+export interface Build {
+  id: string;
+  app_id: string;
+  environment_id: string;
+  trigger_type: "manual" | "webhook" | "auto" | string;
+  commit_sha: string;
+  commit_message?: string;
+  branch?: string;
+  builder?: string;
+  image_tag?: string;
+  server_id?: string | null;
+  status: BuildStatus;
+  logs?: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+  created_at: string;
+}
+
+export type DeploymentStatus =
+  | "pending"
+  | "deploying"
+  | "healthy"
+  | "degraded"
+  | "failed"
+  | "rolled_back"
+  | string;
+
+export interface Deployment {
+  id: string;
+  app_id: string;
+  environment_id: string;
+  build_id: string;
+  strategy: string;
+  replicas_desired: number;
+  replicas_ready: number;
+  status: DeploymentStatus;
+  started_at?: string | null;
+  completed_at?: string | null;
+  error?: string | null;
+  platform_domain?: string;
+  created_at: string;
+}
+
+export interface DeploymentTarget {
+  id: string;
+  deployment_id: string;
+  server_id: string;
+  container_id?: string | null;
+  status: string;
+  health_check_attempts?: number;
+  started_at?: string | null;
+  healthy_at?: string | null;
+  stopped_at?: string | null;
+  error?: string | null;
+}
+
 export interface Database {
   id: string;
   team_id: string;

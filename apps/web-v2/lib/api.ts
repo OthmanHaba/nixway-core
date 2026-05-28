@@ -20,6 +20,9 @@ import type {
   Project,
   Environment,
   App,
+  Build,
+  Deployment,
+  DeploymentTarget,
 } from "./types";
 
 const BASE = "/api/v1";
@@ -353,4 +356,32 @@ export const appsApi = {
   setDomain:    (appId: string, custom_domain: string)              => api.post<App>(`/apps/${appId}/domain`, { custom_domain }),
   verifyDomain: (appId: string)                                     => api.post<App>(`/apps/${appId}/domain/verify`),
   updateResources: (appId: string, input: UpdateResourcesInput)     => api.put<App>(`/apps/${appId}/resources`, input),
+  rollback: (appId: string, environment_id?: string)                =>
+    api.post<Deployment>(`/apps/${appId}/rollback`, environment_id ? { environment_id } : {}),
+};
+
+/* ─── Builds ─── */
+
+export interface TriggerBuildInput {
+  environment_id?: string;
+  commit_sha?: string;
+  branch?: string;
+}
+
+export const buildsApi = {
+  list:    (appId: string)                          => api.get<Build[]>(`/apps/${appId}/builds`),
+  get:     (appId: string, buildId: string)         => api.get<Build>(`/apps/${appId}/builds/${buildId}`),
+  trigger: (appId: string, input: TriggerBuildInput = {}) =>
+    api.post<Build>(`/apps/${appId}/builds`, input),
+  /** SSE URL — open via EventSource on the client. */
+  logsUrl: (appId: string, buildId: string)         => `/api/v1/apps/${appId}/builds/${buildId}/logs`,
+};
+
+/* ─── Deployments ─── */
+
+export const deploymentsApi = {
+  list:    (appId: string)                                  => api.get<Deployment[]>(`/apps/${appId}/deployments`),
+  get:     (appId: string, deployId: string)                => api.get<Deployment>(`/apps/${appId}/deployments/${deployId}`),
+  targets: (appId: string, deployId: string)                => api.get<DeploymentTarget[]>(`/apps/${appId}/deployments/${deployId}/targets`),
+  logsUrl: (appId: string, deployId: string)                => `/api/v1/apps/${appId}/deployments/${deployId}/logs`,
 };

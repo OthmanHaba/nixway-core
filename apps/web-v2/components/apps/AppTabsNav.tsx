@@ -7,9 +7,11 @@ import { cn } from "@/lib/cn";
 export function AppTabsNav({ appId }: { appId: string }) {
   const pathname = usePathname();
   const tabs = [
-    { href: `/apps/${appId}/overview`,  label: "Overview" },
-    { href: `/apps/${appId}/resources`, label: "Resources" },
-    { href: `/apps/${appId}/settings`,  label: "Settings" },
+    { href: `/apps/${appId}/overview`,    label: "Overview" },
+    { href: `/apps/${appId}/builds`,      label: "Builds" },
+    { href: `/apps/${appId}/deployments`, label: "Deployments" },
+    { href: `/apps/${appId}/resources`,   label: "Resources" },
+    { href: `/apps/${appId}/settings`,    label: "Settings" },
   ];
   return (
     <nav className="flex items-center gap-1 border-b border-line-1 -mx-1 px-1">
