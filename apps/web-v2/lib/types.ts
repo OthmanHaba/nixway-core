@@ -332,6 +332,18 @@ export interface Database {
 export type AuditLogList = AuditLog[];
 
 /**
+ * Active container running an app's current deployment. Returned by
+ * GET /apps/{id}/replicas — joined with deployment_targets + servers.
+ */
+export interface Replica {
+  target_id: string;
+  container_id: string | null;
+  server_id: string;
+  server_name: string;
+  agent_id: string | null;
+}
+
+/**
  * Team-scoped encrypted secret. The plaintext value is never returned
  * by list/get — call /reveal once to obtain it. `revealed_at` records the
  * one-time disclosure timestamp.

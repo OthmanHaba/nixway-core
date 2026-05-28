@@ -24,6 +24,7 @@ import type {
   Deployment,
   DeploymentTarget,
   Secret,
+  Replica,
 } from "./types";
 
 const BASE = "/api/v1";
@@ -359,6 +360,22 @@ export const appsApi = {
   updateResources: (appId: string, input: UpdateResourcesInput)     => api.put<App>(`/apps/${appId}/resources`, input),
   rollback: (appId: string, environment_id?: string)                =>
     api.post<Deployment>(`/apps/${appId}/rollback`, environment_id ? { environment_id } : {}),
+  listReplicas: (appId: string)                                     => api.get<Replica[]>(`/apps/${appId}/replicas`),
+  /**
+   * SSE URL for streaming a container's logs. The container query param is
+   * optional; when omitted the server picks the latest replica.
+   */
+  logsUrl: (
+    appId: string,
+    opts: { container?: string; tail?: number; follow?: boolean } = {},
+  ): string => {
+    const qs = new URLSearchParams();
+    if (opts.container) qs.set("container", opts.container);
+    if (opts.tail)      qs.set("tail", String(opts.tail));
+    if (opts.follow)    qs.set("follow", "true");
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return `/api/v1/apps/${appId}/logs${suffix}`;
+  },
 };
 
 /* ─── Builds ─── */

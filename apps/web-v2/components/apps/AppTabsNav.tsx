@@ -10,6 +10,7 @@ export function AppTabsNav({ appId }: { appId: string }) {
     { href: `/apps/${appId}/overview`,    label: "Overview" },
     { href: `/apps/${appId}/builds`,      label: "Builds" },
     { href: `/apps/${appId}/deployments`, label: "Deployments" },
+    { href: `/apps/${appId}/logs`,        label: "Logs" },
     { href: `/apps/${appId}/resources`,   label: "Resources" },
     { href: `/apps/${appId}/settings`,    label: "Settings" },
   ];

@@ -11,17 +11,26 @@ interface LogStreamProps {
   /** Optional title shown at the top of the panel. */
   title?: string;
   onClose?: () => void;
+  /** Case-insensitive substring; non-matching lines are hidden from display. */
+  filter?: string;
+  /** Optional override for the panel's max height. */
+  className?: string;
 }
 
 /**
  * Lightweight SSE log viewer. Connects on mount, renders incoming lines into a
  * scrolling monospace pre, and shows a Live badge while the connection is open.
  */
-export function LogStream({ url, title, onClose }: LogStreamProps) {
+export function LogStream({ url, title, onClose, filter, className }: LogStreamProps) {
   const [lines, setLines] = useState<string[]>([]);
   const [live, setLive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const preRef = useRef<HTMLPreElement>(null);
+
+  const needle = filter?.trim().toLowerCase() ?? "";
+  const visible = needle
+    ? lines.filter((l) => l.toLowerCase().includes(needle))
+    : lines;
 
   useEffect(() => {
     setLines([]);
@@ -59,7 +68,12 @@ export function LogStream({ url, title, onClose }: LogStreamProps) {
   }, [lines]);
 
   return (
-    <div className="flex flex-col rounded-[var(--radius-lg)] border border-line-1 bg-[#0c0d12] overflow-hidden h-[min(560px,calc(100dvh-220px))]">
+    <div
+      className={cn(
+        "flex flex-col rounded-[var(--radius-lg)] border border-line-1 bg-[#0c0d12] overflow-hidden",
+        className ?? "h-[min(560px,calc(100dvh-220px))]",
+      )}
+    >
       <header className="flex items-center justify-between px-3 py-2 border-b border-line-1 bg-surface-1/40">
         <div className="flex items-center gap-3 min-w-0">
           <div className="label-mono flex items-center gap-2 text-ink-2">
@@ -72,7 +86,7 @@ export function LogStream({ url, title, onClose }: LogStreamProps) {
             <Badge tone="neutral">Idle</Badge>
           )}
           <span className="font-mono text-[10px] text-ink-4 num">
-            {lines.length} {lines.length === 1 ? "line" : "lines"}
+            {needle ? `${visible.length} / ${lines.length}` : `${lines.length} ${lines.length === 1 ? "line" : "lines"}`}
           </span>
         </div>
         {onClose && (
@@ -96,8 +110,10 @@ export function LogStream({ url, title, onClose }: LogStreamProps) {
       >
         {lines.length === 0 && !error ? (
           <span className="text-ink-3">Waiting for output…</span>
+        ) : visible.length === 0 ? (
+          <span className="text-ink-3">No lines match the filter yet.</span>
         ) : (
-          lines.map((line, i) => (
+          visible.map((line, i) => (
             <div key={i}>{line}</div>
           ))
         )}
