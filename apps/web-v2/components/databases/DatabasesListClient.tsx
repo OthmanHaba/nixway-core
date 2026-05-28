@@ -50,7 +50,12 @@ import {
   DropdownMenuSeparator,
 } from "@/components/primitives/DropdownMenu";
 import { ConfirmDialog } from "@/components/primitives/Confirm";
-import { databasesApi, ApiError, type ProvisionDatabaseInput } from "@/lib/api";
+import {
+  databasesApi,
+  clusterMembersApi,
+  ApiError,
+  type ProvisionDatabaseInput,
+} from "@/lib/api";
 import type {
   Database,
   DatabaseProvisionResult,
@@ -330,6 +335,9 @@ function ProvisionDialog({
 
   const [version, setVersion] = useState(defaultVersion);
   const [name, setName] = useState("");
+  // Empty string means "auto" — let the platform's scheduler pick the
+  // least-loaded server in the cluster.
+  const [serverId, setServerId] = useState("");
   const [size, setSize] = useState(String(tmpl?.volume_spec.default_gib ?? 10));
   const [cpu, setCpu] = useState(
     String(tmpl?.default_resources.milli_cpu ?? 500),
@@ -358,12 +366,22 @@ function ProvisionDialog({
   function reset() {
     selectTemplate(firstSlug);
     setName("");
+    setServerId("");
     setSchedule("");
     setRetention("7");
     setError(null);
     setResult(null);
     setRunStatus("streaming");
   }
+
+  // Cluster members → server picker. Only fetched when the dialog is open and
+  // the project has a cluster, since the server select is the only consumer.
+  const members = useQuery({
+    queryKey: ["cluster-members", project.team_id, project.cluster_id],
+    queryFn: () =>
+      clusterMembersApi.list(project.team_id, project.cluster_id!),
+    enabled: open && !!project.cluster_id,
+  });
 
   const create = useMutation({
     mutationFn: () => {
@@ -374,6 +392,7 @@ function ProvisionDialog({
         throw new Error("Project has no cluster — assign one first.");
       const input: ProvisionDatabaseInput = {
         cluster_id: project.cluster_id,
+        server_id: serverId || undefined,
         template_slug: slug,
         version,
         name: trimmed,
@@ -623,12 +642,59 @@ function ProvisionDialog({
             </div>
           </div>
 
-          <p className="font-mono text-[11px] text-ink-3 inline-flex items-center gap-2">
-            <ServerIcon className="h-3 w-3" /> deploys to cluster
-            <span className="text-ink-1">
-              {project.cluster_name ?? project.cluster_id}
-            </span>
-          </p>
+          <div className="rounded-[var(--radius-md)] border border-line-1 bg-surface-1 p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="label-mono">Placement</div>
+                <p className="text-[12px] text-ink-3">
+                  Pick a specific server, or let the scheduler choose the
+                  least-loaded one in this cluster.
+                </p>
+              </div>
+              <ServerIcon className="h-4 w-4 text-ink-3" />
+            </div>
+            <div className="space-y-2">
+              <div className="label-mono">Server</div>
+              <Select
+                value={serverId || "__auto__"}
+                onValueChange={(v) =>
+                  setServerId(v === "__auto__" ? "" : v)
+                }
+                disabled={!project.cluster_id}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Auto · least loaded" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__auto__">
+                    <span className="font-mono text-[12px]">Auto</span>
+                    <span className="font-mono text-[10px] text-ink-4 ml-1">
+                      (scheduler picks the least-loaded server)
+                    </span>
+                  </SelectItem>
+                  {(members.data ?? []).map((m) => (
+                    <SelectItem key={m.server_id} value={m.server_id}>
+                      <span className="inline-flex items-center gap-2">
+                        <ServerIcon className="h-3 w-3 text-ink-3" />
+                        <span className="font-mono text-[12px]">
+                          {m.server_hostname ?? m.server_name ?? m.server_id}
+                        </span>
+                        <span className="font-mono text-[10px] text-ink-4 ml-1">
+                          {m.status}
+                        </span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="font-mono text-[10px] text-ink-4">
+                cluster{" "}
+                <span className="text-ink-2">
+                  {project.cluster_name ?? project.cluster_id}
+                </span>
+              </p>
+            </div>
+          </div>
           </>
           )}
         </DialogBody>
