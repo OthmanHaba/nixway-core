@@ -135,6 +135,50 @@ export interface ServerMetric {
   fresh: boolean;
 }
 
+/** State machine for a server-provisioning job (Ansible-style component runs). */
+export type ProvisioningJobStatus = "pending" | "running" | "completed" | "failed";
+
+/**
+ * One SSH-driven provisioning run on a server. Each job installs a chosen set
+ * of components (docker, traefik, nixpacks, buildpacks, railpack, agent) and
+ * captures the stdout/stderr of each script into `logs`.
+ */
+export interface ProvisioningJob {
+  id: string;
+  server_id: string;
+  components: ProvisioningComponent[];
+  status: ProvisioningJobStatus;
+  /** Newline-separated stdout/stderr accumulated from each component script. */
+  logs: string;
+  started_at: string | null;
+  completed_at: string | null;
+  error: string | null;
+  created_at: string;
+}
+
+/** Components installable via the platform's SSH-driven provisioner. */
+export type ProvisioningComponent =
+  | "docker"
+  | "traefik"
+  | "nixpacks"
+  | "buildpacks"
+  | "railpack"
+  | "agent";
+
+/** Catalog of components — kept in sync with internal/provisioner/embed.go. */
+export const PROVISIONING_COMPONENTS: ReadonlyArray<{
+  id: ProvisioningComponent;
+  label: string;
+  description: string;
+}> = [
+  { id: "docker",     label: "Docker",                  description: "Container runtime used to run apps and managed databases." },
+  { id: "traefik",    label: "Traefik",                 description: "Edge proxy that fronts deployed apps via Docker labels + file provider." },
+  { id: "nixpacks",   label: "Nixpacks",                description: "Auto-detect builder for source-based deploys (Railway-style)." },
+  { id: "buildpacks", label: "Cloud Native Buildpacks", description: "Optional pack CLI for buildpack-based image production." },
+  { id: "railpack",   label: "Railpack",                description: "Alternative source builder." },
+  { id: "agent",      label: "Nixway agent",            description: "Always installed last. Re-run on its own to upgrade the binary." },
+];
+
 export type SshKeyType = "ed25519" | "rsa";
 
 export interface SshKey {

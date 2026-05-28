@@ -13,6 +13,8 @@ import type {
   ServerDetail,
   ServerMetric,
   ServerTag,
+  ProvisioningJob,
+  ProvisioningComponent,
   SshKey,
   SshKeyType,
   Cluster,
@@ -238,6 +240,25 @@ export const serversApi = {
   remove:  (teamId: string, serverId: string)          => api.delete<void>(`/teams/${teamId}/servers/${serverId}`),
   cleanup: (teamId: string, serverId: string)          => api.post<void>(`/teams/${teamId}/servers/${serverId}/cleanup`),
   metrics: (teamId: string, serverId: string)          => api.get<ServerMetric>(`/teams/${teamId}/servers/${serverId}/metrics`),
+};
+
+/**
+ * SSH-driven server provisioning — runs component install scripts on the
+ * target host and streams their output. The latest job per server is the
+ * canonical record; Status returns null when the server has never been
+ * provisioned. Maintenance is just re-running a single component, e.g.
+ * `start(..., ["agent"])` to upgrade the agent binary in place.
+ */
+export const serverProvisionApi = {
+  status: (teamId: string, serverId: string) =>
+    api.get<ProvisioningJob | null>(`/teams/${teamId}/servers/${serverId}/provision`),
+  start: (teamId: string, serverId: string, components: ProvisioningComponent[]) =>
+    api.post<ProvisioningJob>(`/teams/${teamId}/servers/${serverId}/provision`, { components }),
+  retry: (teamId: string, serverId: string) =>
+    api.post<ProvisioningJob>(`/teams/${teamId}/servers/${serverId}/provision/retry`, {}),
+  /** SSE URL for the live log stream of a specific provisioning job. */
+  logsUrl: (teamId: string, serverId: string, jobId: string) =>
+    `/api/v1/teams/${teamId}/servers/${serverId}/provision/${jobId}/logs`,
 };
 
 export const tagsApi = {
