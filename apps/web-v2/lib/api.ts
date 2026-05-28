@@ -30,6 +30,8 @@ import type {
   ScaleResult,
   VerifyDomainResult,
   TrafficView,
+  AutoscalingRule,
+  AutoscaleEvaluation,
 } from "./types";
 
 const BASE = "/api/v1";
@@ -418,11 +420,34 @@ export const appsApi = {
   /** Sets the chosen backend's weight to 100 and zeroes the rest. */
   promoteBackend: (appId: string, backendId: string) =>
     api.post<TrafficView>(`/apps/${appId}/traffic/backends/${backendId}/promote`),
+  listAutoscalingRules: (appId: string) =>
+    api.get<AutoscalingRule[]>(`/apps/${appId}/autoscaling-rules`),
+  createAutoscalingRule: (appId: string, input: CreateAutoscalingRuleInput) =>
+    api.post<AutoscalingRule>(`/apps/${appId}/autoscaling-rules`, input),
+  deleteAutoscalingRule: (appId: string, ruleId: string) =>
+    api.delete<void>(`/apps/${appId}/autoscaling-rules/${ruleId}`),
+  evaluateAutoscaling: (appId: string) =>
+    api.post<AutoscaleEvaluation[]>(`/apps/${appId}/autoscaling/evaluate`),
 };
 
 export interface TrafficWeightInput {
   backend_id: string;
   weight: number;
+}
+
+export interface CreateAutoscalingRuleInput {
+  name?: string;
+  metric_name?: string;
+  comparison?: string;
+  threshold: number;
+  duration_seconds?: number;
+  action_type?: string;
+  action_value?: number;
+  min_replicas?: number;
+  max_replicas?: number;
+  cooldown_up_seconds?: number;
+  cooldown_down_seconds?: number;
+  enabled?: boolean;
 }
 
 export interface ScaleInput {

@@ -452,6 +452,52 @@ export interface TrafficView {
   events: TrafficEvent[];
 }
 
+/** Comparison operator on an autoscaling rule's metric threshold. */
+export type AutoscaleComparison = "gt" | "gte" | "lt" | "lte" | "eq" | "ne" | string;
+
+/** What an autoscaling rule does when its condition is met. */
+export type AutoscaleActionType = "scale_by" | "scale_to" | string;
+
+/**
+ * Declarative autoscaling rule attached to an app. When a metric (`metric_name`)
+ * compares true against `threshold` for `duration_seconds`, the rule fires the
+ * configured action — bounded by min/max replicas and the cooldown windows.
+ */
+export interface AutoscalingRule {
+  id: string;
+  app_id: string;
+  name: string;
+  metric_name: string;
+  comparison: AutoscaleComparison;
+  threshold: number;
+  duration_seconds: number;
+  action_type: AutoscaleActionType;
+  action_value: number;
+  min_replicas: number;
+  max_replicas: number;
+  cooldown_up_seconds: number;
+  cooldown_down_seconds: number;
+  enabled: boolean;
+  last_triggered_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Result of an explicit POST /apps/{id}/autoscaling/evaluate call. The handler
+ * returns one entry per rule, with `triggered` set when the action fired
+ * (in which case `event` references the recorded ScalingEvent).
+ */
+export interface AutoscaleEvaluation {
+  rule_id: string;
+  rule_name: string;
+  metric_name: string;
+  metric_value: number;
+  triggered: boolean;
+  message: string;
+  event?: ScalingEvent | null;
+}
+
 /**
  * Team-scoped encrypted secret. The plaintext value is never returned
  * by list/get — call /reveal once to obtain it. `revealed_at` records the
