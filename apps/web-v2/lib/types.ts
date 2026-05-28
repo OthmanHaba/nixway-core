@@ -349,8 +349,35 @@ export interface Database {
   backup_schedule: string | null;
   backup_retention_days: number | null;
   backup_storage_type: string | null;
+  provision_log: ProvisionLogEntry[];
+  error_message: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * One entry in a database's persistent provision log. Mirrors the Go
+ * publishProvision event struct — the agent emits these as it walks the
+ * provisioning state machine.
+ */
+export interface ProvisionLogEntry {
+  step: string;
+  level: "info" | "warn" | "error" | string;
+  message: string;
+  terminal?: boolean;
+  success?: boolean;
+  at: string;
+}
+
+/**
+ * Response of POST /projects/{}/databases. The database row is in
+ * `provisioning` state and the deploy is dispatched asynchronously — clients
+ * should subscribe to the provision stream for live progress.
+ */
+export interface DatabaseProvisionResult {
+  database: Database;
+  superuser_password: string;
+  appuser_password: string;
 }
 
 /** Catalog entry for a provisionable service (DB/cache/queue/etc). */

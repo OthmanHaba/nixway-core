@@ -43,5 +43,20 @@ UPDATE databases
 SET volume_id = $2, updated_at = now()
 WHERE id = $1;
 
+-- name: AppendDatabaseProvisionEvent :exec
+UPDATE databases
+SET provision_log = provision_log || $2::jsonb, updated_at = now()
+WHERE id = $1;
+
+-- name: SetDatabaseError :exec
+UPDATE databases
+SET status = 'error', error_message = $2, updated_at = now()
+WHERE id = $1;
+
+-- name: ClearDatabaseProvisionLog :exec
+UPDATE databases
+SET provision_log = '[]'::jsonb, error_message = NULL, updated_at = now()
+WHERE id = $1;
+
 -- name: DeleteDatabase :exec
 DELETE FROM databases WHERE id = $1;

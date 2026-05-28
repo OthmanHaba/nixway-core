@@ -34,6 +34,7 @@ import type {
   AutoscalingRule,
   AutoscaleEvaluation,
   Database,
+  DatabaseProvisionResult,
   DatabaseLink,
   DatabaseCredentialRotation,
   RotateCredentialsResponse,
@@ -562,7 +563,10 @@ export const databasesApi = {
   get:     (projectId: string, dbId: string)         => api.get<Database>(`/projects/${projectId}/databases/${dbId}`),
   getByID: (dbId: string)                            => api.get<Database>(`/databases/${dbId}`),
   provision: (projectId: string, input: ProvisionDatabaseInput) =>
-    api.post<Database>(`/projects/${projectId}/databases`, input),
+    api.post<DatabaseProvisionResult>(`/projects/${projectId}/databases`, input),
+  /** SSE URL — open via EventSource on the client. Yields ProvisionLogEntry events. */
+  provisionStreamUrl: (projectId: string, dbId: string) =>
+    `/api/v1/projects/${projectId}/databases/${dbId}/provision-stream`,
   remove:  (projectId: string, dbId: string)         => api.delete<void>(`/projects/${projectId}/databases/${dbId}`),
   start:   (projectId: string, dbId: string)         => api.post<Database>(`/projects/${projectId}/databases/${dbId}/start`),
   stop:    (projectId: string, dbId: string)         => api.post<Database>(`/projects/${projectId}/databases/${dbId}/stop`),

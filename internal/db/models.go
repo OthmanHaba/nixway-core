@@ -217,6 +217,8 @@ type Database struct {
 	BackupSchedule        *string     `json:"backup_schedule"`
 	BackupRetentionDays   *int32      `json:"backup_retention_days"`
 	BackupStorageType     *string     `json:"backup_storage_type"`
+	ProvisionLog          json.RawMessage `json:"provision_log"`
+	ErrorMessage          *string         `json:"error_message"`
 	CreatedAt             time.Time   `json:"created_at"`
 	UpdatedAt             time.Time   `json:"updated_at"`
 }

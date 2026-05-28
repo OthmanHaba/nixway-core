@@ -51,7 +51,14 @@ import {
 } from "@/components/primitives/DropdownMenu";
 import { ConfirmDialog } from "@/components/primitives/Confirm";
 import { databasesApi, ApiError, type ProvisionDatabaseInput } from "@/lib/api";
-import type { Database, Project, Template } from "@/lib/types";
+import type {
+  Database,
+  DatabaseProvisionResult,
+  Project,
+  Template,
+} from "@/lib/types";
+import { ProvisionConsole } from "./ProvisionConsole";
+import { CredentialsReveal } from "./CredentialsReveal";
 
 interface Props {
   project: Project;
@@ -296,6 +303,13 @@ function ProvisionDialog({
   const router = useRouter();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  // After Provision is submitted we flip to the console view and tail the
+  // SSE stream. `result` carries the reveal-once credentials so the dialog
+  // can surface them once the run terminates successfully.
+  const [result, setResult] = useState<DatabaseProvisionResult | null>(null);
+  const [runStatus, setRunStatus] = useState<"streaming" | "success" | "failed">(
+    "streaming",
+  );
 
   // Group templates by category for the picker.
   const grouped = useMemo(() => {
@@ -347,6 +361,8 @@ function ProvisionDialog({
     setSchedule("");
     setRetention("7");
     setError(null);
+    setResult(null);
+    setRunStatus("streaming");
   }
 
   const create = useMutation({
@@ -373,9 +389,11 @@ function ProvisionDialog({
       queryClient.invalidateQueries({
         queryKey: ["project-databases", project.id],
       });
-      setOpen(false);
-      reset();
-      router.push(`/projects/${project.id}/databases/${created.id}`);
+      // Flip the dialog into console mode. The console subscribes to SSE
+      // and reports back when the run terminates so we can show
+      // credentials or the failure reason.
+      setResult(created);
+      setError(null);
     },
     onError: (err) =>
       setError(
@@ -386,6 +404,14 @@ function ProvisionDialog({
             : "Could not provision database.",
       ),
   });
+
+  function handleContinue() {
+    if (!result) return;
+    const dbId = result.database.id;
+    setOpen(false);
+    reset();
+    router.push(`/projects/${project.id}/databases/${dbId}`);
+  }
 
   return (
     <Dialog
@@ -399,20 +425,54 @@ function ProvisionDialog({
       <DialogContent className="max-w-[680px]">
         <DialogHeader>
           <DialogEyebrow>Services · provision</DialogEyebrow>
-          <DialogTitle>Provision database</DialogTitle>
+          <DialogTitle>
+            {result
+              ? runStatus === "failed"
+                ? "Provisioning failed"
+                : runStatus === "success"
+                  ? "Database provisioned"
+                  : "Provisioning database…"
+              : "Provision database"}
+          </DialogTitle>
           <DialogDescription>
-            The platform pulls the image, attaches a volume, generates
-            credentials and registers DNS — usually under a minute for fresh
-            templates.
+            {result
+              ? `${result.database.name} (${result.database.template_slug}:${result.database.version}) on container ${result.database.container_name}`
+              : "The platform pulls the image, attaches a volume, generates credentials and registers DNS — usually under a minute for fresh templates."}
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="space-y-5">
           {error && <Alert tone="error">{error}</Alert>}
-          {templates.length === 0 && (
+          {!result && templates.length === 0 && (
             <Alert tone="warn">
               No service templates available on this platform.
             </Alert>
           )}
+
+          {result && (
+            <div className="space-y-4">
+              <ProvisionConsole
+                projectId={project.id}
+                databaseId={result.database.id}
+                onTerminal={(success) =>
+                  setRunStatus(success ? "success" : "failed")
+                }
+              />
+              {runStatus === "success" && (
+                <CredentialsReveal result={result} />
+              )}
+              {runStatus === "failed" && (
+                <Alert tone="error">
+                  Provisioning did not complete. The database row is in the
+                  error state — open it on the detail page to inspect the
+                  persisted log and roll back if needed.
+                </Alert>
+              )}
+            </div>
+          )}
+
+          {!result && (
+          <>
+          {/* Form fields are only rendered before the run starts. */}
 
           <div className="space-y-2">
             <div className="label-mono">Template</div>
@@ -569,21 +629,40 @@ function ProvisionDialog({
               {project.cluster_name ?? project.cluster_id}
             </span>
           </p>
+          </>
+          )}
         </DialogBody>
         <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="ghost">
-              Cancel
+          {result ? (
+            <Button
+              type="button"
+              onClick={handleContinue}
+              disabled={runStatus === "streaming"}
+              loading={runStatus === "streaming"}
+            >
+              {runStatus === "streaming"
+                ? "Provisioning…"
+                : runStatus === "success"
+                  ? "Open database"
+                  : "Close"}
             </Button>
-          </DialogClose>
-          <Button
-            type="button"
-            onClick={() => create.mutate()}
-            loading={create.isPending}
-            disabled={!slug || !version || !name.trim()}
-          >
-            <Plus className="h-3.5 w-3.5" /> Provision
-          </Button>
+          ) : (
+            <>
+              <DialogClose asChild>
+                <Button type="button" variant="ghost">
+                  Cancel
+                </Button>
+              </DialogClose>
+              <Button
+                type="button"
+                onClick={() => create.mutate()}
+                loading={create.isPending}
+                disabled={!slug || !version || !name.trim()}
+              >
+                <Plus className="h-3.5 w-3.5" /> Provision
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
