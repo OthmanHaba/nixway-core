@@ -93,7 +93,7 @@ func (q *Queries) CreateDeployment(ctx context.Context, arg CreateDeploymentPara
 const createDeploymentTarget = `-- name: CreateDeploymentTarget :one
 INSERT INTO deployment_targets (deployment_id, server_id)
 VALUES ($1, $2)
-RETURNING id, deployment_id, server_id, container_id, status, health_check_attempts, started_at, healthy_at, stopped_at, error
+RETURNING id, deployment_id, server_id, container_id, status, health_check_attempts, started_at, healthy_at, stopped_at, error, host_port, bind_address
 `
 
 type CreateDeploymentTargetParams struct {
@@ -115,6 +115,8 @@ func (q *Queries) CreateDeploymentTarget(ctx context.Context, arg CreateDeployme
 		&i.HealthyAt,
 		&i.StoppedAt,
 		&i.Error,
+		&i.HostPort,
+		&i.BindAddress,
 	)
 	return i, err
 }
@@ -299,7 +301,7 @@ func (q *Queries) GetDeployment(ctx context.Context, id uuid.UUID) (Deployment, 
 }
 
 const getDeploymentTarget = `-- name: GetDeploymentTarget :one
-SELECT id, deployment_id, server_id, container_id, status, health_check_attempts, started_at, healthy_at, stopped_at, error FROM deployment_targets WHERE id = $1
+SELECT id, deployment_id, server_id, container_id, status, health_check_attempts, started_at, healthy_at, stopped_at, error, host_port, bind_address FROM deployment_targets WHERE id = $1
 `
 
 func (q *Queries) GetDeploymentTarget(ctx context.Context, id uuid.UUID) (DeploymentTarget, error) {
@@ -316,6 +318,8 @@ func (q *Queries) GetDeploymentTarget(ctx context.Context, id uuid.UUID) (Deploy
 		&i.HealthyAt,
 		&i.StoppedAt,
 		&i.Error,
+		&i.HostPort,
+		&i.BindAddress,
 	)
 	return i, err
 }
@@ -474,7 +478,7 @@ func (q *Queries) ListClusterMembersForScheduling(ctx context.Context, clusterID
 }
 
 const listDeploymentTargets = `-- name: ListDeploymentTargets :many
-SELECT dt.id, dt.deployment_id, dt.server_id, dt.container_id, dt.status, dt.health_check_attempts, dt.started_at, dt.healthy_at, dt.stopped_at, dt.error, s.name AS server_name, s.public_ip
+SELECT dt.id, dt.deployment_id, dt.server_id, dt.container_id, dt.status, dt.health_check_attempts, dt.started_at, dt.healthy_at, dt.stopped_at, dt.error, dt.host_port, dt.bind_address, s.name AS server_name, s.public_ip
 FROM deployment_targets dt
 JOIN servers s ON s.id = dt.server_id
 WHERE dt.deployment_id = $1
@@ -492,6 +496,8 @@ type ListDeploymentTargetsRow struct {
 	HealthyAt           pgtype.Timestamptz `json:"healthy_at"`
 	StoppedAt           pgtype.Timestamptz `json:"stopped_at"`
 	Error               *string            `json:"error"`
+	HostPort            *int32             `json:"host_port"`
+	BindAddress         *string            `json:"bind_address"`
 	ServerName          string             `json:"server_name"`
 	PublicIp            netip.Addr         `json:"public_ip"`
 }
@@ -516,6 +522,8 @@ func (q *Queries) ListDeploymentTargets(ctx context.Context, deploymentID uuid.U
 			&i.HealthyAt,
 			&i.StoppedAt,
 			&i.Error,
+			&i.HostPort,
+			&i.BindAddress,
 			&i.ServerName,
 			&i.PublicIp,
 		); err != nil {
@@ -722,5 +730,66 @@ func (q *Queries) UpdateDeploymentTargetStatus(ctx context.Context, arg UpdateDe
 		arg.HealthCheckAttempts,
 		arg.Error,
 	)
+	return err
+}
+
+const setDeploymentTargetEdge = `-- name: SetDeploymentTargetEdge :exec
+UPDATE deployment_targets
+SET host_port = $2, bind_address = $3
+WHERE id = $1
+`
+
+type SetDeploymentTargetEdgeParams struct {
+	ID          uuid.UUID `json:"id"`
+	HostPort    *int32    `json:"host_port"`
+	BindAddress *string   `json:"bind_address"`
+}
+
+func (q *Queries) SetDeploymentTargetEdge(ctx context.Context, arg SetDeploymentTargetEdgeParams) error {
+	_, err := q.db.Exec(ctx, setDeploymentTargetEdge, arg.ID, arg.HostPort, arg.BindAddress)
+	return err
+}
+
+// allocateServerPort grabs the lowest unused port in 30000-32767 for the
+// given server and binds it to a deployment_target. The UNIQUE index on
+// (server_id, port) WHERE released_at IS NULL keeps this safe under
+// concurrent allocators — duplicate inserts fail the unique constraint
+// and the caller can retry.
+const allocateServerPort = `-- name: AllocateServerPort :one
+WITH next_port AS (
+    SELECT s.port
+    FROM generate_series(30000, 32767) AS s(port)
+    WHERE NOT EXISTS (
+        SELECT 1 FROM server_port_allocations
+        WHERE server_id = $1 AND port = s.port AND released_at IS NULL
+    )
+    ORDER BY s.port
+    LIMIT 1
+)
+INSERT INTO server_port_allocations (server_id, port, deployment_target_id)
+SELECT $1, port, $2 FROM next_port
+RETURNING port
+`
+
+type AllocateServerPortParams struct {
+	ServerID           uuid.UUID   `json:"server_id"`
+	DeploymentTargetID pgtype.UUID `json:"deployment_target_id"`
+}
+
+func (q *Queries) AllocateServerPort(ctx context.Context, arg AllocateServerPortParams) (int32, error) {
+	row := q.db.QueryRow(ctx, allocateServerPort, arg.ServerID, arg.DeploymentTargetID)
+	var port int32
+	err := row.Scan(&port)
+	return port, err
+}
+
+const releasePortsByDeploymentTarget = `-- name: ReleasePortsByDeploymentTarget :exec
+UPDATE server_port_allocations
+SET released_at = now()
+WHERE deployment_target_id = $1 AND released_at IS NULL
+`
+
+func (q *Queries) ReleasePortsByDeploymentTarget(ctx context.Context, deploymentTargetID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, releasePortsByDeploymentTarget, deploymentTargetID)
 	return err
 }

@@ -12,7 +12,7 @@ func GetScript(component string) ([]byte, error) {
 	return Scripts.ReadFile("scripts/" + component + ".sh")
 }
 
-var AvailableComponents = []string{"docker", "traefik", "nixpacks", "buildpacks", "railpack", "agent"}
+var AvailableComponents = []string{"docker", "traefik", "edge-lb", "nixpacks", "buildpacks", "railpack", "agent"}
 
 func IsValidComponent(name string) bool {
 	for _, c := range AvailableComponents {

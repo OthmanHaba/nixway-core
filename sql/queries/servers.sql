@@ -32,3 +32,14 @@ DELETE FROM servers WHERE id = $1 AND team_id = $2;
 -- name: ListServersNeedingStatusUpdate :many
 SELECT id, status, last_seen_at FROM servers
 WHERE status IN ('online', 'degraded') AND team_id IS NOT NULL;
+
+-- name: UpdateServerRole :one
+UPDATE servers
+SET role = $3, updated_at = now()
+WHERE id = $1 AND team_id = $2
+RETURNING *;
+
+-- name: ListEdgeServersByCluster :many
+SELECT * FROM servers
+WHERE cluster_id = $1 AND role IN ('edge', 'both')
+ORDER BY created_at;

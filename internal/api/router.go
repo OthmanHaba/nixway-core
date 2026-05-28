@@ -149,6 +149,7 @@ func NewRouter(
 	protected.HandleFunc("GET /api/v1/teams/{id}/servers", serverH.List)
 	protected.HandleFunc("GET /api/v1/teams/{id}/servers/{serverId}", serverH.Get)
 	protected.HandleFunc("PUT /api/v1/teams/{id}/servers/{serverId}", serverH.Update)
+	protected.HandleFunc("PUT /api/v1/teams/{id}/servers/{serverId}/role", serverH.SetRole)
 	protected.HandleFunc("DELETE /api/v1/teams/{id}/servers/{serverId}", serverH.Delete)
 	protected.HandleFunc("POST /api/v1/teams/{id}/servers/{serverId}/cleanup", serverH.Cleanup)
 	protected.HandleFunc("GET /api/v1/teams/{id}/servers/{serverId}/metrics", serverH.Metrics)

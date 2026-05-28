@@ -7,6 +7,7 @@ import { Table, THead, TBody, TR, TH, TD } from "@/components/primitives/Table";
 import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { ServerStatusBadge } from "./ServerStatusBadge";
+import { ServerRoleBadge } from "./ServerRoleBadge";
 import { RegisterServerDialog } from "./RegisterServerDialog";
 import { serversApi } from "@/lib/api";
 import type { Server, SshKey } from "@/lib/types";
@@ -71,6 +72,7 @@ export function ServersClient({
           <THead>
             <TR>
               <TH>Server</TH>
+              <TH>Role</TH>
               <TH>Status</TH>
               <TH>Public IP</TH>
               <TH>OS</TH>
@@ -93,6 +95,9 @@ export function ServersClient({
                       </div>
                     </div>
                   </Link>
+                </TD>
+                <TD>
+                  <ServerRoleBadge role={s.role} />
                 </TD>
                 <TD>
                   <ServerStatusBadge status={s.status} />

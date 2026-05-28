@@ -77,6 +77,26 @@ export type ServerStatus =
   | "provisioning"
   | "unknown";
 
+export type ServerRole = "worker" | "edge" | "both";
+
+export const SERVER_ROLES: { value: ServerRole; label: string; description: string }[] = [
+  {
+    value: "worker",
+    label: "Worker",
+    description: "Runs app & database containers scheduled by the cluster.",
+  },
+  {
+    value: "edge",
+    label: "Edge",
+    description: "Fronts the cluster with Traefik; routes public traffic to workers over the mesh.",
+  },
+  {
+    value: "both",
+    label: "Edge + Worker",
+    description: "Runs the edge LB and worker containers on the same node — for small / single-node clusters.",
+  },
+];
+
 export interface Server {
   id: string;
   team_id: string;
@@ -90,6 +110,7 @@ export interface Server {
   os_version: string | null;
   arch: string | null;
   status: ServerStatus;
+  role: ServerRole;
   last_seen_at: string | null;
   created_at: string;
   updated_at: string;
@@ -160,6 +181,7 @@ export interface ProvisioningJob {
 export type ProvisioningComponent =
   | "docker"
   | "traefik"
+  | "edge-lb"
   | "nixpacks"
   | "buildpacks"
   | "railpack"
@@ -172,7 +194,8 @@ export const PROVISIONING_COMPONENTS: ReadonlyArray<{
   description: string;
 }> = [
   { id: "docker",     label: "Docker",                  description: "Container runtime used to run apps and managed databases." },
-  { id: "traefik",    label: "Traefik",                 description: "Edge proxy that fronts deployed apps via Docker labels + file provider." },
+  { id: "traefik",    label: "Traefik (per-node)",      description: "Per-node proxy via Docker labels + file provider. Pick this for worker or single-node servers." },
+  { id: "edge-lb",    label: "Edge LB",                 description: "Front-of-cluster Traefik on host network. Route public traffic to workers over the mesh. Pick this on dedicated edge nodes." },
   { id: "nixpacks",   label: "Nixpacks",                description: "Auto-detect builder for source-based deploys (Railway-style)." },
   { id: "buildpacks", label: "Cloud Native Buildpacks", description: "Optional pack CLI for buildpack-based image production." },
   { id: "railpack",   label: "Railpack",                description: "Alternative source builder." },
@@ -366,6 +389,12 @@ export interface DeploymentTarget {
   healthy_at?: string | null;
   stopped_at?: string | null;
   error?: string | null;
+  /** Set when the cluster has an edge LB and this replica is reachable via mesh. */
+  host_port?: number | null;
+  bind_address?: string | null;
+  /** Joined from servers in ListDeploymentTargets. */
+  server_name?: string;
+  public_ip?: string;
 }
 
 /**

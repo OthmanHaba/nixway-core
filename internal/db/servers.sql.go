@@ -15,7 +15,7 @@ import (
 
 const createServer = `-- name: CreateServer :one
 INSERT INTO servers (team_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, team_id, agent_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status, last_seen_at, created_at, updated_at, cluster_id
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, team_id, agent_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status, last_seen_at, created_at, updated_at, cluster_id, role
 `
 
 type CreateServerParams struct {
@@ -62,6 +62,7 @@ func (q *Queries) CreateServer(ctx context.Context, arg CreateServerParams) (Ser
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ClusterID,
+		&i.Role,
 	)
 	return i, err
 }
@@ -81,7 +82,7 @@ func (q *Queries) DeleteServer(ctx context.Context, arg DeleteServerParams) erro
 }
 
 const getServerByAgentID = `-- name: GetServerByAgentID :one
-SELECT id, team_id, agent_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status, last_seen_at, created_at, updated_at, cluster_id FROM servers WHERE agent_id = $1
+SELECT id, team_id, agent_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status, last_seen_at, created_at, updated_at, cluster_id, role FROM servers WHERE agent_id = $1
 `
 
 func (q *Queries) GetServerByAgentID(ctx context.Context, agentID *string) (Server, error) {
@@ -104,12 +105,13 @@ func (q *Queries) GetServerByAgentID(ctx context.Context, agentID *string) (Serv
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ClusterID,
+		&i.Role,
 	)
 	return i, err
 }
 
 const getServerByID = `-- name: GetServerByID :one
-SELECT id, team_id, agent_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status, last_seen_at, created_at, updated_at, cluster_id FROM servers WHERE id = $1 AND team_id = $2
+SELECT id, team_id, agent_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status, last_seen_at, created_at, updated_at, cluster_id, role FROM servers WHERE id = $1 AND team_id = $2
 `
 
 type GetServerByIDParams struct {
@@ -137,12 +139,13 @@ func (q *Queries) GetServerByID(ctx context.Context, arg GetServerByIDParams) (S
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ClusterID,
+		&i.Role,
 	)
 	return i, err
 }
 
 const listServersByTeam = `-- name: ListServersByTeam :many
-SELECT id, team_id, agent_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status, last_seen_at, created_at, updated_at, cluster_id FROM servers WHERE team_id = $1 ORDER BY created_at DESC
+SELECT id, team_id, agent_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status, last_seen_at, created_at, updated_at, cluster_id, role FROM servers WHERE team_id = $1 ORDER BY created_at DESC
 `
 
 func (q *Queries) ListServersByTeam(ctx context.Context, teamID uuid.UUID) ([]Server, error) {
@@ -171,6 +174,7 @@ func (q *Queries) ListServersByTeam(ctx context.Context, teamID uuid.UUID) ([]Se
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ClusterID,
+			&i.Role,
 		); err != nil {
 			return nil, err
 		}
@@ -231,7 +235,7 @@ const updateServerName = `-- name: UpdateServerName :one
 UPDATE servers
 SET name = $3, updated_at = now()
 WHERE id = $1 AND team_id = $2
-RETURNING id, team_id, agent_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status, last_seen_at, created_at, updated_at, cluster_id
+RETURNING id, team_id, agent_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status, last_seen_at, created_at, updated_at, cluster_id, role
 `
 
 type UpdateServerNameParams struct {
@@ -260,6 +264,7 @@ func (q *Queries) UpdateServerName(ctx context.Context, arg UpdateServerNamePara
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ClusterID,
+		&i.Role,
 	)
 	return i, err
 }
@@ -283,6 +288,89 @@ func (q *Queries) UpdateServerOS(ctx context.Context, arg UpdateServerOSParams) 
 		arg.Arch,
 	)
 	return err
+}
+
+const updateServerRole = `-- name: UpdateServerRole :one
+UPDATE servers
+SET role = $3, updated_at = now()
+WHERE id = $1 AND team_id = $2
+RETURNING id, team_id, agent_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status, last_seen_at, created_at, updated_at, cluster_id, role
+`
+
+type UpdateServerRoleParams struct {
+	ID     uuid.UUID `json:"id"`
+	TeamID uuid.UUID `json:"team_id"`
+	Role   string    `json:"role"`
+}
+
+func (q *Queries) UpdateServerRole(ctx context.Context, arg UpdateServerRoleParams) (Server, error) {
+	row := q.db.QueryRow(ctx, updateServerRole, arg.ID, arg.TeamID, arg.Role)
+	var i Server
+	err := row.Scan(
+		&i.ID,
+		&i.TeamID,
+		&i.AgentID,
+		&i.Name,
+		&i.Hostname,
+		&i.PublicIp,
+		&i.SshPort,
+		&i.SshUser,
+		&i.Os,
+		&i.OsVersion,
+		&i.Arch,
+		&i.Status,
+		&i.LastSeenAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ClusterID,
+		&i.Role,
+	)
+	return i, err
+}
+
+const listEdgeServersByCluster = `-- name: ListEdgeServersByCluster :many
+SELECT id, team_id, agent_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status, last_seen_at, created_at, updated_at, cluster_id, role
+FROM servers
+WHERE cluster_id = $1 AND role IN ('edge', 'both')
+ORDER BY created_at
+`
+
+func (q *Queries) ListEdgeServersByCluster(ctx context.Context, clusterID pgtype.UUID) ([]Server, error) {
+	rows, err := q.db.Query(ctx, listEdgeServersByCluster, clusterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Server{}
+	for rows.Next() {
+		var i Server
+		if err := rows.Scan(
+			&i.ID,
+			&i.TeamID,
+			&i.AgentID,
+			&i.Name,
+			&i.Hostname,
+			&i.PublicIp,
+			&i.SshPort,
+			&i.SshUser,
+			&i.Os,
+			&i.OsVersion,
+			&i.Arch,
+			&i.Status,
+			&i.LastSeenAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ClusterID,
+			&i.Role,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateServerStatus = `-- name: UpdateServerStatus :exec

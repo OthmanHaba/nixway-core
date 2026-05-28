@@ -333,6 +333,73 @@ func (h *ServerHandler) Update(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, srv)
 }
 
+type setServerRoleRequest struct {
+	Role string `json:"role"`
+}
+
+// SetRole handles PUT /api/v1/teams/{id}/servers/{serverId}/role.
+// role must be one of: worker, edge, both. Workers run app/db containers,
+// edge nodes front the cluster with Traefik, both does both (small clusters).
+func (h *ServerHandler) SetRole(w http.ResponseWriter, r *http.Request) {
+	authCtx := middleware.GetAuthContext(r)
+	if authCtx == nil {
+		respond.Error(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	teamID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid team ID")
+		return
+	}
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleAdmin, model.ScopeServersWrite); !ok {
+		return
+	}
+
+	serverID, err := uuid.Parse(r.PathValue("serverId"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid server ID")
+		return
+	}
+
+	var req setServerRoleRequest
+	if err := respond.DecodeJSON(r, &req); err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	switch req.Role {
+	case "worker", "edge", "both":
+	default:
+		respond.Error(w, http.StatusBadRequest, "role must be one of: worker, edge, both")
+		return
+	}
+
+	srv, err := h.queries.UpdateServerRole(r.Context(), db.UpdateServerRoleParams{
+		ID:     serverID,
+		TeamID: teamID,
+		Role:   req.Role,
+	})
+	if err != nil {
+		respond.Error(w, http.StatusNotFound, "server not found")
+		return
+	}
+
+	ip := parseIP(r)
+	_ = h.audit.Log(r.Context(), audit.Entry{
+		TeamID:       &teamID,
+		ActorID:      &authCtx.UserID,
+		ActorType:    "user",
+		Action:       "server.set_role",
+		ResourceType: "server",
+		ResourceID:   &serverID,
+		IPAddress:    ip,
+		Metadata:     map[string]string{"role": req.Role},
+	})
+
+	respond.JSON(w, http.StatusOK, srv)
+}
+
 func (h *ServerHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	authCtx := middleware.GetAuthContext(r)
 	if authCtx == nil {

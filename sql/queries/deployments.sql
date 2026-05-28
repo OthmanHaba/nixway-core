@@ -68,6 +68,31 @@ SET status = $2, container_id = COALESCE($3, container_id),
     health_check_attempts = $7, error = $8
 WHERE id = $1;
 
+-- name: SetDeploymentTargetEdge :exec
+UPDATE deployment_targets
+SET host_port = $2, bind_address = $3
+WHERE id = $1;
+
+-- name: AllocateServerPort :one
+WITH next_port AS (
+    SELECT s.port
+    FROM generate_series(30000, 32767) AS s(port)
+    WHERE NOT EXISTS (
+        SELECT 1 FROM server_port_allocations
+        WHERE server_id = $1 AND port = s.port AND released_at IS NULL
+    )
+    ORDER BY s.port
+    LIMIT 1
+)
+INSERT INTO server_port_allocations (server_id, port, deployment_target_id)
+SELECT $1, port, $2 FROM next_port
+RETURNING port;
+
+-- name: ReleasePortsByDeploymentTarget :exec
+UPDATE server_port_allocations
+SET released_at = now()
+WHERE deployment_target_id = $1 AND released_at IS NULL;
+
 -- name: ListActiveContainersByApp :many
 SELECT dt.id AS target_id, dt.container_id, dt.server_id, s.name AS server_name, s.agent_id
 FROM deployment_targets dt

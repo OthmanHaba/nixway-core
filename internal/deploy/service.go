@@ -565,6 +565,7 @@ func (s *Service) StopSupersededContainers(ctx context.Context, deploymentID uui
 			Status:    "stopped",
 			StoppedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 		})
+		_ = s.queries.ReleasePortsByDeploymentTarget(ctx, pgtype.UUID{Bytes: container.TargetID, Valid: true})
 	}
 	return nil
 }
@@ -590,36 +591,101 @@ func (s *Service) EnsureTrafficForDeployment(ctx context.Context, deploymentID u
 	if err != nil {
 		return fmt.Errorf("ensure route: %w", err)
 	}
-	count, _ := s.queries.CountTrafficBackendsByRoute(ctx, route.ID)
-	weight := int32(0)
-	label := "candidate"
-	if count == 0 {
-		weight = 100
-		label = "stable"
+
+	// Auto-promote: the newly healthy deployment becomes stable@100 and any
+	// prior backends on this route are demoted to weight=0 + draining.
+	// SyncTrafficRoute filters weight=0 rows so Traefik stops sending traffic
+	// to old backends as soon as the new one is ready; StopSupersededContainers
+	// then tears down the old containers after a short drain.
+	existing, err := s.queries.ListTrafficBackendsByRoute(ctx, route.ID)
+	if err != nil {
+		return fmt.Errorf("list existing backends: %w", err)
 	}
+
+	label := "stable"
 	if deployment.BuildID != uuid.Nil {
 		if build, err := s.queries.GetBuild(ctx, deployment.BuildID); err == nil && build.CommitSha != "" {
-			label = fmt.Sprintf("%s-%s", label, shortSHA(build.CommitSha))
+			label = fmt.Sprintf("stable-%s", shortSHA(build.CommitSha))
 		}
 	}
-	_, err = s.queries.UpsertTrafficBackend(ctx, db.UpsertTrafficBackendParams{
+
+	newBackend, err := s.queries.UpsertTrafficBackend(ctx, db.UpsertTrafficBackendParams{
 		RouteID:      route.ID,
 		DeploymentID: deployment.ID,
 		Label:        label,
-		Weight:       weight,
+		Weight:       100,
 		Status:       "active",
 	})
 	if err != nil {
 		return fmt.Errorf("upsert backend: %w", err)
 	}
+	// UpsertTrafficBackend's ON CONFLICT clause only touches label/status, so
+	// re-deploying the same deployment_id (rare, but happens with retries)
+	// would leave a stale weight. Force the weight to 100 explicitly.
+	if _, err := s.queries.UpdateTrafficBackendWeight(ctx, db.UpdateTrafficBackendWeightParams{
+		ID:      newBackend.ID,
+		RouteID: route.ID,
+		Weight:  100,
+	}); err != nil {
+		return fmt.Errorf("set new backend weight: %w", err)
+	}
+
+	demoted := 0
+	for _, prev := range existing {
+		if prev.DeploymentID == deployment.ID {
+			continue
+		}
+		if _, err := s.queries.UpdateTrafficBackendWeight(ctx, db.UpdateTrafficBackendWeightParams{
+			ID:      prev.ID,
+			RouteID: route.ID,
+			Weight:  0,
+		}); err != nil {
+			s.logger.Warn("demote backend weight failed", "backend", prev.ID, "error", err)
+			continue
+		}
+		if _, err := s.queries.SetTrafficBackendStatus(ctx, db.SetTrafficBackendStatusParams{
+			ID:      prev.ID,
+			RouteID: route.ID,
+			Status:  "draining",
+		}); err != nil {
+			s.logger.Warn("mark backend draining failed", "backend", prev.ID, "error", err)
+		}
+		demoted++
+	}
+
+	msg := fmt.Sprintf("Promoted deployment %s as %s@100", deployment.ID.String()[:8], label)
+	if demoted > 0 {
+		msg = fmt.Sprintf("%s; demoted %d previous backend(s)", msg, demoted)
+	}
 	_, _ = s.queries.CreateTrafficEvent(ctx, db.CreateTrafficEventParams{
 		RouteID:   route.ID,
 		ActorType: "system",
-		EventType: "backend_added",
-		Message:   fmt.Sprintf("Added deployment %s as %s with weight %d", deployment.ID.String()[:8], label, weight),
+		EventType: "deploy_promoted",
+		Message:   msg,
 		Metadata:  []byte(`{}`),
 	})
-	return s.SyncTrafficRoute(ctx, route.ID)
+
+	if err := s.SyncTrafficRoute(ctx, route.ID); err != nil {
+		return err
+	}
+
+	if demoted > 0 {
+		go s.stopSupersededAfterDrain(deployment.ID, 10*time.Second)
+	}
+	return nil
+}
+
+// stopSupersededAfterDrain waits a short window for Traefik to converge on the
+// new weighted config (so in-flight requests aren't dropped), then tells each
+// server hosting an old replica to stop it. Runs on its own context because the
+// caller's deploy-completion handler shouldn't block on this.
+func (s *Service) stopSupersededAfterDrain(deploymentID uuid.UUID, drain time.Duration) {
+	time.Sleep(drain)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	if err := s.StopSupersededContainers(ctx, deploymentID); err != nil {
+		s.logger.Warn("stop superseded containers failed", "deployment_id", deploymentID, "error", err)
+	}
 }
 
 func (s *Service) GetTraffic(ctx context.Context, appID uuid.UUID) (TrafficView, error) {
@@ -739,6 +805,71 @@ func (s *Service) SyncTrafficRoute(ctx context.Context, routeID uuid.UUID) error
 		weight int32
 		urls   []string
 	}
+
+	domains := trafficDomains(app, route)
+
+	// Edge-mode path: if the cluster has any role IN ('edge', 'both') server,
+	// build one weighted config with mesh URLs (http://<worker_wg>:<host_port>)
+	// and push the same command to every edge agent. Workers no longer write
+	// per-app Traefik files in this mode — the edge LB is the source of truth.
+	edgeServers, _ := s.queries.ListEdgeServersByCluster(ctx, pgtype.UUID{Bytes: project.ClusterID, Valid: true})
+	if len(edgeServers) > 0 {
+		groups := []group{}
+		for _, backend := range backends {
+			targets, err := s.queries.ListDeploymentTargets(ctx, backend.DeploymentID)
+			if err != nil {
+				continue
+			}
+			urls := []string{}
+			for _, target := range targets {
+				if target.Status != "healthy" || target.HostPort == nil || target.BindAddress == nil {
+					continue
+				}
+				urls = append(urls, fmt.Sprintf("http://%s:%d", *target.BindAddress, *target.HostPort))
+			}
+			if len(urls) == 0 {
+				continue
+			}
+			groups = append(groups, group{
+				name:   trafficServiceName(app.Slug, backend.Label, backend.DeploymentID),
+				weight: backend.Weight,
+				urls:   urls,
+			})
+		}
+		if len(groups) == 0 {
+			return nil
+		}
+		cmdGroups := make([]*agentv1.TrafficBackendGroup, 0, len(groups))
+		for _, g := range groups {
+			cmdGroups = append(cmdGroups, &agentv1.TrafficBackendGroup{
+				Name:   g.name,
+				Weight: g.weight,
+				Urls:   g.urls,
+			})
+		}
+		cmd := &agentv1.TrafficRouteCommand{
+			RequestId: uuid.New().String(),
+			AppSlug:   app.Slug,
+			Domains:   domains,
+			Tls:       false,
+			Groups:    cmdGroups,
+		}
+		for _, edge := range edgeServers {
+			if edge.AgentID == nil {
+				continue
+			}
+			if err := s.connMgr.SendToAgent(*edge.AgentID, &agentv1.ControlMessage{
+				Payload: &agentv1.ControlMessage_TrafficRoute{TrafficRoute: cmd},
+			}); err != nil {
+				s.logger.Warn("traffic route sync to edge failed", "server", edge.ID, "error", err)
+			}
+		}
+		return nil
+	}
+
+	// Legacy node-local path: per-server bucketed config, container-DNS URLs.
+	// Kept for clusters without an edge node so existing deploys keep working
+	// while operators migrate.
 	groupsByServer := map[uuid.UUID][]group{}
 	agentByServer := map[uuid.UUID]string{}
 	for _, backend := range backends {
@@ -764,7 +895,6 @@ func (s *Service) SyncTrafficRoute(ctx context.Context, routeID uuid.UUID) error
 		}
 	}
 
-	domains := trafficDomains(app, route)
 	for serverID, groups := range groupsByServer {
 		agentID := agentByServer[serverID]
 		if agentID == "" {
@@ -997,6 +1127,52 @@ func (s *Service) dispatchDeploy(ctx context.Context, deployment db.Deployment, 
 		}
 	}
 
+	labels := map[string]string{
+		"nixway.managed":        "true",
+		"nixway.app_id":         app.ID.String(),
+		"nixway.app_slug":       app.Slug,
+		"nixway.project_id":     project.ID.String(),
+		"nixway.cluster_id":     project.ClusterID.String(),
+		"nixway.deployment_id":  deployment.ID.String(),
+		"nixway.target_id":      targetID,
+		"nixway.environment_id": deployment.EnvironmentID.String(),
+	}
+
+	// Edge-mode wiring: when the cluster has at least one server with
+	// role IN ('edge', 'both'), expose this replica on the worker's WG IP
+	// at an allocated host port so the edge Traefik can reach it across
+	// the mesh. The agent looks at these two labels and emits the right
+	// -p flag; absent labels keep the legacy node-local Traefik path.
+	edgeEnabled := false
+	edges, err := s.queries.ListEdgeServersByCluster(ctx, pgtype.UUID{Bytes: project.ClusterID, Valid: true})
+	if err != nil {
+		s.logger.Warn("deploy: list edge servers failed", "deploy_id", deployID, "error", err)
+	} else if len(edges) > 0 {
+		edgeEnabled = true
+	}
+	if edgeEnabled {
+		port, err := s.queries.AllocateServerPort(ctx, db.AllocateServerPortParams{
+			ServerID:           member.ServerID,
+			DeploymentTargetID: pgtype.UUID{Bytes: target.ID, Valid: true},
+		})
+		if err != nil {
+			s.logger.Error("deploy: allocate host port failed", "deploy_id", deployID, "server", member.ServerID, "error", err)
+			s.failTarget(ctx, target.ID, fmt.Sprintf("allocate host port: %v", err))
+			return
+		}
+		bindAddr := member.WireguardIp.String()
+		if err := s.queries.SetDeploymentTargetEdge(ctx, db.SetDeploymentTargetEdgeParams{
+			ID:          target.ID,
+			HostPort:    &port,
+			BindAddress: &bindAddr,
+		}); err != nil {
+			s.logger.Warn("deploy: persist host port failed", "deploy_id", deployID, "error", err)
+		}
+		labels["nixway.host_port"] = fmt.Sprintf("%d", port)
+		labels["nixway.bind_address"] = bindAddr
+		s.PublishLog(ctx, deployment.ID, fmt.Sprintf("Edge mode: binding %s:%d -> :%d\n", bindAddr, port, app.Port))
+	}
+
 	cmd := &agentv1.DeployCommand{
 		DeployId:                   deployID,
 		TargetId:                   targetID,
@@ -1016,28 +1192,18 @@ func (s *Service) dispatchDeploy(ctx context.Context, deployment db.Deployment, 
 		},
 		MemoryLimitMb:      app.MemoryLimitMb,
 		CpuLimitMillicores: app.CpuLimitMillicores,
-		Labels: map[string]string{
-			"nixway.managed":        "true",
-			"nixway.app_id":         app.ID.String(),
-			"nixway.app_slug":       app.Slug,
-			"nixway.project_id":     project.ID.String(),
-			"nixway.cluster_id":     project.ClusterID.String(),
-			"nixway.deployment_id":  deployment.ID.String(),
-			"nixway.target_id":      targetID,
-			"nixway.environment_id": deployment.EnvironmentID.String(),
-		},
+		Labels:             labels,
 	}
 
 	// Publish log
 	s.PublishLog(ctx, deployment.ID, fmt.Sprintf("Deploying %s to server %s...\n", build.ImageTag, agentID))
 	s.PublishLog(ctx, deployment.ID, fmt.Sprintf("Domain: http://%s\n", platformDomain))
 
-	err := s.connMgr.SendToAgent(agentID, &agentv1.ControlMessage{
+	if err := s.connMgr.SendToAgent(agentID, &agentv1.ControlMessage{
 		Payload: &agentv1.ControlMessage_DeployCommand{
 			DeployCommand: cmd,
 		},
-	})
-	if err != nil {
+	}); err != nil {
 		s.logger.Error("deploy: failed to send command", "deploy_id", deployID, "agent", agentID, "error", err)
 		s.failTarget(ctx, target.ID, fmt.Sprintf("failed to send deploy command: %v", err))
 		return
