@@ -237,6 +237,9 @@ export interface App {
   status: AppStatus;
   resource_cpu_millicores?: number;
   resource_memory_mb?: number;
+  /** Alternate naming used by the UpdateResources endpoint. */
+  cpu_limit_millicores?: number;
+  memory_limit_mb?: number;
   custom_domain?: string | null;
   custom_domain_verified?: boolean;
   created_at: string;

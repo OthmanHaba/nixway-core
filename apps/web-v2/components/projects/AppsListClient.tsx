@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Boxes, Github, Box } from "lucide-react";
+import { Boxes, Box, ChevronRight, Github, Plus } from "lucide-react";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/primitives/Table";
 import { Badge } from "@/components/primitives/Badge";
+import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
-import { Alert } from "@/components/primitives/Alert";
+import { CreateAppDialog } from "@/components/apps/CreateAppDialog";
 import { appsApi } from "@/lib/api";
 import type { App } from "@/lib/types";
 
@@ -24,36 +26,60 @@ export function AppsListClient({
 
   const list = apps.data ?? [];
 
+  if (list.length === 0) {
+    return (
+      <EmptyState
+        icon={<Boxes className="h-4 w-4" />}
+        title="No apps yet"
+        body="Apps are containers built from source or pulled from a registry. Wire one up to start deploying."
+        action={
+          <CreateAppDialog
+            projectId={projectId}
+            trigger={
+              <Button>
+                <Plus className="h-3.5 w-3.5" /> Create app
+              </Button>
+            }
+          />
+        }
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <Alert tone="info" title="App creation lands in 3d-ii">
-        This roster is read-only for now. The next phase wires the Create App dialog (GitHub
-        repo or Docker image), env vars, build triggers, and deployment history with rollback.
-      </Alert>
-
-      {list.length === 0 ? (
-        <EmptyState
-          icon={<Boxes className="h-4 w-4" />}
-          title="No apps yet"
-          body="This project doesn't have any apps. The next phase adds the Create App dialog."
+      <div className="flex items-end justify-between gap-4">
+        <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink-3">
+          {list.length} {list.length === 1 ? "app" : "apps"}
+        </div>
+        <CreateAppDialog
+          projectId={projectId}
+          trigger={
+            <Button>
+              <Plus className="h-3.5 w-3.5" /> Create app
+            </Button>
+          }
         />
-      ) : (
-        <div className="rounded-[var(--radius-lg)] border border-line-1 bg-surface-1 overflow-hidden">
-          <Table>
-            <THead>
-              <TR>
-                <TH>App</TH>
-                <TH>Source</TH>
-                <TH>Status</TH>
-                <TH>Replicas</TH>
-                <TH>Port</TH>
-                <TH>Created</TH>
-              </TR>
-            </THead>
-            <TBody>
-              {list.map((app) => (
-                <TR key={app.id}>
-                  <TD>
+      </div>
+
+      <div className="rounded-[var(--radius-lg)] border border-line-1 bg-surface-1 overflow-hidden">
+        <Table>
+          <THead>
+            <TR>
+              <TH>App</TH>
+              <TH>Source</TH>
+              <TH>Status</TH>
+              <TH>Replicas</TH>
+              <TH>Port</TH>
+              <TH>Created</TH>
+              <TH align="right" className="w-8"> </TH>
+            </TR>
+          </THead>
+          <TBody>
+            {list.map((app) => (
+              <TR key={app.id}>
+                <TD>
+                  <Link href={`/apps/${app.id}`} className="block">
                     <div className="flex items-center gap-3">
                       <div className="h-7 w-7 grid place-items-center rounded-[3px] bg-surface-2 border border-line-1 text-ink-3">
                         <Boxes className="h-3.5 w-3.5" />
@@ -63,34 +89,41 @@ export function AppsListClient({
                         <div className="font-mono text-[11px] text-ink-3 truncate">{app.slug}</div>
                       </div>
                     </div>
-                  </TD>
-                  <TD>
-                    <SourceCell app={app} />
-                  </TD>
-                  <TD>
-                    <Badge tone={statusTone(app.status)} dot>
-                      {app.status}
-                    </Badge>
-                  </TD>
-                  <TD>
-                    <span className="font-mono text-[12px] text-ink-1 num">
-                      {app.replicas ?? "—"}
-                    </span>
-                  </TD>
-                  <TD>
-                    <span className="font-mono text-[12px] text-ink-2 num">
-                      {app.port ?? "—"}
-                    </span>
-                  </TD>
-                  <TD>
-                    <span className="font-mono text-[11px] text-ink-3 num">{formatDate(app.created_at)}</span>
-                  </TD>
-                </TR>
-              ))}
-            </TBody>
-          </Table>
-        </div>
-      )}
+                  </Link>
+                </TD>
+                <TD><SourceCell app={app} /></TD>
+                <TD>
+                  <Badge tone={statusTone(app.status)} dot>
+                    {app.status}
+                  </Badge>
+                </TD>
+                <TD>
+                  <span className="font-mono text-[12px] text-ink-1 num">
+                    {app.replicas ?? "—"}
+                  </span>
+                </TD>
+                <TD>
+                  <span className="font-mono text-[12px] text-ink-2 num">
+                    {app.port ?? "—"}
+                  </span>
+                </TD>
+                <TD>
+                  <span className="font-mono text-[11px] text-ink-3 num">{formatDate(app.created_at)}</span>
+                </TD>
+                <TD align="right">
+                  <Link
+                    href={`/apps/${app.id}`}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-[var(--radius-sm)] text-ink-3 hover:text-ink-1 hover:bg-surface-2 transition-colors"
+                    aria-label="View app"
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </Link>
+                </TD>
+              </TR>
+            ))}
+          </TBody>
+        </Table>
+      </div>
     </div>
   );
 }

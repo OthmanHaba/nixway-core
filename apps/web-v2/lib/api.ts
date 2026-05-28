@@ -297,9 +297,60 @@ export const environmentsApi = {
   create: (projectId: string, name: string)         => api.post<Environment>(`/projects/${projectId}/environments`, { name }),
 };
 
-/* ─── Apps (read surface for 3d-i; full CRUD in 3d-ii) ─── */
+/* ─── Apps ─── */
+
+export interface CreateAppInput {
+  name: string;
+  source_type: "github" | "docker_image";
+  github_installation_id?: string;
+  repo_full_name?: string;
+  branch?: string;
+  docker_image?: string;
+  registry_credential_id?: string;
+  root_path?: string;
+  builder?: string;
+  dockerfile_path?: string;
+  auto_deploy?: boolean;
+  port?: number;
+  health_check_path?: string;
+  health_check_interval?: number;
+  health_check_timeout?: number;
+  replicas?: number;
+  subdomain?: string;
+  placement_strategy?: "spread" | "binpack" | "pinned";
+  pinned_server_ids?: string[];
+}
+
+export interface UpdateAppInput {
+  name?: string;
+  branch?: string | null;
+  root_path?: string;
+  auto_deploy?: boolean;
+  builder?: string;
+  dockerfile_path?: string;
+  port?: number;
+  health_check_path?: string;
+  health_check_interval?: number;
+  health_check_timeout?: number;
+  replicas?: number;
+  subdomain?: string | null;
+  custom_domain?: string | null;
+  status?: string;
+  placement_strategy?: string;
+}
+
+export interface UpdateResourcesInput {
+  memory_limit_mb: number;
+  cpu_limit_millicores: number;
+}
 
 export const appsApi = {
-  list: (projectId: string)            => api.get<App[]>(`/projects/${projectId}/apps`),
-  get:  (appId: string)                => api.get<App>(`/apps/${appId}`),
+  list:   (projectId: string)                                       => api.get<App[]>(`/projects/${projectId}/apps`),
+  get:    (appId: string)                                           => api.get<App>(`/apps/${appId}`),
+  create: (projectId: string, input: CreateAppInput)                => api.post<App>(`/projects/${projectId}/apps`, input),
+  update: (projectId: string, appId: string, patch: UpdateAppInput) => api.put<App>(`/projects/${projectId}/apps/${appId}`, patch),
+  remove: (projectId: string, appId: string)                        => api.delete<void>(`/projects/${projectId}/apps/${appId}`),
+  setDomain:    (appId: string, custom_domain: string)              => api.post<App>(`/apps/${appId}/domain`, { custom_domain }),
+  verifyDomain: (appId: string)                                     => api.post<App>(`/apps/${appId}/domain/verify`),
+  updateResources: (appId: string, input: UpdateResourcesInput)     => api.put<App>(`/apps/${appId}/resources`, input),
 };
