@@ -628,15 +628,38 @@ func truncateOneLine(s string, max int) string {
 }
 
 // publishProvision emits a structured event on the database's provisioning
-// channel. Best-effort: a publish failure is logged but never breaks
-// provisioning.
+// channel AND appends it to the database row's persistent log so the UI can
+// replay history after the live SSE has ended. Best-effort: a publish or
+// append failure is logged but never breaks provisioning.
 func (s *Service) publishProvision(ctx context.Context, dbID uuid.UUID, evt ProvisionEvent) {
-	if s.redis == nil {
-		return
-	}
-	payload, err := json.Marshal(evt)
+	// Stamp the event with a server-side timestamp so the UI can render a
+	// chronological trace without trusting any client clock.
+	stamped := struct {
+		ProvisionEvent
+		At time.Time `json:"at"`
+	}{ProvisionEvent: evt, At: time.Now().UTC()}
+
+	payload, err := json.Marshal(stamped)
 	if err != nil {
 		s.logger.Warn("marshal provision event failed", "error", err)
+		return
+	}
+
+	// Persist first — Redis pub/sub has no replay, but the DB row is what
+	// the detail page reads after the dialog closes. The append query takes
+	// a JSONB array, so wrap the single event in `[ ... ]`.
+	wrapped := make([]byte, 0, len(payload)+2)
+	wrapped = append(wrapped, '[')
+	wrapped = append(wrapped, payload...)
+	wrapped = append(wrapped, ']')
+	if err := s.queries.AppendDatabaseProvisionEvent(ctx, db.AppendDatabaseProvisionEventParams{
+		ID:    dbID,
+		Event: wrapped,
+	}); err != nil {
+		s.logger.Warn("append provision event failed", "db_id", dbID, "error", err)
+	}
+
+	if s.redis == nil {
 		return
 	}
 	if err := s.redis.Publish(ctx, ProvisionChannel(dbID), string(payload)).Err(); err != nil {
@@ -990,11 +1013,15 @@ func (s *Service) dispatchDeploy(
 	})
 }
 
-// markError best-effort flips the database row to error and logs the cause.
+// markError best-effort flips the database row to error and stores the cause
+// on the row so the detail page can show what went wrong after the live SSE
+// has ended.
 func (s *Service) markError(ctx context.Context, id uuid.UUID, cause error) {
 	s.logger.Error("database provisioning failed; marking error", "id", id, "error", cause)
-	if _, err := s.queries.UpdateDatabaseStatus(ctx, db.UpdateDatabaseStatusParams{
-		ID: id, Status: StatusError,
+	msg := cause.Error()
+	if err := s.queries.SetDatabaseError(ctx, db.SetDatabaseErrorParams{
+		ID:           id,
+		ErrorMessage: &msg,
 	}); err != nil {
 		s.logger.Error("failed to mark database error", "id", id, "error", err)
 	}

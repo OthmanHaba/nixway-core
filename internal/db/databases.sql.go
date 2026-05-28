@@ -53,7 +53,7 @@ INSERT INTO databases (
     backup_schedule, backup_retention_days, backup_storage_type
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-RETURNING id, team_id, project_id, cluster_id, server_id, volume_id, template_slug, version, name, container_name, status, port, dns_record, superuser_secret_id, appuser_secret_id, resource_cpu_millicores, resource_memory_mb, backup_schedule, backup_retention_days, backup_storage_type, created_at, updated_at
+RETURNING id, team_id, project_id, cluster_id, server_id, volume_id, template_slug, version, name, container_name, status, port, dns_record, superuser_secret_id, appuser_secret_id, resource_cpu_millicores, resource_memory_mb, backup_schedule, backup_retention_days, backup_storage_type, provision_log, error_message, created_at, updated_at
 `
 
 type CreateDatabaseParams struct {
@@ -120,6 +120,8 @@ func (q *Queries) CreateDatabase(ctx context.Context, arg CreateDatabaseParams) 
 		&i.BackupSchedule,
 		&i.BackupRetentionDays,
 		&i.BackupStorageType,
+		&i.ProvisionLog,
+		&i.ErrorMessage,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -136,7 +138,7 @@ func (q *Queries) DeleteDatabase(ctx context.Context, id uuid.UUID) error {
 }
 
 const getDatabase = `-- name: GetDatabase :one
-SELECT id, team_id, project_id, cluster_id, server_id, volume_id, template_slug, version, name, container_name, status, port, dns_record, superuser_secret_id, appuser_secret_id, resource_cpu_millicores, resource_memory_mb, backup_schedule, backup_retention_days, backup_storage_type, created_at, updated_at FROM databases WHERE id = $1
+SELECT id, team_id, project_id, cluster_id, server_id, volume_id, template_slug, version, name, container_name, status, port, dns_record, superuser_secret_id, appuser_secret_id, resource_cpu_millicores, resource_memory_mb, backup_schedule, backup_retention_days, backup_storage_type, provision_log, error_message, created_at, updated_at FROM databases WHERE id = $1
 `
 
 func (q *Queries) GetDatabase(ctx context.Context, id uuid.UUID) (Database, error) {
@@ -163,6 +165,8 @@ func (q *Queries) GetDatabase(ctx context.Context, id uuid.UUID) (Database, erro
 		&i.BackupSchedule,
 		&i.BackupRetentionDays,
 		&i.BackupStorageType,
+		&i.ProvisionLog,
+		&i.ErrorMessage,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -170,7 +174,7 @@ func (q *Queries) GetDatabase(ctx context.Context, id uuid.UUID) (Database, erro
 }
 
 const getDatabaseByName = `-- name: GetDatabaseByName :one
-SELECT id, team_id, project_id, cluster_id, server_id, volume_id, template_slug, version, name, container_name, status, port, dns_record, superuser_secret_id, appuser_secret_id, resource_cpu_millicores, resource_memory_mb, backup_schedule, backup_retention_days, backup_storage_type, created_at, updated_at FROM databases WHERE project_id = $1 AND name = $2
+SELECT id, team_id, project_id, cluster_id, server_id, volume_id, template_slug, version, name, container_name, status, port, dns_record, superuser_secret_id, appuser_secret_id, resource_cpu_millicores, resource_memory_mb, backup_schedule, backup_retention_days, backup_storage_type, provision_log, error_message, created_at, updated_at FROM databases WHERE project_id = $1 AND name = $2
 `
 
 type GetDatabaseByNameParams struct {
@@ -202,6 +206,8 @@ func (q *Queries) GetDatabaseByName(ctx context.Context, arg GetDatabaseByNamePa
 		&i.BackupSchedule,
 		&i.BackupRetentionDays,
 		&i.BackupStorageType,
+		&i.ProvisionLog,
+		&i.ErrorMessage,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -209,7 +215,7 @@ func (q *Queries) GetDatabaseByName(ctx context.Context, arg GetDatabaseByNamePa
 }
 
 const listDatabasesByCluster = `-- name: ListDatabasesByCluster :many
-SELECT id, team_id, project_id, cluster_id, server_id, volume_id, template_slug, version, name, container_name, status, port, dns_record, superuser_secret_id, appuser_secret_id, resource_cpu_millicores, resource_memory_mb, backup_schedule, backup_retention_days, backup_storage_type, created_at, updated_at FROM databases WHERE cluster_id = $1 ORDER BY created_at DESC
+SELECT id, team_id, project_id, cluster_id, server_id, volume_id, template_slug, version, name, container_name, status, port, dns_record, superuser_secret_id, appuser_secret_id, resource_cpu_millicores, resource_memory_mb, backup_schedule, backup_retention_days, backup_storage_type, provision_log, error_message, created_at, updated_at FROM databases WHERE cluster_id = $1 ORDER BY created_at DESC
 `
 
 func (q *Queries) ListDatabasesByCluster(ctx context.Context, clusterID uuid.UUID) ([]Database, error) {
@@ -242,6 +248,8 @@ func (q *Queries) ListDatabasesByCluster(ctx context.Context, clusterID uuid.UUI
 			&i.BackupSchedule,
 			&i.BackupRetentionDays,
 			&i.BackupStorageType,
+			&i.ProvisionLog,
+			&i.ErrorMessage,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -256,7 +264,7 @@ func (q *Queries) ListDatabasesByCluster(ctx context.Context, clusterID uuid.UUI
 }
 
 const listDatabasesByProject = `-- name: ListDatabasesByProject :many
-SELECT id, team_id, project_id, cluster_id, server_id, volume_id, template_slug, version, name, container_name, status, port, dns_record, superuser_secret_id, appuser_secret_id, resource_cpu_millicores, resource_memory_mb, backup_schedule, backup_retention_days, backup_storage_type, created_at, updated_at FROM databases WHERE project_id = $1 ORDER BY created_at DESC
+SELECT id, team_id, project_id, cluster_id, server_id, volume_id, template_slug, version, name, container_name, status, port, dns_record, superuser_secret_id, appuser_secret_id, resource_cpu_millicores, resource_memory_mb, backup_schedule, backup_retention_days, backup_storage_type, provision_log, error_message, created_at, updated_at FROM databases WHERE project_id = $1 ORDER BY created_at DESC
 `
 
 func (q *Queries) ListDatabasesByProject(ctx context.Context, projectID uuid.UUID) ([]Database, error) {
@@ -289,6 +297,8 @@ func (q *Queries) ListDatabasesByProject(ctx context.Context, projectID uuid.UUI
 			&i.BackupSchedule,
 			&i.BackupRetentionDays,
 			&i.BackupStorageType,
+			&i.ProvisionLog,
+			&i.ErrorMessage,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -322,7 +332,7 @@ const updateDatabaseStatus = `-- name: UpdateDatabaseStatus :one
 UPDATE databases
 SET status = $2, updated_at = now()
 WHERE id = $1
-RETURNING id, team_id, project_id, cluster_id, server_id, volume_id, template_slug, version, name, container_name, status, port, dns_record, superuser_secret_id, appuser_secret_id, resource_cpu_millicores, resource_memory_mb, backup_schedule, backup_retention_days, backup_storage_type, created_at, updated_at
+RETURNING id, team_id, project_id, cluster_id, server_id, volume_id, template_slug, version, name, container_name, status, port, dns_record, superuser_secret_id, appuser_secret_id, resource_cpu_millicores, resource_memory_mb, backup_schedule, backup_retention_days, backup_storage_type, provision_log, error_message, created_at, updated_at
 `
 
 type UpdateDatabaseStatusParams struct {
@@ -354,6 +364,8 @@ func (q *Queries) UpdateDatabaseStatus(ctx context.Context, arg UpdateDatabaseSt
 		&i.BackupSchedule,
 		&i.BackupRetentionDays,
 		&i.BackupStorageType,
+		&i.ProvisionLog,
+		&i.ErrorMessage,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -373,5 +385,48 @@ type UpdateDatabaseVolumeParams struct {
 
 func (q *Queries) UpdateDatabaseVolume(ctx context.Context, arg UpdateDatabaseVolumeParams) error {
 	_, err := q.db.Exec(ctx, updateDatabaseVolume, arg.ID, arg.VolumeID)
+	return err
+}
+
+const appendDatabaseProvisionEvent = `-- name: AppendDatabaseProvisionEvent :exec
+UPDATE databases
+SET provision_log = provision_log || $2::jsonb, updated_at = now()
+WHERE id = $1
+`
+
+type AppendDatabaseProvisionEventParams struct {
+	ID    uuid.UUID `json:"id"`
+	Event []byte    `json:"event"`
+}
+
+func (q *Queries) AppendDatabaseProvisionEvent(ctx context.Context, arg AppendDatabaseProvisionEventParams) error {
+	_, err := q.db.Exec(ctx, appendDatabaseProvisionEvent, arg.ID, arg.Event)
+	return err
+}
+
+const setDatabaseError = `-- name: SetDatabaseError :exec
+UPDATE databases
+SET status = 'error', error_message = $2, updated_at = now()
+WHERE id = $1
+`
+
+type SetDatabaseErrorParams struct {
+	ID           uuid.UUID `json:"id"`
+	ErrorMessage *string   `json:"error_message"`
+}
+
+func (q *Queries) SetDatabaseError(ctx context.Context, arg SetDatabaseErrorParams) error {
+	_, err := q.db.Exec(ctx, setDatabaseError, arg.ID, arg.ErrorMessage)
+	return err
+}
+
+const clearDatabaseProvisionLog = `-- name: ClearDatabaseProvisionLog :exec
+UPDATE databases
+SET provision_log = '[]'::jsonb, error_message = NULL, updated_at = now()
+WHERE id = $1
+`
+
+func (q *Queries) ClearDatabaseProvisionLog(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, clearDatabaseProvisionLog, id)
 	return err
 }

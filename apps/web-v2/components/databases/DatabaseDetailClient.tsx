@@ -60,6 +60,7 @@ import type {
   RotateCredentialsResponse,
 } from "@/lib/types";
 import { cn } from "@/lib/cn";
+import { ProvisionConsole } from "./ProvisionConsole";
 
 interface Props {
   projectId: string;
@@ -87,7 +88,10 @@ export function DatabaseDetailClient({
     queryKey: ["database", initialDatabase.id],
     queryFn: () => databasesApi.get(projectId, initialDatabase.id),
     initialData: initialDatabase,
-    refetchInterval: 15_000,
+    // Poll faster while provisioning so error_message + log entries land
+    // promptly; back off to the standard cadence once the row is stable.
+    refetchInterval: (query) =>
+      query.state.data?.status === "provisioning" ? 4_000 : 15_000,
   });
   const db = databaseQ.data ?? initialDatabase;
 
@@ -283,6 +287,39 @@ export function DatabaseDetailClient({
           response={rotated}
           onDismiss={() => setRotated(null)}
         />
+      )}
+
+      {/* Provision log — shown while the row is provisioning, and as a
+          forensic record afterwards if there are entries to display. */}
+      {(db.status === "provisioning" ||
+        db.status === "error" ||
+        (db.provision_log && db.provision_log.length > 0)) && (
+        <Card>
+          <CardHeader>
+            <div className="label-mono mb-1">Provisioning</div>
+            <h2 className="text-[16px] text-ink-1">Live console &amp; history</h2>
+            <p className="mt-1 text-[12px] text-ink-3 max-w-md">
+              Step-by-step events emitted by the platform while pulling the
+              image, attaching the volume, generating credentials and pushing
+              DNS. Past runs are kept on the database row.
+            </p>
+          </CardHeader>
+          <CardBody className="space-y-3">
+            {db.status === "error" && db.error_message && (
+              <Alert tone="error">
+                <span className="inline-flex items-center gap-2">
+                  <TriangleAlert className="h-3.5 w-3.5" /> {db.error_message}
+                </span>
+              </Alert>
+            )}
+            <ProvisionConsole
+              projectId={projectId}
+              databaseId={db.id}
+              initialEvents={db.provision_log ?? []}
+              live={db.status === "provisioning"}
+            />
+          </CardBody>
+        </Card>
       )}
 
       {/* Connection card */}
