@@ -181,6 +181,7 @@ export interface ProvisioningJob {
 export type ProvisioningComponent =
   | "docker"
   | "traefik"
+  | "edge-lb"
   | "nixpacks"
   | "buildpacks"
   | "railpack"
@@ -193,7 +194,8 @@ export const PROVISIONING_COMPONENTS: ReadonlyArray<{
   description: string;
 }> = [
   { id: "docker",     label: "Docker",                  description: "Container runtime used to run apps and managed databases." },
-  { id: "traefik",    label: "Traefik",                 description: "Edge proxy that fronts deployed apps via Docker labels + file provider." },
+  { id: "traefik",    label: "Traefik (per-node)",      description: "Per-node proxy via Docker labels + file provider. Pick this for worker or single-node servers." },
+  { id: "edge-lb",    label: "Edge LB",                 description: "Front-of-cluster Traefik on host network. Route public traffic to workers over the mesh. Pick this on dedicated edge nodes." },
   { id: "nixpacks",   label: "Nixpacks",                description: "Auto-detect builder for source-based deploys (Railway-style)." },
   { id: "buildpacks", label: "Cloud Native Buildpacks", description: "Optional pack CLI for buildpack-based image production." },
   { id: "railpack",   label: "Railpack",                description: "Alternative source builder." },

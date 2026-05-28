@@ -8,7 +8,7 @@ import (
 )
 
 func TestGetScript_ValidComponents(t *testing.T) {
-	for _, component := range []string{"docker", "traefik", "nixpacks", "buildpacks", "railpack", "agent"} {
+	for _, component := range []string{"docker", "traefik", "edge-lb", "nixpacks", "buildpacks", "railpack", "agent"} {
 		t.Run(component, func(t *testing.T) {
 			script, err := GetScript(component)
 			require.NoError(t, err)
@@ -24,7 +24,7 @@ func TestGetScript_InvalidComponent(t *testing.T) {
 }
 
 func TestIsValidComponent(t *testing.T) {
-	valid := []string{"docker", "traefik", "nixpacks", "buildpacks", "railpack", "agent"}
+	valid := []string{"docker", "traefik", "edge-lb", "nixpacks", "buildpacks", "railpack", "agent"}
 	for _, c := range valid {
 		assert.True(t, IsValidComponent(c), "%s should be valid", c)
 	}
@@ -49,7 +49,8 @@ func TestGetAgentScript_TemplateReplacement(t *testing.T) {
 }
 
 func TestAvailableComponents(t *testing.T) {
-	assert.Len(t, AvailableComponents, 6)
+	assert.Len(t, AvailableComponents, 7)
 	assert.Contains(t, AvailableComponents, "docker")
+	assert.Contains(t, AvailableComponents, "edge-lb")
 	assert.Contains(t, AvailableComponents, "agent")
 }
