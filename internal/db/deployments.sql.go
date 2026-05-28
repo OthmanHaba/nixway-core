@@ -793,3 +793,166 @@ func (q *Queries) ReleasePortsByDeploymentTarget(ctx context.Context, deployment
 	_, err := q.db.Exec(ctx, releasePortsByDeploymentTarget, deploymentTargetID)
 	return err
 }
+
+const setDeploymentStatusSimple = `-- name: SetDeploymentStatusSimple :exec
+UPDATE deployments SET status = $2 WHERE id = $1
+`
+
+type SetDeploymentStatusSimpleParams struct {
+	ID     uuid.UUID `json:"id"`
+	Status string    `json:"status"`
+}
+
+func (q *Queries) SetDeploymentStatusSimple(ctx context.Context, arg SetDeploymentStatusSimpleParams) error {
+	_, err := q.db.Exec(ctx, setDeploymentStatusSimple, arg.ID, arg.Status)
+	return err
+}
+
+const listArchivableDeploymentsByApp = `-- name: ListArchivableDeploymentsByApp :many
+SELECT d.id, d.build_id, b.image_tag
+FROM deployments d
+JOIN builds b ON b.id = d.build_id
+WHERE d.app_id = $1
+  AND d.environment_id = $2
+  AND d.status IN ('healthy', 'superseded')
+  AND d.id NOT IN (
+    SELECT id FROM deployments
+    WHERE app_id = $1
+      AND environment_id = $2
+      AND status IN ('healthy', 'superseded')
+    ORDER BY created_at DESC
+    LIMIT $3
+  )
+ORDER BY d.created_at ASC
+`
+
+type ListArchivableDeploymentsByAppParams struct {
+	AppID         uuid.UUID `json:"app_id"`
+	EnvironmentID uuid.UUID `json:"environment_id"`
+	KeepCount     int32     `json:"keep_count"`
+}
+
+type ListArchivableDeploymentsByAppRow struct {
+	ID       uuid.UUID `json:"id"`
+	BuildID  uuid.UUID `json:"build_id"`
+	ImageTag string    `json:"image_tag"`
+}
+
+func (q *Queries) ListArchivableDeploymentsByApp(ctx context.Context, arg ListArchivableDeploymentsByAppParams) ([]ListArchivableDeploymentsByAppRow, error) {
+	rows, err := q.db.Query(ctx, listArchivableDeploymentsByApp, arg.AppID, arg.EnvironmentID, arg.KeepCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListArchivableDeploymentsByAppRow{}
+	for rows.Next() {
+		var i ListArchivableDeploymentsByAppRow
+		if err := rows.Scan(&i.ID, &i.BuildID, &i.ImageTag); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listKeptImageTagsByApp = `-- name: ListKeptImageTagsByApp :many
+SELECT DISTINCT b.image_tag
+FROM deployments d
+JOIN builds b ON b.id = d.build_id
+WHERE d.app_id = $1
+  AND d.environment_id = $2
+  AND d.status IN ('healthy', 'superseded')
+  AND b.image_tag <> ''
+`
+
+type ListKeptImageTagsByAppParams struct {
+	AppID         uuid.UUID `json:"app_id"`
+	EnvironmentID uuid.UUID `json:"environment_id"`
+}
+
+func (q *Queries) ListKeptImageTagsByApp(ctx context.Context, arg ListKeptImageTagsByAppParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listKeptImageTagsByApp, arg.AppID, arg.EnvironmentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var tag string
+		if err := rows.Scan(&tag); err != nil {
+			return nil, err
+		}
+		items = append(items, tag)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getLastSupersededDeployment = `-- name: GetLastSupersededDeployment :one
+SELECT id, app_id, environment_id, build_id, strategy, replicas_desired, replicas_ready, env_snapshot, status, started_at, completed_at, error, created_at, logs, platform_domain FROM deployments
+WHERE app_id = $1 AND environment_id = $2 AND status = 'superseded'
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type GetLastSupersededDeploymentParams struct {
+	AppID         uuid.UUID `json:"app_id"`
+	EnvironmentID uuid.UUID `json:"environment_id"`
+}
+
+func (q *Queries) GetLastSupersededDeployment(ctx context.Context, arg GetLastSupersededDeploymentParams) (Deployment, error) {
+	row := q.db.QueryRow(ctx, getLastSupersededDeployment, arg.AppID, arg.EnvironmentID)
+	var i Deployment
+	err := row.Scan(
+		&i.ID,
+		&i.AppID,
+		&i.EnvironmentID,
+		&i.BuildID,
+		&i.Strategy,
+		&i.ReplicasDesired,
+		&i.ReplicasReady,
+		&i.EnvSnapshot,
+		&i.Status,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.Error,
+		&i.CreatedAt,
+		&i.Logs,
+		&i.PlatformDomain,
+	)
+	return i, err
+}
+
+const listDeploymentServers = `-- name: ListDeploymentServers :many
+SELECT DISTINCT s.agent_id
+FROM deployment_targets dt
+JOIN servers s ON s.id = dt.server_id
+WHERE dt.deployment_id = $1 AND s.agent_id IS NOT NULL
+`
+
+func (q *Queries) ListDeploymentServers(ctx context.Context, deploymentID uuid.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, listDeploymentServers, deploymentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var agentID *string
+		if err := rows.Scan(&agentID); err != nil {
+			return nil, err
+		}
+		if agentID != nil {
+			items = append(items, *agentID)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

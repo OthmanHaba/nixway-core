@@ -24,6 +24,7 @@ export function DeploymentsClient({ appId, environments, initialDeployments }: P
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [openLogs, setOpenLogs] = useState<Deployment | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   const deployments = useQuery({
     queryKey: ["app-deployments", appId],
@@ -47,7 +48,9 @@ export function DeploymentsClient({ appId, environments, initialDeployments }: P
   });
 
   const envById = new Map(environments.map((e) => [e.id, e] as const));
-  const list = deployments.data ?? [];
+  const allList = deployments.data ?? [];
+  const archivedCount = allList.filter((d) => d.status === "archived").length;
+  const list = showArchived ? allList : allList.filter((d) => d.status !== "archived");
   const prodEnv = environments.find((e) => e.is_production);
 
   return (
@@ -99,6 +102,22 @@ export function DeploymentsClient({ appId, environments, initialDeployments }: P
         <Alert tone="success" title="Rollback in progress">
           A rollback deployment was created. Watch its status complete below.
         </Alert>
+      )}
+
+      {archivedCount > 0 && (
+        <div className="flex items-center justify-between text-[12px] text-ink-3">
+          <span>
+            {archivedCount} archived deployment{archivedCount === 1 ? "" : "s"} — images
+            pruned, no rollback target.
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowArchived((v) => !v)}
+            className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-2 hover:text-ink-1 underline-offset-4 hover:underline"
+          >
+            {showArchived ? "Hide archived" : "Show archived"}
+          </button>
+        </div>
       )}
 
       {list.length === 0 ? (

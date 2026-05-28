@@ -418,3 +418,12 @@ func (q *Queries) UpsertTrafficBackend(ctx context.Context, arg UpsertTrafficBac
 	)
 	return i, err
 }
+
+const deleteTrafficBackendsByDeployment = `-- name: DeleteTrafficBackendsByDeployment :exec
+DELETE FROM traffic_backends WHERE deployment_id = $1
+`
+
+func (q *Queries) DeleteTrafficBackendsByDeployment(ctx context.Context, deploymentID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteTrafficBackendsByDeployment, deploymentID)
+	return err
+}
