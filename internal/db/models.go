@@ -311,6 +311,17 @@ type DeploymentTarget struct {
 	HealthyAt           pgtype.Timestamptz `json:"healthy_at"`
 	StoppedAt           pgtype.Timestamptz `json:"stopped_at"`
 	Error               *string            `json:"error"`
+	HostPort            *int32             `json:"host_port"`
+	BindAddress         *string            `json:"bind_address"`
+}
+
+type ServerPortAllocation struct {
+	ID                 uuid.UUID          `json:"id"`
+	ServerID           uuid.UUID          `json:"server_id"`
+	Port               int32              `json:"port"`
+	DeploymentTargetID pgtype.UUID        `json:"deployment_target_id"`
+	CreatedAt          time.Time          `json:"created_at"`
+	ReleasedAt         pgtype.Timestamptz `json:"released_at"`
 }
 
 type Environment struct {
