@@ -30,6 +30,7 @@ export default async function AppDomainsPage({
     deployments.find((d) => !!d.platform_domain)?.platform_domain ?? null;
 
   let serverIps: string[] = [];
+  let edgeIps: string[] = [];
   const { activeTeam } = await getTeamContext();
   if (activeTeam) {
     const project = await tryGet<Project | null>(
@@ -45,13 +46,20 @@ export default async function AppDomainsPage({
         tryGet<Server[]>(`/teams/${activeTeam.id}/servers`, []),
       ]);
       const memberIds = new Set(members.map((m) => m.server_id));
-      serverIps = servers
-        .filter((s) => memberIds.has(s.id) && s.public_ip)
+      const clusterServers = servers.filter((s) => memberIds.has(s.id) && s.public_ip);
+      serverIps = clusterServers.map((s) => s.public_ip);
+      edgeIps = clusterServers
+        .filter((s) => s.role === "edge" || s.role === "both")
         .map((s) => s.public_ip);
     }
   }
 
   return (
-    <DomainsClient app={app} platformDomain={platformDomain} serverIps={serverIps} />
+    <DomainsClient
+      app={app}
+      platformDomain={platformDomain}
+      serverIps={serverIps}
+      edgeIps={edgeIps}
+    />
   );
 }
