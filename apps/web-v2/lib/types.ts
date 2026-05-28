@@ -388,6 +388,17 @@ export interface ScaleResult {
 }
 
 /**
+ * Response of POST /apps/{id}/domain/verify. The Go API attempts DNS lookup
+ * and returns the resolved CNAME or A-record target it accepted (empty when
+ * verified=false).
+ */
+export interface VerifyDomainResult {
+  domain: string;
+  verified: boolean;
+  target: string;
+}
+
+/**
  * Team-scoped encrypted secret. The plaintext value is never returned
  * by list/get — call /reveal once to obtain it. `revealed_at` records the
  * one-time disclosure timestamp.

@@ -9,7 +9,6 @@ import { Button } from "@/components/primitives/Button";
 import { Input } from "@/components/primitives/Input";
 import { Field } from "@/components/primitives/Field";
 import { Alert } from "@/components/primitives/Alert";
-import { DomainCard } from "./DomainCard";
 import { appsApi, ApiError } from "@/lib/api";
 import type { App } from "@/lib/types";
 
@@ -178,7 +177,6 @@ export function AppOverview({ app }: { app: App }) {
         </Card>
       </div>
 
-      <DomainCard app={app} />
     </div>
   );
 }

@@ -28,6 +28,7 @@ import type {
   PlacementConstraints,
   ScalingEvent,
   ScaleResult,
+  VerifyDomainResult,
 } from "./types";
 
 const BASE = "/api/v1";
@@ -359,7 +360,29 @@ export const appsApi = {
   update: (projectId: string, appId: string, patch: UpdateAppInput) => api.put<App>(`/projects/${projectId}/apps/${appId}`, patch),
   remove: (projectId: string, appId: string)                        => api.delete<void>(`/projects/${projectId}/apps/${appId}`),
   setDomain:    (appId: string, custom_domain: string)              => api.post<App>(`/apps/${appId}/domain`, { custom_domain }),
-  verifyDomain: (appId: string)                                     => api.post<App>(`/apps/${appId}/domain/verify`),
+  verifyDomain: (appId: string)                                     => api.post<VerifyDomainResult>(`/apps/${appId}/domain/verify`),
+  /**
+   * The backend has no DELETE endpoint for the custom domain; the standard
+   * Update handler is total-replace, so we re-emit every editable field and
+   * just nil the domain. Caller passes the *current* App so we don't clobber
+   * other settings.
+   */
+  removeDomain: (app: App) =>
+    api.put<App>(`/projects/${app.project_id}/apps/${app.id}`, {
+      name: app.name,
+      branch: app.branch ?? null,
+      root_path: app.root_path ?? "",
+      auto_deploy: app.auto_deploy ?? false,
+      builder: app.builder ?? "",
+      dockerfile_path: app.dockerfile_path ?? "",
+      port: app.port ?? 0,
+      health_check_path: app.health_check_path ?? "",
+      replicas: app.replicas ?? 1,
+      custom_domain: null,
+      status: app.status ?? "active",
+      placement_strategy: app.placement_strategy ?? "spread",
+      pinned_server_ids: app.pinned_server_ids ?? [],
+    }),
   updateResources: (appId: string, input: UpdateResourcesInput)     => api.put<App>(`/apps/${appId}/resources`, input),
   rollback: (appId: string, environment_id?: string)                =>
     api.post<Deployment>(`/apps/${appId}/rollback`, environment_id ? { environment_id } : {}),
