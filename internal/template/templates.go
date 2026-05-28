@@ -31,6 +31,10 @@ func builtinTemplates() []Template {
 				"POSTGRES_USER":     "{root_user}",
 				"POSTGRES_PASSWORD": "{root_password}",
 				"POSTGRES_DB":       "{dbname}",
+				// initdb refuses to use the mount root because it contains
+				// `lost+found`. Pointing PGDATA at a subdirectory follows the
+				// official postgres-image recommendation for bind mounts.
+				"PGDATA": "/var/lib/postgresql/data/pgdata",
 			},
 			CredentialPolicy: "generated",
 			ShellCommand:     "psql",
