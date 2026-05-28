@@ -32,6 +32,7 @@ type templateSummary struct {
 	VolumeSpec       template.VolumeSpec `json:"volume_spec"`
 	CredentialPolicy string              `json:"credential_policy"`
 	VersionCount     int                 `json:"version_count"`
+	Versions         []template.Version  `json:"versions"`
 }
 
 // List returns metadata for every template in the catalog.
@@ -50,6 +51,7 @@ func (h *TemplateHandler) List(w http.ResponseWriter, r *http.Request) {
 			VolumeSpec:       t.VolumeSpec,
 			CredentialPolicy: t.CredentialPolicy,
 			VersionCount:     len(t.Versions),
+			Versions:         t.Versions,
 		})
 	}
 	respond.JSON(w, http.StatusOK, out)
