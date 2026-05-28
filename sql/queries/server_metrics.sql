@@ -7,6 +7,11 @@ ON CONFLICT (server_id) DO UPDATE SET
     memory_used = EXCLUDED.memory_used,
     updated_at = now();
 
+-- name: GetServerMetric :one
+SELECT server_id, cpu_percent, memory_total, memory_used, updated_at
+FROM server_metrics
+WHERE server_id = $1;
+
 -- name: GetAverageMetricsForApp :one
 SELECT
     COALESCE(AVG(sm.cpu_percent), 0)::DOUBLE PRECISION AS cpu_percent,

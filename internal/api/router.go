@@ -151,6 +151,7 @@ func NewRouter(
 	protected.HandleFunc("PUT /api/v1/teams/{id}/servers/{serverId}", serverH.Update)
 	protected.HandleFunc("DELETE /api/v1/teams/{id}/servers/{serverId}", serverH.Delete)
 	protected.HandleFunc("POST /api/v1/teams/{id}/servers/{serverId}/cleanup", serverH.Cleanup)
+	protected.HandleFunc("GET /api/v1/teams/{id}/servers/{serverId}/metrics", serverH.Metrics)
 
 	// Server tags
 	protected.HandleFunc("GET /api/v1/teams/{id}/servers/{serverId}/tags", tagH.List)

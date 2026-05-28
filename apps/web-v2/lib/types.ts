@@ -124,6 +124,17 @@ export interface ServerDetail extends Server {
   resources?: ServerResources | null;
 }
 
+export interface ServerMetric {
+  server_id: string;
+  cpu_percent: number;
+  memory_total: number;     // bytes
+  memory_used: number;      // bytes
+  memory_percent: number;
+  updated_at: string;
+  /** False when the latest sample is older than the freshness window (2m). */
+  fresh: boolean;
+}
+
 export type SshKeyType = "ed25519" | "rsa";
 
 export interface SshKey {

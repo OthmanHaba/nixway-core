@@ -204,6 +204,73 @@ func (h *ServerHandler) Get(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, resp)
 }
 
+type serverMetricsResponse struct {
+	ServerID    uuid.UUID `json:"server_id"`
+	CpuPercent  float64   `json:"cpu_percent"`
+	MemoryTotal int64     `json:"memory_total"`
+	MemoryUsed  int64     `json:"memory_used"`
+	MemoryPct   float64   `json:"memory_percent"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Fresh       bool      `json:"fresh"`
+}
+
+// Metrics returns the latest agent-reported usage snapshot for a server.
+// GET /api/v1/teams/{id}/servers/{serverId}/metrics
+func (h *ServerHandler) Metrics(w http.ResponseWriter, r *http.Request) {
+	authCtx := middleware.GetAuthContext(r)
+	if authCtx == nil {
+		respond.Error(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	teamID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid team ID")
+		return
+	}
+	if _, ok := middleware.CheckTeamRole(w, r, h.queries, teamID, model.RoleMember, model.ScopeServersRead); !ok {
+		return
+	}
+
+	serverID, err := uuid.Parse(r.PathValue("serverId"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid server ID")
+		return
+	}
+
+	// Make sure the server actually belongs to this team before we read metrics.
+	if _, err := h.queries.GetServerByID(r.Context(), db.GetServerByIDParams{
+		ID:     serverID,
+		TeamID: teamID,
+	}); err != nil {
+		respond.Error(w, http.StatusNotFound, "server not found")
+		return
+	}
+
+	m, err := h.queries.GetServerMetric(r.Context(), serverID)
+	if err != nil {
+		// No row yet (agent hasn't reported) — return an explicit "no data" body
+		// rather than 404 so the UI can render an empty-state instead of an error.
+		respond.JSON(w, http.StatusOK, serverMetricsResponse{ServerID: serverID})
+		return
+	}
+
+	resp := serverMetricsResponse{
+		ServerID:    m.ServerID,
+		CpuPercent:  m.CpuPercent,
+		MemoryTotal: m.MemoryTotal,
+		MemoryUsed:  m.MemoryUsed,
+		UpdatedAt:   m.UpdatedAt,
+		// Agent reports every ~30s; treat samples older than 2 minutes as stale.
+		Fresh: time.Since(m.UpdatedAt) < 2*time.Minute,
+	}
+	if m.MemoryTotal > 0 {
+		resp.MemoryPct = (float64(m.MemoryUsed) / float64(m.MemoryTotal)) * 100
+	}
+
+	respond.JSON(w, http.StatusOK, resp)
+}
+
 type updateServerRequest struct {
 	Name string `json:"name"`
 }
