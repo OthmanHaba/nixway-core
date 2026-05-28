@@ -160,13 +160,20 @@ services:
   web:
     build:
       context: .
-      dockerfile: apps/web/Dockerfile
+      dockerfile: apps/web-v2/Dockerfile
     ports:
       - "${NIXWAY_WEB_PORT:-5173}:80"
+    environment:
+      # The Next.js rewrites layer proxies /api/* to this URL — must point at
+      # the internal api service on the docker network at boot.
+      NIXWAY_API_URL: ${NIXWAY_API_URL:-http://api:8080}
+      NODE_ENV: production
     depends_on:
       - api
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      # /login is the public unauthenticated entry — guaranteed 200 when
+      # the Next server is up.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/login"]
       interval: 10s
       timeout: 5s
       retries: 10
