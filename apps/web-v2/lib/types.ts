@@ -313,18 +313,89 @@ export interface DeploymentTarget {
   error?: string | null;
 }
 
+/**
+ * Provisioned database service (e.g. a Postgres or Redis instance) running on
+ * a cluster member as a managed container. Mirrors internal/db/models.go.
+ */
 export interface Database {
   id: string;
   team_id: string;
   project_id: string;
-  cluster_id: string | null;
-  server_id: string | null;
+  cluster_id: string;
+  server_id: string;
+  volume_id: string | null;
   template_slug: string;
   version: string;
   name: string;
+  container_name: string;
   status: string;
+  port: number;
+  dns_record: string | null;
+  superuser_secret_id: string | null;
+  appuser_secret_id: string | null;
+  resource_cpu_millicores: number;
+  resource_memory_mb: number;
+  backup_schedule: string | null;
+  backup_retention_days: number | null;
+  backup_storage_type: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** Catalog entry for a provisionable service (DB/cache/queue/etc). */
+export interface Template {
+  slug: string;
+  name: string;
+  category: string;
+  description?: string;
+  versions: TemplateVersion[];
+  default_resources: { milli_cpu: number; memory_mb: number };
+  volume_spec: { mount_path: string; default_gib?: number };
+  ports: number[];
+  health_check: { command: string; interval?: number; timeout?: number; retries?: number };
+  conn_string_fmt: string;
+  env_template: Record<string, string>;
+  credential_policy: string;
+  shell_command: string;
+  command?: string;
+}
+
+export interface TemplateVersion {
+  version: string;
+  image: string;
+  default?: boolean;
+}
+
+/** Many-to-many between a database and an app — defines env injection prefix. */
+export interface DatabaseLink {
+  id: string;
+  database_id: string;
+  app_id: string;
+  env_prefix: string;
+  created_at: string;
+}
+
+/** Audit row for a credential rotation. Status is one of pending/completed/failed. */
+export interface DatabaseCredentialRotation {
+  id: string;
+  database_id: string;
+  rotated_by: string;
+  old_secret_id: string | null;
+  new_secret_id: string | null;
+  status: string;
+  linked_apps_restarted: number;
+  error?: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+/**
+ * Response of POST /projects/{}/databases/{}/rotate. The new password is
+ * returned exactly once — surface it immediately and don't persist client-side.
+ */
+export interface RotateCredentialsResponse {
+  new_password: string;
+  rotation_id: string;
 }
 
 /**

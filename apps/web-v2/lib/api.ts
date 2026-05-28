@@ -32,6 +32,12 @@ import type {
   TrafficView,
   AutoscalingRule,
   AutoscaleEvaluation,
+  Database,
+  DatabaseLink,
+  DatabaseCredentialRotation,
+  RotateCredentialsResponse,
+  Template,
+  TemplateVersion,
 } from "./types";
 
 const BASE = "/api/v1";
@@ -505,4 +511,52 @@ export const secretsApi = {
   reveal: (teamId: string, secretId: string)             =>
     api.post<{ value: string }>(`/teams/${teamId}/secrets/${secretId}/reveal`),
   remove: (teamId: string, secretId: string)             => api.delete<void>(`/teams/${teamId}/secrets/${secretId}`),
+};
+
+/* ─── Service templates (databases/caches/queues catalog) ─── */
+
+export const templatesApi = {
+  list:         ()                  => api.get<Template[]>("/templates"),
+  get:          (slug: string)      => api.get<Template>(`/templates/${slug}`),
+  listVersions: (slug: string)      => api.get<TemplateVersion[]>(`/templates/${slug}/versions`),
+};
+
+/* ─── Databases ─── */
+
+export interface ProvisionDatabaseInput {
+  cluster_id: string;
+  server_id?: string;
+  template_slug: string;
+  version: string;
+  name: string;
+  size_gb?: number;
+  cpu_millicores?: number;
+  memory_mb?: number;
+  backup_schedule?: string;
+  retention_days?: number;
+}
+
+export interface LinkDatabaseInput {
+  app_id: string;
+  env_prefix?: string;
+}
+
+export const databasesApi = {
+  list:    (projectId: string)                       => api.get<Database[]>(`/projects/${projectId}/databases`),
+  get:     (projectId: string, dbId: string)         => api.get<Database>(`/projects/${projectId}/databases/${dbId}`),
+  getByID: (dbId: string)                            => api.get<Database>(`/databases/${dbId}`),
+  provision: (projectId: string, input: ProvisionDatabaseInput) =>
+    api.post<Database>(`/projects/${projectId}/databases`, input),
+  remove:  (projectId: string, dbId: string)         => api.delete<void>(`/projects/${projectId}/databases/${dbId}`),
+  start:   (projectId: string, dbId: string)         => api.post<Database>(`/projects/${projectId}/databases/${dbId}/start`),
+  stop:    (projectId: string, dbId: string)         => api.post<Database>(`/projects/${projectId}/databases/${dbId}/stop`),
+  listLinks: (projectId: string, dbId: string)       => api.get<DatabaseLink[]>(`/projects/${projectId}/databases/${dbId}/links`),
+  link:    (projectId: string, dbId: string, input: LinkDatabaseInput) =>
+    api.post<DatabaseLink>(`/projects/${projectId}/databases/${dbId}/links`, input),
+  unlink:  (projectId: string, dbId: string, linkId: string) =>
+    api.delete<{ status: string }>(`/projects/${projectId}/databases/${dbId}/links/${linkId}`),
+  rotate:  (projectId: string, dbId: string)         =>
+    api.post<RotateCredentialsResponse>(`/projects/${projectId}/databases/${dbId}/rotate`),
+  listRotations: (projectId: string, dbId: string)   =>
+    api.get<DatabaseCredentialRotation[]>(`/projects/${projectId}/databases/${dbId}/rotations`),
 };
