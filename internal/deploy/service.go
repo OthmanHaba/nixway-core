@@ -650,6 +650,15 @@ func (s *Service) EnsureTrafficForDeployment(ctx context.Context, deploymentID u
 		}); err != nil {
 			s.logger.Warn("mark backend draining failed", "backend", prev.ID, "error", err)
 		}
+		// Flip the prior deployment to 'superseded' so ListTrafficBackendsForSync
+		// (which filters on d.status='healthy') stops surfacing it to Traefik,
+		// and the UI stops showing it as live.
+		if err := s.queries.SetDeploymentStatusSimple(ctx, db.SetDeploymentStatusSimpleParams{
+			ID:     prev.DeploymentID,
+			Status: "superseded",
+		}); err != nil {
+			s.logger.Warn("mark deployment superseded failed", "deployment", prev.DeploymentID, "error", err)
+		}
 		demoted++
 	}
 
@@ -671,6 +680,10 @@ func (s *Service) EnsureTrafficForDeployment(ctx context.Context, deploymentID u
 
 	if demoted > 0 {
 		go s.stopSupersededAfterDrain(deployment.ID, 10*time.Second)
+		// Keep rollback window = current + previous. Older deployments
+		// past that window get hard-archived (traffic_backends deleted,
+		// docker image pruned, status='archived').
+		go s.archiveOldDeployments(deployment.AppID, deployment.EnvironmentID, 2)
 	}
 	return nil
 }
@@ -686,6 +699,70 @@ func (s *Service) stopSupersededAfterDrain(deploymentID uuid.UUID, drain time.Du
 	if err := s.StopSupersededContainers(ctx, deploymentID); err != nil {
 		s.logger.Warn("stop superseded containers failed", "deployment_id", deploymentID, "error", err)
 	}
+}
+
+// archiveOldDeployments hard-archives deployments past the rollback window:
+// drops their traffic_backends rows, asks each host that ran them to docker
+// image rm the image tag, and flips the deployment row to 'archived'. An
+// image_tag is preserved if any kept deployment still references it.
+func (s *Service) archiveOldDeployments(appID, envID uuid.UUID, keep int32) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	rows, err := s.queries.ListArchivableDeploymentsByApp(ctx, db.ListArchivableDeploymentsByAppParams{
+		AppID:         appID,
+		EnvironmentID: envID,
+		KeepCount:     keep,
+	})
+	if err != nil {
+		s.logger.Warn("list archivable deployments failed", "app_id", appID, "error", err)
+		return
+	}
+	if len(rows) == 0 {
+		return
+	}
+	keptTags, err := s.queries.ListKeptImageTagsByApp(ctx, db.ListKeptImageTagsByAppParams{
+		AppID:         appID,
+		EnvironmentID: envID,
+	})
+	if err != nil {
+		s.logger.Warn("list kept image tags failed", "app_id", appID, "error", err)
+		keptTags = nil
+	}
+	keptSet := make(map[string]bool, len(keptTags))
+	for _, t := range keptTags {
+		keptSet[t] = true
+	}
+	for _, row := range rows {
+		if err := s.queries.DeleteTrafficBackendsByDeployment(ctx, row.ID); err != nil {
+			s.logger.Warn("delete traffic backends failed", "deployment_id", row.ID, "error", err)
+		}
+		if row.ImageTag != "" && !keptSet[row.ImageTag] {
+			agentIDs, err := s.queries.ListDeploymentServers(ctx, row.ID)
+			if err != nil {
+				s.logger.Warn("list deployment servers failed", "deployment_id", row.ID, "error", err)
+			}
+			for _, agentID := range agentIDs {
+				if err := s.connMgr.SendToAgent(agentID, &agentv1.ControlMessage{
+					Payload: &agentv1.ControlMessage_ExecCommand{
+						ExecCommand: &agentv1.ExecCommand{
+							CommandId: fmt.Sprintf("prune-%s", row.ID.String()[:8]),
+							Command:   "docker",
+							Args:      []string{"image", "rm", "-f", row.ImageTag},
+						},
+					},
+				}); err != nil {
+					s.logger.Warn("send image prune failed", "agent", agentID, "tag", row.ImageTag, "error", err)
+				}
+			}
+		}
+		if err := s.queries.SetDeploymentStatusSimple(ctx, db.SetDeploymentStatusSimpleParams{
+			ID:     row.ID,
+			Status: "archived",
+		}); err != nil {
+			s.logger.Warn("mark deployment archived failed", "deployment_id", row.ID, "error", err)
+		}
+	}
+	s.logger.Info("archived old deployments", "app_id", appID, "count", len(rows))
 }
 
 func (s *Service) GetTraffic(ctx context.Context, appID uuid.UUID) (TrafficView, error) {
@@ -1259,15 +1336,18 @@ func (s *Service) failTarget(ctx context.Context, targetID uuid.UUID, errMsg str
 
 // Rollback finds the last healthy deployment's build and creates a new deployment with it.
 func (s *Service) Rollback(ctx context.Context, appID, envID uuid.UUID) (db.Deployment, error) {
-	lastHealthy, err := s.queries.GetLastHealthyDeployment(ctx, db.GetLastHealthyDeploymentParams{
+	// Rollback target = the most recent 'superseded' deployment. The currently
+	// active deployment is 'healthy'; the immediate-previous one we demoted on
+	// promotion is 'superseded' and still has its image on the hosts.
+	prev, err := s.queries.GetLastSupersededDeployment(ctx, db.GetLastSupersededDeploymentParams{
 		AppID:         appID,
 		EnvironmentID: envID,
 	})
 	if err != nil {
-		return db.Deployment{}, fmt.Errorf("no healthy deployment to rollback to: %w", err)
+		return db.Deployment{}, fmt.Errorf("no previous deployment to rollback to: %w", err)
 	}
 
-	return s.TriggerDeploy(ctx, appID, envID, lastHealthy.BuildID, nil)
+	return s.TriggerDeploy(ctx, appID, envID, prev.BuildID, nil)
 }
 
 // UpdateStatus updates deployment status.

@@ -373,6 +373,8 @@ export type DeploymentStatus =
   | "degraded"
   | "failed"
   | "rolled_back"
+  | "superseded"
+  | "archived"
   | string;
 
 export interface Deployment {

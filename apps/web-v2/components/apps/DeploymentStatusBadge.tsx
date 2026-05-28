@@ -8,12 +8,18 @@ const TONE: Record<string, "online" | "info" | "warn" | "alert" | "neutral"> = {
   degraded:    "warn",
   failed:      "alert",
   rolled_back: "warn",
+  superseded:  "neutral",
+  archived:    "neutral",
+};
+
+const LABEL: Record<string, string> = {
+  rolled_back: "rolled back",
 };
 
 export function DeploymentStatusBadge({ status }: { status: DeploymentStatus }) {
   return (
     <Badge tone={TONE[status] ?? "neutral"} dot>
-      {status}
+      {LABEL[status] ?? status}
     </Badge>
   );
 }
