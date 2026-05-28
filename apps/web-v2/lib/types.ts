@@ -431,6 +431,38 @@ export interface RestoreResult {
 }
 
 /**
+ * Persistent block volume living on a cluster member. `container_name` +
+ * `mount_path` are populated once attached; `used_bytes` is reported by the
+ * agent on a polling cadence.
+ */
+export interface Volume {
+  id: string;
+  team_id: string;
+  cluster_id: string;
+  server_id: string;
+  name: string;
+  size_gb: number;
+  used_bytes: number;
+  filesystem: string;
+  mount_path: string | null;
+  container_name: string | null;
+  status: string;
+  host_path: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** A point-in-time snapshot of a volume, stored in object storage. */
+export interface VolumeSnapshot {
+  id: string;
+  volume_id: string;
+  size_bytes: number;
+  storage_type: string;
+  storage_path: string;
+  created_at: string;
+}
+
+/**
  * The Go API returns audit logs as a plain array. Pagination is via the
  * `before=<RFC3339>` query parameter using the last entry's `created_at`.
  */

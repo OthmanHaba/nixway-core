@@ -40,6 +40,8 @@ import type {
   RestoreResult,
   Template,
   TemplateVersion,
+  Volume,
+  VolumeSnapshot,
 } from "./types";
 
 const BASE = "/api/v1";
@@ -578,4 +580,38 @@ export const databasesApi = {
     dbId: string,
     input: { backup_id: string; target: "in_place" | "new"; new_name?: string },
   ) => api.post<RestoreResult>(`/projects/${projectId}/databases/${dbId}/restore`, input),
+};
+
+/* ─── Volumes (team-scoped persistent storage) ─── */
+
+export interface CreateVolumeInput {
+  cluster_id: string;
+  server_id: string;
+  name: string;
+  size_gb: number;
+  filesystem?: string;
+}
+
+export interface AttachVolumeInput {
+  container_name: string;
+  mount_path: string;
+}
+
+export const volumesApi = {
+  list:    (teamId: string)                            => api.get<Volume[]>(`/teams/${teamId}/volumes`),
+  get:     (teamId: string, volumeId: string)          => api.get<Volume>(`/teams/${teamId}/volumes/${volumeId}`),
+  create:  (teamId: string, input: CreateVolumeInput)  => api.post<Volume>(`/teams/${teamId}/volumes`, input),
+  remove:  (teamId: string, volumeId: string)          => api.delete<void>(`/teams/${teamId}/volumes/${volumeId}`),
+  attach:  (teamId: string, volumeId: string, input: AttachVolumeInput) =>
+    api.post<Volume>(`/teams/${teamId}/volumes/${volumeId}/attach`, input),
+  detach:  (teamId: string, volumeId: string)          =>
+    api.post<Volume>(`/teams/${teamId}/volumes/${volumeId}/detach`),
+  move:    (teamId: string, volumeId: string, target_server_id: string) =>
+    api.post<Volume>(`/teams/${teamId}/volumes/${volumeId}/move`, { target_server_id }),
+  resize:  (teamId: string, volumeId: string, new_size_gb: number) =>
+    api.post<Volume>(`/teams/${teamId}/volumes/${volumeId}/resize`, { new_size_gb }),
+  snapshot: (teamId: string, volumeId: string)         =>
+    api.post<VolumeSnapshot>(`/teams/${teamId}/volumes/${volumeId}/snapshot`),
+  listSnapshots: (teamId: string, volumeId: string)    =>
+    api.get<VolumeSnapshot[]>(`/teams/${teamId}/volumes/${volumeId}/snapshots`),
 };
