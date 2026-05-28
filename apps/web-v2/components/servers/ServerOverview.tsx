@@ -3,11 +3,13 @@ import type { ReactNode } from "react";
 import { Activity, Globe, KeyRound } from "lucide-react";
 import { Card, CardBody, CardHeader } from "@/components/primitives/Card";
 import { ServerStatusBadge } from "./ServerStatusBadge";
+import { MetricsPanel } from "@/components/observability/MetricsPanel";
 import type { ServerDetail, Team } from "@/lib/types";
 
 export function ServerOverview({ server, team }: { server: ServerDetail; team: Team }) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* connection ─────────────────────────────────────────────── */}
       <Card>
         <CardHeader>
@@ -75,6 +77,9 @@ export function ServerOverview({ server, team }: { server: ServerDetail; team: T
           </div>
         </CardBody>
       </Card>
+      </div>
+
+      <MetricsPanel teamId={team.id} scopeType="server" scopeId={server.id} />
     </div>
   );
 }

@@ -50,6 +50,8 @@ import type {
   NotificationChannel,
   AlertRule,
   AlertEvent,
+  MetricSample,
+  MetricRange,
 } from "./types";
 
 const BASE = "/api/v1";
@@ -719,5 +721,23 @@ export const observabilityApi = {
     if (opts.scope_id)           qs.set("scope_id", opts.scope_id);
     const suffix = qs.toString() ? `?${qs}` : "";
     return api.get<AlertEvent[]>(`/teams/${teamId}/observability/events${suffix}`);
+  },
+  /** Latest sample per known metric for the given scope. */
+  latestMetrics: (teamId: string, scope_type: string, scope_id: string) => {
+    const qs = new URLSearchParams({ scope_type, scope_id });
+    return api.get<MetricSample[]>(`/teams/${teamId}/observability/metrics?${qs}`);
+  },
+  /** Time series for a single metric on a scope. */
+  metricRange: (
+    teamId: string,
+    scope_type: string,
+    scope_id: string,
+    metric: string,
+    range: MetricRange = "1h",
+    limit?: number,
+  ) => {
+    const qs = new URLSearchParams({ scope_type, scope_id, metric, range });
+    if (limit != null) qs.set("limit", String(limit));
+    return api.get<MetricSample[]>(`/teams/${teamId}/observability/metrics?${qs}`);
   },
 };

@@ -572,6 +572,22 @@ export interface AlertRule {
   updated_at: string;
 }
 
+/**
+ * One sample on the observability time series. Returned both by the latest-
+ * per-metric endpoint and by the range query.
+ */
+export interface MetricSample {
+  id?: number;
+  scope_type: string;
+  scope_id: string;
+  metric_name: string;
+  value: number;
+  labels?: unknown;
+  sampled_at: string;
+}
+
+export type MetricRange = "5m" | "1h" | "24h" | "7d" | "30d";
+
 /** Audit row written when an alert transitions state. */
 export interface AlertEvent {
   id: string;
