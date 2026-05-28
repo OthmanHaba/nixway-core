@@ -101,6 +101,25 @@ func (q *Queries) ListHealthyContainersByApp(ctx context.Context, appID uuid.UUI
 	return items, nil
 }
 
+const getServerMetric = `-- name: GetServerMetric :one
+SELECT server_id, cpu_percent, memory_total, memory_used, updated_at
+FROM server_metrics
+WHERE server_id = $1
+`
+
+func (q *Queries) GetServerMetric(ctx context.Context, serverID uuid.UUID) (ServerMetric, error) {
+	row := q.db.QueryRow(ctx, getServerMetric, serverID)
+	var i ServerMetric
+	err := row.Scan(
+		&i.ServerID,
+		&i.CpuPercent,
+		&i.MemoryTotal,
+		&i.MemoryUsed,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const upsertServerMetrics = `-- name: UpsertServerMetrics :exec
 INSERT INTO server_metrics (server_id, cpu_percent, memory_total, memory_used, updated_at)
 VALUES ($1, $2, $3, $4, now())

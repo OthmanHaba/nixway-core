@@ -11,6 +11,7 @@ import type {
   AuditLog,
   Server,
   ServerDetail,
+  ServerMetric,
   ServerTag,
   SshKey,
   SshKeyType,
@@ -235,6 +236,7 @@ export const serversApi = {
     api.put<Server>(`/teams/${teamId}/servers/${serverId}`, { name }),
   remove:  (teamId: string, serverId: string)          => api.delete<void>(`/teams/${teamId}/servers/${serverId}`),
   cleanup: (teamId: string, serverId: string)          => api.post<void>(`/teams/${teamId}/servers/${serverId}/cleanup`),
+  metrics: (teamId: string, serverId: string)          => api.get<ServerMetric>(`/teams/${teamId}/servers/${serverId}/metrics`),
 };
 
 export const tagsApi = {

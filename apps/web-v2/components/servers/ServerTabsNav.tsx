@@ -10,6 +10,7 @@ export function ServerTabsNav({ serverId }: { serverId: string }) {
     { href: `/servers/${serverId}/overview`,  label: "Overview" },
     { href: `/servers/${serverId}/tags`,      label: "Tags" },
     { href: `/servers/${serverId}/resources`, label: "Resources" },
+    { href: `/servers/${serverId}/terminal`,  label: "Terminal" },
     { href: `/servers/${serverId}/settings`,  label: "Settings" },
   ];
 

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Activity, Globe, KeyRound } from "lucide-react";
 import { Card, CardBody, CardHeader } from "@/components/primitives/Card";
 import { ServerStatusBadge } from "./ServerStatusBadge";
+import { ServerLiveMetrics } from "./ServerLiveMetrics";
 import { MetricsPanel } from "@/components/observability/MetricsPanel";
 import type { ServerDetail, Team } from "@/lib/types";
 
@@ -78,6 +79,8 @@ export function ServerOverview({ server, team }: { server: ServerDetail; team: T
         </CardBody>
       </Card>
       </div>
+
+      <ServerLiveMetrics teamId={team.id} serverId={server.id} />
 
       <MetricsPanel teamId={team.id} scopeType="server" scopeId={server.id} />
     </div>

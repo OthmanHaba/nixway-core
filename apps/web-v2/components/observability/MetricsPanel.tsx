@@ -29,6 +29,12 @@ const RANGES: { value: MetricRange; label: string }[] = [
 
 /** Order metric names so the most-recognisable ones surface first. */
 const DEFAULT_PRIORITY = [
+  // Agent emits server.* names for server-scoped samples; keep both shapes
+  // so the panel works for any scope without the caller adapting.
+  "server.cpu_percent",
+  "server.memory_percent",
+  "server.memory_used_bytes",
+  "server.disk_percent",
   "cpu_percent",
   "memory_percent",
   "memory_used_bytes",
@@ -271,7 +277,10 @@ const NICE_NAMES: Record<string, string> = {
   cpu_percent: "CPU utilisation",
   memory_percent: "Memory utilisation",
   memory_used_bytes: "Memory used",
+  memory_total_bytes: "Memory total",
   disk_percent: "Disk utilisation",
+  disk_used_bytes: "Disk used",
+  disk_total_bytes: "Disk total",
   load_1: "Load · 1m",
   load_5: "Load · 5m",
   network_rx_bytes: "Network in",
@@ -281,7 +290,9 @@ const NICE_NAMES: Record<string, string> = {
 };
 
 function prettyName(name: string): string {
-  return NICE_NAMES[name] ?? name;
+  // Match both `cpu_percent` and `server.cpu_percent` shapes.
+  const bare = name.includes(".") ? name.split(".").pop()! : name;
+  return NICE_NAMES[bare] ?? NICE_NAMES[name] ?? name;
 }
 
 function formatValue(name: string, v: number): string {
