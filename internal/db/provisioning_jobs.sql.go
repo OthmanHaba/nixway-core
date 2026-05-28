@@ -28,7 +28,7 @@ func (q *Queries) AppendProvisioningLog(ctx context.Context, arg AppendProvision
 
 const createProvisioningJob = `-- name: CreateProvisioningJob :one
 INSERT INTO provisioning_jobs (server_id, components, status)
-VALUES ($1, $2, 'pending') RETURNING id, server_id, components, status, logs, started_at, completed_at, error, created_at
+VALUES ($1, $2, 'pending') RETURNING id, server_id, components, status, logs, started_at, completed_at, error, created_at, steps
 `
 
 type CreateProvisioningJobParams struct {
@@ -49,12 +49,13 @@ func (q *Queries) CreateProvisioningJob(ctx context.Context, arg CreateProvision
 		&i.CompletedAt,
 		&i.Error,
 		&i.CreatedAt,
+		&i.Steps,
 	)
 	return i, err
 }
 
 const getLatestProvisioningJob = `-- name: GetLatestProvisioningJob :one
-SELECT id, server_id, components, status, logs, started_at, completed_at, error, created_at FROM provisioning_jobs WHERE server_id = $1 ORDER BY created_at DESC LIMIT 1
+SELECT id, server_id, components, status, logs, started_at, completed_at, error, created_at, steps FROM provisioning_jobs WHERE server_id = $1 ORDER BY created_at DESC LIMIT 1
 `
 
 func (q *Queries) GetLatestProvisioningJob(ctx context.Context, serverID uuid.UUID) (ProvisioningJob, error) {
@@ -70,12 +71,13 @@ func (q *Queries) GetLatestProvisioningJob(ctx context.Context, serverID uuid.UU
 		&i.CompletedAt,
 		&i.Error,
 		&i.CreatedAt,
+		&i.Steps,
 	)
 	return i, err
 }
 
 const getProvisioningJob = `-- name: GetProvisioningJob :one
-SELECT id, server_id, components, status, logs, started_at, completed_at, error, created_at FROM provisioning_jobs WHERE id = $1
+SELECT id, server_id, components, status, logs, started_at, completed_at, error, created_at, steps FROM provisioning_jobs WHERE id = $1
 `
 
 func (q *Queries) GetProvisioningJob(ctx context.Context, id uuid.UUID) (ProvisioningJob, error) {
@@ -91,6 +93,7 @@ func (q *Queries) GetProvisioningJob(ctx context.Context, id uuid.UUID) (Provisi
 		&i.CompletedAt,
 		&i.Error,
 		&i.CreatedAt,
+		&i.Steps,
 	)
 	return i, err
 }
@@ -115,5 +118,19 @@ func (q *Queries) UpdateProvisioningJobStatus(ctx context.Context, arg UpdatePro
 		arg.CompletedAt,
 		arg.Error,
 	)
+	return err
+}
+
+const updateProvisioningJobSteps = `-- name: UpdateProvisioningJobSteps :exec
+UPDATE provisioning_jobs SET steps = $2 WHERE id = $1
+`
+
+type UpdateProvisioningJobStepsParams struct {
+	ID    uuid.UUID `json:"id"`
+	Steps []byte    `json:"steps"`
+}
+
+func (q *Queries) UpdateProvisioningJobSteps(ctx context.Context, arg UpdateProvisioningJobStepsParams) error {
+	_, err := q.db.Exec(ctx, updateProvisioningJobSteps, arg.ID, arg.Steps)
 	return err
 }

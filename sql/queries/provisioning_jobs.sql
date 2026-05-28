@@ -13,3 +13,6 @@ UPDATE provisioning_jobs SET status = $2, started_at = $3, completed_at = $4, er
 
 -- name: AppendProvisioningLog :exec
 UPDATE provisioning_jobs SET logs = logs || $2 WHERE id = $1;
+
+-- name: UpdateProvisioningJobSteps :exec
+UPDATE provisioning_jobs SET steps = $2 WHERE id = $1;

@@ -2,6 +2,7 @@ package provisioner
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -17,6 +18,17 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/db"
 	"github.com/othmanhaba/nixway-core/internal/ssh"
 )
+
+// provisioningStep mirrors the JSONB rows stored on provisioning_jobs.steps.
+// The service writes the full slice on every transition so the UI can render
+// a deterministic checklist without parsing log lines for >>> Starting/Completed.
+type provisioningStep struct {
+	Component   string     `json:"component"`
+	Status      string     `json:"status"` // pending | running | succeeded | failed
+	StartedAt   *time.Time `json:"started_at,omitempty"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	Error       string     `json:"error,omitempty"`
+}
 
 // Service executes provisioning scripts on servers over SSH.
 type Service struct {
@@ -157,8 +169,17 @@ func (s *Service) RunProvisioning(ctx context.Context, jobID, serverID, teamID u
 		components = append(components, "agent")
 	}
 
-	// 6. Execute each component script.
-	for _, component := range components {
+	// 6. Initialize the structured step list (all pending). The UI renders
+	// this as a checklist; we write it back on every transition so a refresh
+	// always reflects the latest known state, not the tail of the log buffer.
+	steps := make([]provisioningStep, len(components))
+	for i, c := range components {
+		steps[i] = provisioningStep{Component: c, Status: "pending"}
+	}
+	s.persistSteps(ctx, jobID, steps)
+
+	// 7. Execute each component script.
+	for i, component := range components {
 		var script []byte
 		if component == "agent" {
 			script, err = GetAgentScript(s.resolvePublicURL(), s.resolveGRPCAddr(), serverID.String())
@@ -167,6 +188,7 @@ func (s *Service) RunProvisioning(ctx context.Context, jobID, serverID, teamID u
 		}
 		if err != nil {
 			s.logger.Error("failed to get script", "component", component, "error", err)
+			s.markStepFailed(ctx, jobID, steps, i, err.Error())
 			s.failJob(ctx, jobID, fmt.Sprintf("script not found for %s: %v", component, err))
 			return
 		}
@@ -182,10 +204,15 @@ func (s *Service) RunProvisioning(ctx context.Context, jobID, serverID, teamID u
 		remotePath := fmt.Sprintf("/tmp/nixway-provision-%s.sh", component)
 		if err := client.PushFile(ctx, script, remotePath, "0755"); err != nil {
 			s.logger.Error("failed to push script", "component", component, "error", err)
+			s.markStepFailed(ctx, jobID, steps, i, err.Error())
 			s.failJob(ctx, jobID, fmt.Sprintf("push script for %s: %v", component, err))
 			return
 		}
 
+		startedAt := time.Now()
+		steps[i].Status = "running"
+		steps[i].StartedAt = &startedAt
+		s.persistSteps(ctx, jobID, steps)
 		s.publishLine(ctx, channel, fmt.Sprintf(">>> Starting component: %s", component))
 
 		execErr := client.RunCommandStreaming(ctx, "sudo bash "+remotePath, func(line string) {
@@ -199,21 +226,48 @@ func (s *Service) RunProvisioning(ctx context.Context, jobID, serverID, teamID u
 		if execErr != nil {
 			errMsg := fmt.Sprintf("component %s failed: %v", component, execErr)
 			s.publishLine(ctx, channel, "ERROR: "+errMsg)
+			s.markStepFailed(ctx, jobID, steps, i, execErr.Error())
 			s.failJob(ctx, jobID, errMsg)
 			return
 		}
 
+		completedAt := time.Now()
+		steps[i].Status = "succeeded"
+		steps[i].CompletedAt = &completedAt
+		s.persistSteps(ctx, jobID, steps)
 		s.publishLine(ctx, channel, fmt.Sprintf(">>> Completed component: %s", component))
 		s.logger.Info("component provisioned", "job_id", jobID, "component", component)
 	}
 
-	// 6. Mark job as completed.
+	// 8. Mark job as completed.
 	s.publishLine(ctx, channel, ">>> Provisioning completed successfully")
 	_ = s.queries.UpdateProvisioningJobStatus(ctx, db.UpdateProvisioningJobStatusParams{
 		ID:          jobID,
 		Status:      "completed",
 		CompletedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	})
+}
+
+func (s *Service) persistSteps(ctx context.Context, jobID uuid.UUID, steps []provisioningStep) {
+	payload, err := json.Marshal(steps)
+	if err != nil {
+		s.logger.Warn("marshal provisioning steps failed", "job_id", jobID, "error", err)
+		return
+	}
+	if err := s.queries.UpdateProvisioningJobSteps(ctx, db.UpdateProvisioningJobStepsParams{
+		ID:    jobID,
+		Steps: payload,
+	}); err != nil {
+		s.logger.Warn("persist provisioning steps failed", "job_id", jobID, "error", err)
+	}
+}
+
+func (s *Service) markStepFailed(ctx context.Context, jobID uuid.UUID, steps []provisioningStep, idx int, errMsg string) {
+	completedAt := time.Now()
+	steps[idx].Status = "failed"
+	steps[idx].CompletedAt = &completedAt
+	steps[idx].Error = errMsg
+	s.persistSteps(ctx, jobID, steps)
 }
 
 func (s *Service) publishLine(ctx context.Context, channel, line string) {

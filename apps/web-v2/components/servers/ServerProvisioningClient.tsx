@@ -24,6 +24,8 @@ import {
   PROVISIONING_COMPONENTS,
   type ProvisioningComponent,
   type ProvisioningJob,
+  type ProvisioningStep,
+  type ProvisioningStepStatus,
   type ServerDetail,
 } from "@/lib/types";
 
@@ -231,6 +233,8 @@ function LatestRunCard({
               </Alert>
             )}
 
+            <StepsPanel steps={job.steps ?? []} components={job.components} />
+
             <LogConsole
               teamId={teamId}
               serverId={serverId}
@@ -242,6 +246,87 @@ function LatestRunCard({
       </CardBody>
     </Card>
   );
+}
+
+function StepsPanel({
+  steps,
+  components,
+}: {
+  steps: ProvisioningStep[];
+  components: ProvisioningComponent[];
+}) {
+  // Older jobs predate the steps column — fall back to deriving the list from
+  // `components` and assume every item is pending so the UI still looks right.
+  const rows: ProvisioningStep[] =
+    steps && steps.length > 0
+      ? steps
+      : components.map((c) => ({ component: c, status: "pending" as const }));
+
+  const done = rows.filter((s) => s.status === "succeeded").length;
+  const failed = rows.find((s) => s.status === "failed");
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="label-mono">Progress</div>
+        <span className="font-mono text-[10px] text-ink-4 num">
+          {done}/{rows.length} {failed ? "· 1 failed" : ""}
+        </span>
+      </div>
+      <ol className="rounded-[var(--radius-sm)] border border-line-1 bg-surface-2/40 divide-y divide-line-1">
+        {rows.map((step, i) => (
+          <li
+            key={`${step.component}-${i}`}
+            className="flex items-center gap-3 px-3 py-2 text-[12px]"
+          >
+            <StepIcon status={step.status} />
+            <span className="font-mono text-ink-2 flex-1 truncate">
+              {labelFor(step.component)}
+            </span>
+            <span className="font-mono uppercase tracking-[0.14em] text-[10px] text-ink-3 num">
+              {step.status}
+            </span>
+            <span className="font-mono text-[10px] text-ink-4 num min-w-[60px] text-right">
+              {stepDuration(step)}
+            </span>
+          </li>
+        ))}
+      </ol>
+      {failed?.error && (
+        <p className="font-mono text-[11px] text-alert">
+          {labelFor(failed.component)}: {failed.error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function StepIcon({ status }: { status: ProvisioningStepStatus }) {
+  switch (status) {
+    case "succeeded":
+      return <CheckCircle2 className="h-3.5 w-3.5 text-online" />;
+    case "running":
+      return <Loader2 className="h-3.5 w-3.5 text-signal animate-spin" />;
+    case "failed":
+      return <XCircle className="h-3.5 w-3.5 text-alert" />;
+    case "pending":
+    default:
+      return <CircleDot className="h-3.5 w-3.5 text-ink-4" />;
+  }
+}
+
+function labelFor(component: string): string {
+  const found = PROVISIONING_COMPONENTS.find((c) => c.id === component);
+  return found ? found.label : component;
+}
+
+function stepDuration(step: ProvisioningStep): string {
+  if (!step.started_at) return "—";
+  const start = new Date(step.started_at).getTime();
+  const end = step.completed_at ? new Date(step.completed_at).getTime() : Date.now();
+  const sec = Math.max(0, Math.floor((end - start) / 1000));
+  if (sec < 60) return `${sec}s`;
+  return `${Math.floor(sec / 60)}m${sec % 60}s`;
 }
 
 function RunMeta({ job }: { job: ProvisioningJob }) {
