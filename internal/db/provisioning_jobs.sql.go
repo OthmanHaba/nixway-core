@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -122,12 +123,12 @@ func (q *Queries) UpdateProvisioningJobStatus(ctx context.Context, arg UpdatePro
 }
 
 const updateProvisioningJobSteps = `-- name: UpdateProvisioningJobSteps :exec
-UPDATE provisioning_jobs SET steps = $2 WHERE id = $1
+UPDATE provisioning_jobs SET steps = $2::jsonb WHERE id = $1
 `
 
 type UpdateProvisioningJobStepsParams struct {
-	ID    uuid.UUID `json:"id"`
-	Steps []byte    `json:"steps"`
+	ID    uuid.UUID       `json:"id"`
+	Steps json.RawMessage `json:"steps"`
 }
 
 func (q *Queries) UpdateProvisioningJobSteps(ctx context.Context, arg UpdateProvisioningJobStepsParams) error {

@@ -1072,13 +1072,26 @@ func (s *Service) dispatchDeploy(ctx context.Context, deployment db.Deployment, 
 		ID:     member.ServerID,
 		TeamID: project.TeamID,
 	})
-	serverIP := srv.PublicIp
+	// Public-facing IP for the auto-generated nip.io domain. In edge-mode
+	// clusters the LB lives on a different host than the replica, so the
+	// domain must resolve to the edge node — otherwise nip.io points users
+	// straight at the worker (which doesn't accept 80/443 traffic). We
+	// resolve edges up-front so both this domain and the edge-enabled
+	// branch below share one lookup.
+	edges, edgeErr := s.queries.ListEdgeServersByCluster(ctx, pgtype.UUID{Bytes: project.ClusterID, Valid: true})
+	if edgeErr != nil {
+		s.logger.Warn("deploy: list edge servers failed", "deploy_id", deployID, "error", edgeErr)
+	}
+	publicIP := srv.PublicIp
+	if len(edges) > 0 {
+		publicIP = edges[0].PublicIp
+	}
 
 	containerName := fmt.Sprintf("nixway-%s-%s", app.Slug, deployID[:8])
 
 	domains := []string{}
 	// Auto-generated domain using nip.io (resolves to server IP, no DNS setup needed)
-	platformDomain := fmt.Sprintf("%s-%s-%s.%s.nip.io", app.Slug, project.Slug, teamSlug, serverIP)
+	platformDomain := fmt.Sprintf("%s-%s-%s.%s.nip.io", app.Slug, project.Slug, teamSlug, publicIP)
 	domains = append(domains, platformDomain)
 	if app.CustomDomain != nil && *app.CustomDomain != "" {
 		domains = append(domains, *app.CustomDomain)
@@ -1143,13 +1156,7 @@ func (s *Service) dispatchDeploy(ctx context.Context, deployment db.Deployment, 
 	// at an allocated host port so the edge Traefik can reach it across
 	// the mesh. The agent looks at these two labels and emits the right
 	// -p flag; absent labels keep the legacy node-local Traefik path.
-	edgeEnabled := false
-	edges, err := s.queries.ListEdgeServersByCluster(ctx, pgtype.UUID{Bytes: project.ClusterID, Valid: true})
-	if err != nil {
-		s.logger.Warn("deploy: list edge servers failed", "deploy_id", deployID, "error", err)
-	} else if len(edges) > 0 {
-		edgeEnabled = true
-	}
+	edgeEnabled := len(edges) > 0
 	if edgeEnabled {
 		port, err := s.queries.AllocateServerPort(ctx, db.AllocateServerPortParams{
 			ServerID:           member.ServerID,

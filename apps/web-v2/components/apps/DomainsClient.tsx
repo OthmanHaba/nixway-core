@@ -28,9 +28,12 @@ interface Props {
   app: App;
   platformDomain: string | null;
   serverIps: string[];
+  /** Public IPs of cluster servers with role IN ('edge', 'both'). Empty in legacy clusters. */
+  edgeIps: string[];
 }
 
-export function DomainsClient({ app, platformDomain, serverIps }: Props) {
+export function DomainsClient({ app, platformDomain, serverIps, edgeIps }: Props) {
+  const edgeMode = edgeIps.length > 0;
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -95,14 +98,26 @@ export function DomainsClient({ app, platformDomain, serverIps }: Props) {
       {/* Platform URL */}
       <Card>
         <CardHeader>
-          <div className="label-mono mb-1 flex items-center gap-2">
-            <Globe className="h-3 w-3" /> Platform URL
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <div className="label-mono mb-1 flex items-center gap-2">
+                <Globe className="h-3 w-3" /> Platform URL
+              </div>
+              <h2 className="text-[16px] text-ink-1">Auto-assigned hostname</h2>
+              <p className="mt-1 text-[12px] text-ink-3 max-w-md">
+                {edgeMode
+                  ? "Resolves to the edge LB, which routes via the WireGuard mesh to a healthy replica."
+                  : "Every healthy deployment is reachable at a platform-managed hostname."}
+              </p>
+            </div>
+            {edgeMode ? (
+              <Badge tone="signal" dot>
+                via edge LB
+              </Badge>
+            ) : (
+              <Badge tone="neutral">node-local</Badge>
+            )}
           </div>
-          <h2 className="text-[16px] text-ink-1">Auto-assigned hostname</h2>
-          <p className="mt-1 text-[12px] text-ink-3 max-w-md">
-            Every healthy deployment is reachable at a platform-managed hostname
-            — fronted by Cloudflare with automatic TLS.
-          </p>
         </CardHeader>
         <CardBody className="space-y-3">
           {platformUrl ? (
@@ -255,15 +270,19 @@ export function DomainsClient({ app, platformDomain, serverIps }: Props) {
             recommended
           />
 
-          {serverIps.length > 0 && (
+          {edgeMode ? (
             <div className="space-y-1.5">
-              <div className="label-mono">A records (advanced)</div>
+              <div className="label-mono flex items-center gap-2">
+                A record
+                <Badge tone="signal">edge</Badge>
+              </div>
               <p className="text-[12px] text-ink-3 max-w-md">
-                Resolve to one of the cluster&rsquo;s public IPs. Use multiple
-                records for redundancy.
+                Point your A record at the edge LB. Workers don&rsquo;t accept public
+                traffic in edge mode — Traefik on the edge node forwards over the
+                mesh.
               </p>
-              <ul className="rounded-[var(--radius-md)] border border-line-1 divide-y divide-line-1 bg-surface-1 overflow-hidden">
-                {serverIps.map((ip) => (
+              <ul className="rounded-[var(--radius-md)] border border-[color:var(--signal)]/40 bg-[color:var(--signal-soft)]/10 divide-y divide-line-1 overflow-hidden">
+                {edgeIps.map((ip) => (
                   <li key={ip} className="px-3 py-2 flex items-center justify-between">
                     <span className="font-mono text-[12px] text-ink-1 num">{ip}</span>
                     <CopyChip text={ip} />
@@ -271,6 +290,24 @@ export function DomainsClient({ app, platformDomain, serverIps }: Props) {
                 ))}
               </ul>
             </div>
+          ) : (
+            serverIps.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="label-mono">A records (advanced)</div>
+                <p className="text-[12px] text-ink-3 max-w-md">
+                  Resolve to one of the cluster&rsquo;s public IPs. Use multiple
+                  records for redundancy.
+                </p>
+                <ul className="rounded-[var(--radius-md)] border border-line-1 divide-y divide-line-1 bg-surface-1 overflow-hidden">
+                  {serverIps.map((ip) => (
+                    <li key={ip} className="px-3 py-2 flex items-center justify-between">
+                      <span className="font-mono text-[12px] text-ink-1 num">{ip}</span>
+                      <CopyChip text={ip} />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
           )}
         </CardBody>
       </Card>
