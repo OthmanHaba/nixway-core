@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle2,
@@ -106,6 +107,32 @@ export function ServerProvisioningClient({
     onError: (err) =>
       setError(err instanceof ApiError ? err.message : "Could not retry."),
   });
+
+  // Auto-start support: RegisterServerDialog redirects fresh servers here with
+  // ?autostart=1 so the operator drops straight into the live step view. We
+  // fire the start mutation exactly once when (a) the flag is set, (b) the
+  // server has no prior job, and (c) we haven't already triggered it this
+  // mount. The query param is stripped right after so a refresh doesn't
+  // re-arm and double-fire.
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const autostart = searchParams.get("autostart") === "1";
+  const autostartedRef = useRef(false);
+  useEffect(() => {
+    if (!autostart) return;
+    if (autostartedRef.current) return;
+    if (job) {
+      // Already has a job — just clean the URL and let the existing run drive the UI.
+      autostartedRef.current = true;
+      router.replace(pathname);
+      return;
+    }
+    autostartedRef.current = true;
+    start.mutate(PROVISIONING_COMPONENTS.map((c) => c.id));
+    router.replace(pathname);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autostart, job]);
 
   return (
     <div className="space-y-6">

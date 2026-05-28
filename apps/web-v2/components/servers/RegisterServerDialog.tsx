@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, KeyRound } from "lucide-react";
@@ -48,6 +49,7 @@ export function RegisterServerDialog({
   const [sshKeyId, setSshKeyId] = useState<string>(sshKeys[0]?.id ?? "");
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   function reset() {
     setName("");
@@ -69,10 +71,14 @@ export function RegisterServerDialog({
         ssh_port: Number(sshPort) || 22,
         ssh_key_id: sshKeyId,
       }),
-    onSuccess: () => {
+    onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ["servers", teamId] });
       setOpen(false);
       reset();
+      // Drop the operator straight into the provisioning view with autostart
+      // so they see the steps populate as the installer streams instead of
+      // having to find the new row in the list first.
+      router.push(`/servers/${created.id}/provisioning?autostart=1`);
     },
     onError: (err) => {
       setError(err instanceof ApiError ? err.message : "Could not register the server.");
