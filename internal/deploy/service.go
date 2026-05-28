@@ -565,6 +565,7 @@ func (s *Service) StopSupersededContainers(ctx context.Context, deploymentID uui
 			Status:    "stopped",
 			StoppedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 		})
+		_ = s.queries.ReleasePortsByDeploymentTarget(ctx, pgtype.UUID{Bytes: container.TargetID, Valid: true})
 	}
 	return nil
 }
@@ -804,6 +805,71 @@ func (s *Service) SyncTrafficRoute(ctx context.Context, routeID uuid.UUID) error
 		weight int32
 		urls   []string
 	}
+
+	domains := trafficDomains(app, route)
+
+	// Edge-mode path: if the cluster has any role IN ('edge', 'both') server,
+	// build one weighted config with mesh URLs (http://<worker_wg>:<host_port>)
+	// and push the same command to every edge agent. Workers no longer write
+	// per-app Traefik files in this mode — the edge LB is the source of truth.
+	edgeServers, _ := s.queries.ListEdgeServersByCluster(ctx, pgtype.UUID{Bytes: project.ClusterID, Valid: true})
+	if len(edgeServers) > 0 {
+		groups := []group{}
+		for _, backend := range backends {
+			targets, err := s.queries.ListDeploymentTargets(ctx, backend.DeploymentID)
+			if err != nil {
+				continue
+			}
+			urls := []string{}
+			for _, target := range targets {
+				if target.Status != "healthy" || target.HostPort == nil || target.BindAddress == nil {
+					continue
+				}
+				urls = append(urls, fmt.Sprintf("http://%s:%d", *target.BindAddress, *target.HostPort))
+			}
+			if len(urls) == 0 {
+				continue
+			}
+			groups = append(groups, group{
+				name:   trafficServiceName(app.Slug, backend.Label, backend.DeploymentID),
+				weight: backend.Weight,
+				urls:   urls,
+			})
+		}
+		if len(groups) == 0 {
+			return nil
+		}
+		cmdGroups := make([]*agentv1.TrafficBackendGroup, 0, len(groups))
+		for _, g := range groups {
+			cmdGroups = append(cmdGroups, &agentv1.TrafficBackendGroup{
+				Name:   g.name,
+				Weight: g.weight,
+				Urls:   g.urls,
+			})
+		}
+		cmd := &agentv1.TrafficRouteCommand{
+			RequestId: uuid.New().String(),
+			AppSlug:   app.Slug,
+			Domains:   domains,
+			Tls:       false,
+			Groups:    cmdGroups,
+		}
+		for _, edge := range edgeServers {
+			if edge.AgentID == nil {
+				continue
+			}
+			if err := s.connMgr.SendToAgent(*edge.AgentID, &agentv1.ControlMessage{
+				Payload: &agentv1.ControlMessage_TrafficRoute{TrafficRoute: cmd},
+			}); err != nil {
+				s.logger.Warn("traffic route sync to edge failed", "server", edge.ID, "error", err)
+			}
+		}
+		return nil
+	}
+
+	// Legacy node-local path: per-server bucketed config, container-DNS URLs.
+	// Kept for clusters without an edge node so existing deploys keep working
+	// while operators migrate.
 	groupsByServer := map[uuid.UUID][]group{}
 	agentByServer := map[uuid.UUID]string{}
 	for _, backend := range backends {
@@ -829,7 +895,6 @@ func (s *Service) SyncTrafficRoute(ctx context.Context, routeID uuid.UUID) error
 		}
 	}
 
-	domains := trafficDomains(app, route)
 	for serverID, groups := range groupsByServer {
 		agentID := agentByServer[serverID]
 		if agentID == "" {
@@ -1062,6 +1127,52 @@ func (s *Service) dispatchDeploy(ctx context.Context, deployment db.Deployment, 
 		}
 	}
 
+	labels := map[string]string{
+		"nixway.managed":        "true",
+		"nixway.app_id":         app.ID.String(),
+		"nixway.app_slug":       app.Slug,
+		"nixway.project_id":     project.ID.String(),
+		"nixway.cluster_id":     project.ClusterID.String(),
+		"nixway.deployment_id":  deployment.ID.String(),
+		"nixway.target_id":      targetID,
+		"nixway.environment_id": deployment.EnvironmentID.String(),
+	}
+
+	// Edge-mode wiring: when the cluster has at least one server with
+	// role IN ('edge', 'both'), expose this replica on the worker's WG IP
+	// at an allocated host port so the edge Traefik can reach it across
+	// the mesh. The agent looks at these two labels and emits the right
+	// -p flag; absent labels keep the legacy node-local Traefik path.
+	edgeEnabled := false
+	edges, err := s.queries.ListEdgeServersByCluster(ctx, pgtype.UUID{Bytes: project.ClusterID, Valid: true})
+	if err != nil {
+		s.logger.Warn("deploy: list edge servers failed", "deploy_id", deployID, "error", err)
+	} else if len(edges) > 0 {
+		edgeEnabled = true
+	}
+	if edgeEnabled {
+		port, err := s.queries.AllocateServerPort(ctx, db.AllocateServerPortParams{
+			ServerID:           member.ServerID,
+			DeploymentTargetID: pgtype.UUID{Bytes: target.ID, Valid: true},
+		})
+		if err != nil {
+			s.logger.Error("deploy: allocate host port failed", "deploy_id", deployID, "server", member.ServerID, "error", err)
+			s.failTarget(ctx, target.ID, fmt.Sprintf("allocate host port: %v", err))
+			return
+		}
+		bindAddr := member.WireguardIp.String()
+		if err := s.queries.SetDeploymentTargetEdge(ctx, db.SetDeploymentTargetEdgeParams{
+			ID:          target.ID,
+			HostPort:    &port,
+			BindAddress: &bindAddr,
+		}); err != nil {
+			s.logger.Warn("deploy: persist host port failed", "deploy_id", deployID, "error", err)
+		}
+		labels["nixway.host_port"] = fmt.Sprintf("%d", port)
+		labels["nixway.bind_address"] = bindAddr
+		s.PublishLog(ctx, deployment.ID, fmt.Sprintf("Edge mode: binding %s:%d -> :%d\n", bindAddr, port, app.Port))
+	}
+
 	cmd := &agentv1.DeployCommand{
 		DeployId:                   deployID,
 		TargetId:                   targetID,
@@ -1081,28 +1192,18 @@ func (s *Service) dispatchDeploy(ctx context.Context, deployment db.Deployment, 
 		},
 		MemoryLimitMb:      app.MemoryLimitMb,
 		CpuLimitMillicores: app.CpuLimitMillicores,
-		Labels: map[string]string{
-			"nixway.managed":        "true",
-			"nixway.app_id":         app.ID.String(),
-			"nixway.app_slug":       app.Slug,
-			"nixway.project_id":     project.ID.String(),
-			"nixway.cluster_id":     project.ClusterID.String(),
-			"nixway.deployment_id":  deployment.ID.String(),
-			"nixway.target_id":      targetID,
-			"nixway.environment_id": deployment.EnvironmentID.String(),
-		},
+		Labels:             labels,
 	}
 
 	// Publish log
 	s.PublishLog(ctx, deployment.ID, fmt.Sprintf("Deploying %s to server %s...\n", build.ImageTag, agentID))
 	s.PublishLog(ctx, deployment.ID, fmt.Sprintf("Domain: http://%s\n", platformDomain))
 
-	err := s.connMgr.SendToAgent(agentID, &agentv1.ControlMessage{
+	if err := s.connMgr.SendToAgent(agentID, &agentv1.ControlMessage{
 		Payload: &agentv1.ControlMessage_DeployCommand{
 			DeployCommand: cmd,
 		},
-	})
-	if err != nil {
+	}); err != nil {
 		s.logger.Error("deploy: failed to send command", "deploy_id", deployID, "agent", agentID, "error", err)
 		s.failTarget(ctx, target.ID, fmt.Sprintf("failed to send deploy command: %v", err))
 		return

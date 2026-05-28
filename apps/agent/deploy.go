@@ -52,6 +52,18 @@ func HandleDeployCommand(ctx context.Context, cmd *agentv1.DeployCommand, stream
 		args = append(args, "-l", fmt.Sprintf("%s=%s", k, v))
 	}
 
+	// Edge-mode signal: when the control plane has scheduled this replica on
+	// a cluster that runs a dedicated edge LB, it ships two labels telling
+	// us to expose the container on the worker's WireGuard IP at a specific
+	// host port. The edge Traefik then reaches us at http://<wg>:<host>.
+	// When labels are absent we keep the legacy node-local Traefik flow.
+	edgeHostPort := cmd.Labels["nixway.host_port"]
+	edgeBindAddr := cmd.Labels["nixway.bind_address"]
+	edgeMode := edgeHostPort != "" && edgeBindAddr != "" && cmd.Port > 0
+	if edgeMode {
+		args = append(args, "-p", fmt.Sprintf("%s:%s:%d", edgeBindAddr, edgeHostPort, cmd.Port))
+	}
+
 	// Add environment variables
 	for k, v := range cmd.Env {
 		args = append(args, "-e", fmt.Sprintf("%s=%s", k, v))
@@ -150,7 +162,7 @@ func HandleDeployCommand(ctx context.Context, cmd *agentv1.DeployCommand, stream
 						return
 					}
 				}
-				if !cmd.SkipTraefik && cmd.Traefik != nil {
+				if !cmd.SkipTraefik && !edgeMode && cmd.Traefik != nil {
 					writeTraefikConfig(cmd.Traefik, cmd.Port, cmd.ContainerName)
 				}
 				sendOutput("healthy", containerID, true, true, "")
@@ -196,7 +208,7 @@ func HandleDeployCommand(ctx context.Context, cmd *agentv1.DeployCommand, stream
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode >= 200 && resp.StatusCode < 400 {
-				if !cmd.SkipTraefik && cmd.Traefik != nil {
+				if !cmd.SkipTraefik && !edgeMode && cmd.Traefik != nil {
 					writeTraefikConfig(cmd.Traefik, cmd.Port, cmd.ContainerName)
 				}
 				sendOutput("healthy", containerID, true, true, "")
