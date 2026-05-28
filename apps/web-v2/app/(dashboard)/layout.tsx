@@ -10,7 +10,11 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     <div className="min-h-dvh flex bg-surface-0">
       <Sidebar teams={teamCtx.teams} activeTeam={teamCtx.activeTeam} />
       <div className="flex-1 flex flex-col min-w-0">
-        <Topbar user={user} activeTeamName={teamCtx.activeTeam?.name ?? null} />
+        <Topbar
+          user={user}
+          activeTeamName={teamCtx.activeTeam?.name ?? null}
+          activeTeamId={teamCtx.activeTeam?.id ?? null}
+        />
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
     </div>

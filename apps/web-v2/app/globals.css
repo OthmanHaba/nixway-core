@@ -227,4 +227,8 @@
   @keyframes reveal {
     to { opacity: 1; transform: translateY(0); }
   }
+
+  /* Hide the native scrollbar on horizontally-scrolling tab strips. */
+  .scrollbar-none { scrollbar-width: none; -ms-overflow-style: none; }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
 }
