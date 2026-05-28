@@ -25,6 +25,9 @@ import type {
   DeploymentTarget,
   Secret,
   Replica,
+  PlacementConstraints,
+  ScalingEvent,
+  ScaleResult,
 } from "./types";
 
 const BASE = "/api/v1";
@@ -376,7 +379,23 @@ export const appsApi = {
     const suffix = qs.toString() ? `?${qs}` : "";
     return `/api/v1/apps/${appId}/logs${suffix}`;
   },
+  scale: (appId: string, input: ScaleInput) =>
+    api.post<ScaleResult>(`/apps/${appId}/scale`, input),
+  listScalingEvents: (appId: string, opts: { limit?: number; offset?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (opts.limit  != null) qs.set("limit",  String(opts.limit));
+    if (opts.offset != null) qs.set("offset", String(opts.offset));
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return api.get<ScalingEvent[]>(`/apps/${appId}/scaling-events${suffix}`);
+  },
 };
+
+export interface ScaleInput {
+  replicas: number;
+  placement_strategy?: "spread" | "binpack" | "pinned" | string;
+  placement_constraints?: PlacementConstraints;
+  pinned_server_ids?: string[];
+}
 
 /* ─── Builds ─── */
 

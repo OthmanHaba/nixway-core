@@ -234,6 +234,8 @@ export interface App {
   health_check_path?: string;
   replicas?: number;
   placement_strategy?: string;
+  placement_constraints?: unknown;
+  pinned_server_ids?: string[];
   status: AppStatus;
   resource_cpu_millicores?: number;
   resource_memory_mb?: number;
@@ -341,6 +343,48 @@ export interface Replica {
   server_id: string;
   server_name: string;
   agent_id: string | null;
+}
+
+/** Scheduler placement strategies — mirrors internal/scheduler/scheduler.go. */
+export type PlacementStrategy = "spread" | "binpack" | "pinned" | string;
+
+/**
+ * Label-based placement constraints. Each map is server-tag key→value;
+ * must_have requires the tag to be present, must_not_have excludes it.
+ */
+export interface PlacementConstraints {
+  must_have: Record<string, string>;
+  must_not_have: Record<string, string>;
+}
+
+/**
+ * One entry in an app's scaling-event log. Records replica/strategy changes
+ * (manual or autoscaler-driven) with optional metric context.
+ */
+export interface ScalingEvent {
+  id: string;
+  app_id: string;
+  environment_id: string | null;
+  deployment_id: string | null;
+  actor_id: string | null;
+  actor_type: string;
+  event_type: string;
+  from_replicas: number;
+  to_replicas: number;
+  placement_strategy: string;
+  metric_name?: string | null;
+  metric_value?: number | null;
+  rule_name?: string | null;
+  message: string;
+  metadata?: unknown;
+  created_at: string;
+}
+
+/** Result of POST /apps/{id}/scale — the updated app, event row, and optional fresh deployment. */
+export interface ScaleResult {
+  app: App;
+  event: ScalingEvent;
+  deployment?: Deployment | null;
 }
 
 /**
