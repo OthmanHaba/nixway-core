@@ -1,11 +1,29 @@
 import Link from "next/link";
-import { ArrowUpRight, Plus, Server as ServerIcon, Network, Boxes, Database as DbIcon } from "lucide-react";
+import {
+  ArrowUpRight,
+  Boxes,
+  Database as DbIcon,
+  HardDrive,
+  Network,
+  Plus,
+  Rocket,
+  Server as ServerIcon,
+} from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { getTeamContext } from "@/lib/team";
 import { tryGet } from "@/lib/server-api";
 import { Card, CardBody, CardHeader } from "@/components/primitives/Card";
 import { Separator } from "@/components/primitives/Separator";
-import type { AuditLog, Cluster, Project, Server, ServerStatus } from "@/lib/types";
+import type {
+  App,
+  AuditLog,
+  Cluster,
+  Database,
+  Project,
+  Server,
+  ServerStatus,
+  Volume,
+} from "@/lib/types";
 
 export const metadata = { title: "Overview · Nixway Core" };
 
@@ -20,12 +38,26 @@ export default async function DashboardPage() {
 
   // Fetch in parallel. tryGet swallows errors so one broken endpoint doesn't
   // kill the whole page; instead the affected tile shows zero / placeholder.
-  const [servers, clusters, projects, audit] = await Promise.all([
+  const [servers, clusters, projects, volumes, audit, deploys] = await Promise.all([
     tryGet<Server[]>(`/teams/${activeTeam.id}/servers`, []),
     tryGet<Cluster[]>(`/teams/${activeTeam.id}/clusters`, []),
     tryGet<Project[]>(`/teams/${activeTeam.id}/projects`, []),
-    tryGet<AuditLog[]>(`/teams/${activeTeam.id}/audit-logs?limit=5`, []),
+    tryGet<Volume[]>(`/teams/${activeTeam.id}/volumes`, []),
+    tryGet<AuditLog[]>(`/teams/${activeTeam.id}/audit-logs?page_size=5`, []),
+    tryGet<AuditLog[]>(
+      `/teams/${activeTeam.id}/audit-logs?resource_type=deployment&page_size=6`,
+      [],
+    ),
   ]);
+
+  // Apps + databases live under projects — the backend has no team-wide list,
+  // so fan out across projects in parallel and flatten.
+  const [appsByProject, dbsByProject] = await Promise.all([
+    Promise.all(projects.map((p) => tryGet<App[]>(`/projects/${p.id}/apps`, []))),
+    Promise.all(projects.map((p) => tryGet<Database[]>(`/projects/${p.id}/databases`, []))),
+  ]);
+  const apps = appsByProject.flat();
+  const databases = dbsByProject.flat();
 
   const serverBreak = breakdownByStatus(servers);
 
@@ -48,7 +80,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* stat row ──────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10 reveal reveal-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-10 reveal reveal-2">
         <StatTile
           icon={ServerIcon}
           label="Servers"
@@ -74,18 +106,49 @@ export default async function DashboardPage() {
           href="/projects"
         />
         <StatTile
+          icon={Boxes}
+          label="Apps"
+          value={apps.length}
+          sub={
+            apps.length === 0
+              ? "none yet"
+              : `${apps.filter((a) => a.status === "active").length} active`
+          }
+          tone="on"
+          href="/projects"
+        />
+        <StatTile
           icon={DbIcon}
           label="Databases"
-          value="—"
-          sub="per-project · see Databases"
-          tone="on"
+          value={databases.length}
+          sub={
+            databases.length === 0
+              ? "none yet"
+              : `${databases.filter((d) => d.status === "running").length} running`
+          }
+          tone={
+            databases.some((d) => d.status === "error") ? "warn" : "on"
+          }
           href="/databases"
+        />
+        <StatTile
+          icon={HardDrive}
+          label="Volumes"
+          value={volumes.length}
+          sub={
+            volumes.length === 0
+              ? "none yet"
+              : `${volumes.filter((v) => v.status === "attached").length} attached`
+          }
+          tone="on"
+          href="/volumes"
         />
       </div>
 
       {/* status + activity ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-[5fr_7fr] gap-6 mb-10 reveal reveal-3">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10 reveal reveal-3">
         <FleetStatusCard servers={servers} />
+        <RecentDeploysCard entries={deploys} />
         <RecentActivityCard entries={audit} />
       </div>
 
@@ -231,6 +294,55 @@ function FleetStatusCard({ servers }: { servers: Server[] }) {
                 </li>
               );
             })}
+          </ul>
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
+function RecentDeploysCard({ entries }: { entries: AuditLog[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="label-mono mb-1">Workloads</div>
+            <h2 className="text-[18px] text-ink-1">Recent deploys</h2>
+          </div>
+          <Link
+            href="/projects"
+            className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-3 hover:text-signal transition-colors"
+          >
+            All projects →
+          </Link>
+        </div>
+      </CardHeader>
+      <CardBody>
+        {entries.length === 0 ? (
+          <div className="py-8 text-center text-[13px] text-ink-3">
+            No deploys yet. Once an app ships, the latest releases appear here.
+          </div>
+        ) : (
+          <ul className="divide-y divide-line-1 -my-3">
+            {entries.slice(0, 6).map((e) => (
+              <li key={e.id} className="py-3 flex items-center gap-3">
+                <span className="h-6 w-6 grid place-items-center rounded-full border border-line-1 bg-surface-2 text-ink-3 shrink-0">
+                  <Rocket className="h-3 w-3" />
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block font-mono text-[12px] text-ink-1 truncate">
+                    {e.action}
+                  </span>
+                  <span className="block text-[11px] text-ink-3 truncate">
+                    {e.actor_name || e.actor_email || e.actor_type}
+                  </span>
+                </span>
+                <time className="font-mono text-[10px] text-ink-4 shrink-0">
+                  {formatRelative(e.created_at)}
+                </time>
+              </li>
+            ))}
           </ul>
         )}
       </CardBody>
