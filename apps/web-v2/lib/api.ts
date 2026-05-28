@@ -36,6 +36,8 @@ import type {
   DatabaseLink,
   DatabaseCredentialRotation,
   RotateCredentialsResponse,
+  DatabaseBackup,
+  RestoreResult,
   Template,
   TemplateVersion,
 } from "./types";
@@ -559,4 +561,21 @@ export const databasesApi = {
     api.post<RotateCredentialsResponse>(`/projects/${projectId}/databases/${dbId}/rotate`),
   listRotations: (projectId: string, dbId: string)   =>
     api.get<DatabaseCredentialRotation[]>(`/projects/${projectId}/databases/${dbId}/rotations`),
+  listBackups: (projectId: string, dbId: string)     =>
+    api.get<DatabaseBackup[]>(`/projects/${projectId}/databases/${dbId}/backups`),
+  createBackup: (projectId: string, dbId: string)    =>
+    api.post<DatabaseBackup>(`/projects/${projectId}/databases/${dbId}/backups`),
+  getBackup: (projectId: string, dbId: string, backupId: string) =>
+    api.get<DatabaseBackup>(`/projects/${projectId}/databases/${dbId}/backups/${backupId}`),
+  removeBackup: (projectId: string, dbId: string, backupId: string) =>
+    api.delete<void>(`/projects/${projectId}/databases/${dbId}/backups/${backupId}`),
+  /**
+   * Target "in_place" restores into the source DB (destructive). Target "new"
+   * provisions a fresh DB named `newName` and pipes the dump into it.
+   */
+  restore: (
+    projectId: string,
+    dbId: string,
+    input: { backup_id: string; target: "in_place" | "new"; new_name?: string },
+  ) => api.post<RestoreResult>(`/projects/${projectId}/databases/${dbId}/restore`, input),
 };

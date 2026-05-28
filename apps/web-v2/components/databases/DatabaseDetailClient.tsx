@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Archive,
   Box,
   Check,
   Copy,
@@ -16,6 +17,7 @@ import {
   RotateCw,
   Trash2,
   TriangleAlert,
+  Undo2,
   Unlink,
 } from "lucide-react";
 import {
@@ -50,6 +52,7 @@ import { databasesApi, ApiError } from "@/lib/api";
 import type {
   App,
   Database,
+  DatabaseBackup,
   DatabaseCredentialRotation,
   DatabaseLink,
   RotateCredentialsResponse,
@@ -61,6 +64,7 @@ interface Props {
   initialDatabase: Database;
   initialLinks: DatabaseLink[];
   initialRotations: DatabaseCredentialRotation[];
+  initialBackups: DatabaseBackup[];
   projectApps: App[];
 }
 
@@ -69,6 +73,7 @@ export function DatabaseDetailClient({
   initialDatabase,
   initialLinks,
   initialRotations,
+  initialBackups,
   projectApps,
 }: Props) {
   const router = useRouter();
@@ -93,6 +98,12 @@ export function DatabaseDetailClient({
     queryKey: ["database-rotations", initialDatabase.id],
     queryFn: () => databasesApi.listRotations(projectId, initialDatabase.id),
     initialData: initialRotations,
+  });
+  const backupsQ = useQuery({
+    queryKey: ["database-backups", initialDatabase.id],
+    queryFn: () => databasesApi.listBackups(projectId, initialDatabase.id),
+    initialData: initialBackups,
+    refetchInterval: 10_000,
   });
 
   const start = useMutation({
@@ -128,9 +139,39 @@ export function DatabaseDetailClient({
     onError: (e) =>
       setError(e instanceof ApiError ? e.message : "Rotation failed."),
   });
+  const createBackup = useMutation({
+    mutationFn: () => databasesApi.createBackup(projectId, db.id),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["database-backups", db.id] }),
+    onError: (e) =>
+      setError(e instanceof ApiError ? e.message : "Could not start backup."),
+  });
+  const removeBackup = useMutation({
+    mutationFn: (backupId: string) =>
+      databasesApi.removeBackup(projectId, db.id, backupId),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["database-backups", db.id] }),
+    onError: (e) =>
+      setError(e instanceof ApiError ? e.message : "Could not delete backup."),
+  });
+  const restoreBackup = useMutation({
+    mutationFn: (input: { backup_id: string; target: "in_place" | "new"; new_name?: string }) =>
+      databasesApi.restore(projectId, db.id, input),
+    onSuccess: (res) => {
+      setError(null);
+      queryClient.invalidateQueries({ queryKey: ["database", db.id] });
+      // "new" mode created a different DB — surface it via navigation.
+      if (res.database.id !== db.id) {
+        router.push(`/projects/${projectId}/databases/${res.database.id}`);
+      }
+    },
+    onError: (e) =>
+      setError(e instanceof ApiError ? e.message : "Restore failed."),
+  });
 
   const links = linksQ.data ?? [];
   const rotations = rotationsQ.data ?? [];
+  const backups = backupsQ.data ?? [];
 
   // App index for showing names on the links table.
   const appsById = new Map(projectApps.map((a) => [a.id, a]));
@@ -334,6 +375,157 @@ export function DatabaseDetailClient({
                 );
               })}
             </ul>
+          )}
+        </CardBody>
+      </Card>
+
+      {/* Backups */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <div className="label-mono mb-1 inline-flex items-center gap-2">
+                <Archive className="h-3 w-3" /> Snapshots
+              </div>
+              <h2 className="text-[16px] text-ink-1">Backups</h2>
+              <p className="mt-1 text-[12px] text-ink-3 max-w-md">
+                Point-in-time dumps you can restore in place or onto a fresh DB. Manual
+                snapshots run alongside any scheduled backups.
+              </p>
+            </div>
+            <Button
+              type="button"
+              onClick={() => createBackup.mutate()}
+              loading={createBackup.isPending}
+              disabled={db.status !== "running"}
+            >
+              <Archive className="h-3.5 w-3.5" /> Create backup
+            </Button>
+          </div>
+        </CardHeader>
+        <CardBody>
+          {backups.length === 0 ? (
+            <EmptyState
+              icon={<Archive className="h-4 w-4" />}
+              title="No backups yet"
+              body="Trigger a manual backup once the database is running, or set a schedule when you provisioned it."
+            />
+          ) : (
+            <div className="rounded-[var(--radius-md)] border border-line-1 bg-surface-1 overflow-hidden">
+              <Table>
+                <THead>
+                  <TR>
+                    <TH>Type</TH>
+                    <TH>Status</TH>
+                    <TH>Size</TH>
+                    <TH>Started</TH>
+                    <TH>Completed</TH>
+                    <TH>Tool</TH>
+                    <TH align="right" className="w-44"> </TH>
+                  </TR>
+                </THead>
+                <TBody>
+                  {backups.map((b) => {
+                    const restorable = b.status === "completed";
+                    return (
+                      <TR key={b.id}>
+                        <TD>
+                          <Badge tone={b.type === "scheduled" ? "signal" : "outline"}>
+                            {b.type}
+                          </Badge>
+                        </TD>
+                        <TD>
+                          <Badge tone={backupTone(b.status)} dot={b.status === "running"}>
+                            {b.status}
+                          </Badge>
+                        </TD>
+                        <TD>
+                          <span className="font-mono text-[12px] text-ink-1 num">
+                            {formatBytes(b.size_bytes)}
+                          </span>
+                        </TD>
+                        <TD>
+                          <span className="font-mono text-[11px] text-ink-3 num">
+                            {formatWhen(b.started_at)}
+                          </span>
+                        </TD>
+                        <TD>
+                          <span className="font-mono text-[11px] text-ink-3 num">
+                            {b.completed_at ? formatWhen(b.completed_at) : "—"}
+                          </span>
+                        </TD>
+                        <TD>
+                          <span className="font-mono text-[10px] text-ink-4">
+                            {b.backup_tool || "—"}
+                          </span>
+                        </TD>
+                        <TD align="right">
+                          <div className="inline-flex items-center gap-1">
+                            {b.error && (
+                              <span
+                                className="font-mono text-[10px] text-alert truncate max-w-[140px]"
+                                title={b.error}
+                              >
+                                <TriangleAlert className="h-3 w-3 inline" /> {b.error}
+                              </span>
+                            )}
+                            <RestoreDialog
+                              backup={b}
+                              dbName={db.name}
+                              disabled={!restorable}
+                              loading={
+                                restoreBackup.isPending &&
+                                restoreBackup.variables?.backup_id === b.id
+                              }
+                              onRestore={(target, new_name) =>
+                                new Promise<void>((resolve, reject) =>
+                                  restoreBackup.mutate(
+                                    { backup_id: b.id, target, new_name },
+                                    {
+                                      onSuccess: () => resolve(),
+                                      onError: (e) => reject(e),
+                                    },
+                                  ),
+                                )
+                              }
+                            />
+                            <ConfirmDialog
+                              destructive
+                              title="Delete this backup?"
+                              description={
+                                <>
+                                  Removes the dump from object storage. Other backups for{" "}
+                                  <span className="text-ink-1">{db.name}</span> are
+                                  unaffected.
+                                </>
+                              }
+                              confirmLabel="Delete backup"
+                              onConfirm={() =>
+                                new Promise<void>((resolve, reject) =>
+                                  removeBackup.mutate(b.id, {
+                                    onSuccess: () => resolve(),
+                                    onError: (e) => reject(e),
+                                  }),
+                                )
+                              }
+                              trigger={
+                                <button
+                                  type="button"
+                                  aria-label="Delete backup"
+                                  className="h-7 w-7 grid place-items-center rounded-[var(--radius-sm)] text-ink-3 hover:text-alert hover:bg-surface-2 transition-colors"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              }
+                            />
+                          </div>
+                        </TD>
+                      </TR>
+                    );
+                  })}
+                </TBody>
+              </Table>
+            </div>
           )}
         </CardBody>
       </Card>
@@ -583,6 +775,164 @@ function RotatedBanner({
   );
 }
 
+function RestoreDialog({
+  backup,
+  dbName,
+  disabled,
+  loading,
+  onRestore,
+}: {
+  backup: DatabaseBackup;
+  dbName: string;
+  disabled?: boolean;
+  loading?: boolean;
+  onRestore: (target: "in_place" | "new", new_name?: string) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"in_place" | "new">("new");
+  const [newName, setNewName] = useState(`${dbName}-restored`);
+  const [confirmPhrase, setConfirmPhrase] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  const inPlaceReady = mode !== "in_place" || confirmPhrase.trim() === dbName;
+  const newReady = mode !== "new" || newName.trim().length > 0;
+
+  async function run() {
+    if (!inPlaceReady || !newReady) return;
+    setError(null);
+    setPending(true);
+    try {
+      await onRestore(mode, mode === "new" ? newName.trim() : undefined);
+      setOpen(false);
+      setConfirmPhrase("");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Restore failed.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (!v) {
+          setError(null);
+          setConfirmPhrase("");
+          setMode("new");
+          setNewName(`${dbName}-restored`);
+        }
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button type="button" variant="ghost" size="sm" disabled={disabled} loading={loading}>
+          <Undo2 className="h-3.5 w-3.5" /> Restore
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogEyebrow>Backup · restore</DialogEyebrow>
+          <DialogTitle>Restore from backup</DialogTitle>
+          <DialogDescription>
+            Pick a target. In-place restores overwrite the current database&rsquo;s data —
+            type the database name below to confirm. New restores provision a fresh copy
+            alongside the source.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody className="space-y-4">
+          {error && <Alert tone="error">{error}</Alert>}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setMode("new")}
+              className={cn(
+                "text-left p-3.5 rounded-[var(--radius-md)] border bg-surface-1 transition-colors",
+                mode === "new"
+                  ? "border-signal ring-1 ring-signal/40"
+                  : "border-line-1 hover:bg-surface-2",
+              )}
+            >
+              <div className="label-mono">Restore to a new DB</div>
+              <p className="mt-1 text-[12px] text-ink-3 leading-relaxed">
+                Provisions a fresh database with the snapshot. Leaves the current data
+                untouched. Recommended.
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("in_place")}
+              className={cn(
+                "text-left p-3.5 rounded-[var(--radius-md)] border bg-surface-1 transition-colors",
+                mode === "in_place"
+                  ? "border-alert ring-1 ring-alert/40"
+                  : "border-line-1 hover:bg-surface-2",
+              )}
+            >
+              <div className="label-mono text-alert">Restore in place</div>
+              <p className="mt-1 text-[12px] text-ink-3 leading-relaxed">
+                Overwrites the current database&rsquo;s data with this snapshot. Linked
+                apps may need to redeploy.
+              </p>
+            </button>
+          </div>
+
+          {mode === "new" && (
+            <Field id="restore-name" label="New database name">
+              <Input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                autoComplete="off"
+                placeholder={`${dbName}-restored`}
+                maxLength={64}
+              />
+            </Field>
+          )}
+
+          {mode === "in_place" && (
+            <Field
+              id="restore-confirm"
+              label={
+                <span>
+                  Type <span className="font-mono text-ink-1">{dbName}</span> to confirm
+                </span>
+              }
+              hint="This is destructive — the current data is replaced by the snapshot."
+            >
+              <Input
+                value={confirmPhrase}
+                onChange={(e) => setConfirmPhrase(e.target.value)}
+                autoComplete="off"
+              />
+            </Field>
+          )}
+
+          <p className="font-mono text-[10px] text-ink-4">
+            backup id · {backup.id.slice(0, 8)}
+          </p>
+        </DialogBody>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="ghost">
+              Cancel
+            </Button>
+          </DialogClose>
+          <Button
+            type="button"
+            onClick={run}
+            loading={pending || loading}
+            disabled={!inPlaceReady || !newReady}
+          >
+            <Undo2 className="h-3.5 w-3.5" /> Restore
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function dbTone(status: string): "online" | "warn" | "alert" | "neutral" | "signal" {
   switch (status) {
     case "running":      return "online";
@@ -601,6 +951,27 @@ function rotationTone(status: string): "online" | "warn" | "alert" | "neutral" |
     case "failed":    return "alert";
     default:          return "neutral";
   }
+}
+
+function backupTone(status: string): "online" | "warn" | "alert" | "neutral" | "signal" {
+  switch (status) {
+    case "completed": return "online";
+    case "running":   return "signal";
+    case "failed":    return "alert";
+    default:          return "neutral";
+  }
+}
+
+function formatBytes(n: number | null): string {
+  if (n == null) return "—";
+  const units = ["B", "KiB", "MiB", "GiB", "TiB"];
+  let v = n;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${v.toFixed(v >= 100 || i === 0 ? 0 : 1)} ${units[i]}`;
 }
 
 function formatWhen(iso: string): string {

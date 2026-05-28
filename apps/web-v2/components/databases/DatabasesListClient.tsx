@@ -59,7 +59,11 @@ interface Props {
   templates: Template[];
 }
 
-export function DatabasesListClient({ project, initialDatabases, templates }: Props) {
+export function DatabasesListClient({
+  project,
+  initialDatabases,
+  templates,
+}: Props) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
 
@@ -72,21 +76,36 @@ export function DatabasesListClient({ project, initialDatabases, templates }: Pr
 
   const start = useMutation({
     mutationFn: (dbId: string) => databasesApi.start(project.id, dbId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-databases", project.id] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: ["project-databases", project.id],
+      }),
     onError: (err) =>
-      setError(err instanceof ApiError ? err.message : "Could not start database."),
+      setError(
+        err instanceof ApiError ? err.message : "Could not start database.",
+      ),
   });
   const stop = useMutation({
     mutationFn: (dbId: string) => databasesApi.stop(project.id, dbId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-databases", project.id] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: ["project-databases", project.id],
+      }),
     onError: (err) =>
-      setError(err instanceof ApiError ? err.message : "Could not stop database."),
+      setError(
+        err instanceof ApiError ? err.message : "Could not stop database.",
+      ),
   });
   const remove = useMutation({
     mutationFn: (dbId: string) => databasesApi.remove(project.id, dbId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-databases", project.id] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: ["project-databases", project.id],
+      }),
     onError: (err) =>
-      setError(err instanceof ApiError ? err.message : "Could not delete database."),
+      setError(
+        err instanceof ApiError ? err.message : "Could not delete database.",
+      ),
   });
 
   const list = databases.data ?? [];
@@ -97,8 +116,9 @@ export function DatabasesListClient({ project, initialDatabases, templates }: Pr
         <div>
           <div className="label-mono mb-1">Managed services</div>
           <p className="text-[13px] text-ink-3 max-w-md">
-            Provision a database, cache or queue onto the project&rsquo;s cluster. The
-            platform manages the container, persistent volume, and credentials.
+            Provision a database, cache or queue onto the project&rsquo;s
+            cluster. The platform manages the container, persistent volume, and
+            credentials.
           </p>
         </div>
         <ProvisionDialog
@@ -142,7 +162,9 @@ export function DatabasesListClient({ project, initialDatabases, templates }: Pr
                 <TH>Connection</TH>
                 <TH>Resources</TH>
                 <TH>Created</TH>
-                <TH align="right" className="w-12"> </TH>
+                <TH align="right" className="w-12">
+                  {" "}
+                </TH>
               </TR>
             </THead>
             <TBody>
@@ -154,12 +176,18 @@ export function DatabasesListClient({ project, initialDatabases, templates }: Pr
                       className="inline-flex items-center gap-2.5 hover:text-signal transition-colors"
                     >
                       <DatabaseIcon className="h-3.5 w-3.5 text-ink-3" />
-                      <span className="font-mono text-[12px] text-ink-1">{d.name}</span>
+                      <span className="font-mono text-[12px] text-ink-1">
+                        {d.name}
+                      </span>
                     </Link>
                   </TD>
                   <TD>
-                    <span className="font-mono text-[12px] text-ink-1">{d.template_slug}</span>
-                    <span className="font-mono text-[11px] text-ink-3 ml-1">{d.version}</span>
+                    <span className="font-mono text-[12px] text-ink-1">
+                      {d.template_slug}
+                    </span>
+                    <span className="font-mono text-[11px] text-ink-3 ml-1">
+                      {d.version}
+                    </span>
                   </TD>
                   <TD>
                     <Badge tone={dbTone(d.status)} dot={d.status === "running"}>
@@ -170,7 +198,9 @@ export function DatabasesListClient({ project, initialDatabases, templates }: Pr
                     <div className="font-mono text-[11px] text-ink-2 truncate max-w-[220px]">
                       {d.dns_record || d.container_name}
                     </div>
-                    <div className="font-mono text-[10px] text-ink-4 num">port {d.port}</div>
+                    <div className="font-mono text-[10px] text-ink-4 num">
+                      port {d.port}
+                    </div>
                   </TD>
                   <TD>
                     <span className="font-mono text-[10px] text-ink-3 num">
@@ -215,10 +245,12 @@ export function DatabasesListClient({ project, initialDatabases, templates }: Pr
                           confirmPhrase={d.name}
                           description={
                             <>
-                              This will permanently remove the database container and its
-                              persistent volume. <span className="text-ink-1">Data is
-                              destroyed and cannot be recovered.</span> Type the database name
-                              below to confirm.
+                              This will permanently remove the database
+                              container and its persistent volume.{" "}
+                              <span className="text-ink-1">
+                                Data is destroyed and cannot be recovered.
+                              </span>{" "}
+                              Type the database name below to confirm.
                             </>
                           }
                           confirmLabel="Delete database"
@@ -231,7 +263,9 @@ export function DatabasesListClient({ project, initialDatabases, templates }: Pr
                             )
                           }
                           trigger={
-                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                            <DropdownMenuItem
+                              onSelect={(e) => e.preventDefault()}
+                            >
                               <Trash2 className="h-3.5 w-3.5 text-alert" />
                               <span className="text-alert">Delete</span>
                             </DropdownMenuItem>
@@ -273,13 +307,22 @@ function ProvisionDialog({
   const firstSlug = templates[0]?.slug ?? "";
   const [slug, setSlug] = useState(firstSlug);
   const tmpl = templates.find((t) => t.slug === slug);
-  const defaultVersion = tmpl?.versions.find((v) => v.default)?.version ?? tmpl?.versions[0]?.version ?? "";
+  console.log(tmpl);
+
+  const defaultVersion =
+    tmpl?.versions?.find((v) => v.default)?.version ??
+    tmpl?.versions[0]?.version ??
+    "";
 
   const [version, setVersion] = useState(defaultVersion);
   const [name, setName] = useState("");
   const [size, setSize] = useState(String(tmpl?.volume_spec.default_gib ?? 10));
-  const [cpu, setCpu] = useState(String(tmpl?.default_resources.milli_cpu ?? 500));
-  const [memory, setMemory] = useState(String(tmpl?.default_resources.memory_mb ?? 512));
+  const [cpu, setCpu] = useState(
+    String(tmpl?.default_resources.milli_cpu ?? 500),
+  );
+  const [memory, setMemory] = useState(
+    String(tmpl?.default_resources.memory_mb ?? 512),
+  );
   const [schedule, setSchedule] = useState("");
   const [retention, setRetention] = useState("7");
   const [error, setError] = useState<string | null>(null);
@@ -288,7 +331,11 @@ function ProvisionDialog({
   function selectTemplate(next: string) {
     setSlug(next);
     const t = templates.find((x) => x.slug === next);
-    setVersion(t?.versions.find((v) => v.default)?.version ?? t?.versions[0]?.version ?? "");
+    setVersion(
+      t?.versions.find((v) => v.default)?.version ??
+        t?.versions[0]?.version ??
+        "",
+    );
     setSize(String(t?.volume_spec.default_gib ?? 10));
     setCpu(String(t?.default_resources.milli_cpu ?? 500));
     setMemory(String(t?.default_resources.memory_mb ?? 512));
@@ -307,7 +354,8 @@ function ProvisionDialog({
       const trimmed = name.trim();
       if (!trimmed) throw new Error("Name is required.");
       if (!slug || !version) throw new Error("Pick a template and version.");
-      if (!project.cluster_id) throw new Error("Project has no cluster — assign one first.");
+      if (!project.cluster_id)
+        throw new Error("Project has no cluster — assign one first.");
       const input: ProvisionDatabaseInput = {
         cluster_id: project.cluster_id,
         template_slug: slug,
@@ -322,7 +370,9 @@ function ProvisionDialog({
       return databasesApi.provision(project.id, input);
     },
     onSuccess: (created) => {
-      queryClient.invalidateQueries({ queryKey: ["project-databases", project.id] });
+      queryClient.invalidateQueries({
+        queryKey: ["project-databases", project.id],
+      });
       setOpen(false);
       reset();
       router.push(`/projects/${project.id}/databases/${created.id}`);
@@ -351,32 +401,45 @@ function ProvisionDialog({
           <DialogEyebrow>Services · provision</DialogEyebrow>
           <DialogTitle>Provision database</DialogTitle>
           <DialogDescription>
-            The platform pulls the image, attaches a volume, generates credentials and
-            registers DNS — usually under a minute for fresh templates.
+            The platform pulls the image, attaches a volume, generates
+            credentials and registers DNS — usually under a minute for fresh
+            templates.
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="space-y-5">
           {error && <Alert tone="error">{error}</Alert>}
           {templates.length === 0 && (
-            <Alert tone="warn">No service templates available on this platform.</Alert>
+            <Alert tone="warn">
+              No service templates available on this platform.
+            </Alert>
           )}
 
           <div className="space-y-2">
             <div className="label-mono">Template</div>
-            <Select value={slug} onValueChange={selectTemplate} disabled={templates.length === 0}>
+            <Select
+              value={slug}
+              onValueChange={selectTemplate}
+              disabled={templates.length === 0}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Pick a service" />
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(grouped).map(([cat, list]) => (
                   <div key={cat}>
-                    <div className="px-2 pt-2 pb-1 label-mono text-ink-4">{cat}</div>
+                    <div className="px-2 pt-2 pb-1 label-mono text-ink-4">
+                      {cat}
+                    </div>
                     {list.map((t) => (
                       <SelectItem key={t.slug} value={t.slug}>
                         <span className="inline-flex items-center gap-2">
                           <Box className="h-3 w-3 text-ink-3" />
-                          <span className="font-mono text-[12px]">{t.name}</span>
-                          <span className="font-mono text-[10px] text-ink-4 ml-1">{t.slug}</span>
+                          <span className="font-mono text-[12px]">
+                            {t.name}
+                          </span>
+                          <span className="font-mono text-[10px] text-ink-4 ml-1">
+                            {t.slug}
+                          </span>
                         </span>
                       </SelectItem>
                     ))}
@@ -392,7 +455,11 @@ function ProvisionDialog({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <div className="label-mono">Version</div>
-              <Select value={version} onValueChange={setVersion} disabled={!tmpl}>
+              <Select
+                value={version}
+                onValueChange={setVersion}
+                disabled={!tmpl}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Version" />
                 </SelectTrigger>
@@ -401,7 +468,9 @@ function ProvisionDialog({
                     <SelectItem key={v.version} value={v.version}>
                       <span className="font-mono text-[12px]">{v.version}</span>
                       {v.default && (
-                        <span className="font-mono text-[10px] text-ink-4 ml-1">(default)</span>
+                        <span className="font-mono text-[10px] text-ink-4 ml-1">
+                          (default)
+                        </span>
                       )}
                     </SelectItem>
                   ))}
@@ -409,7 +478,11 @@ function ProvisionDialog({
               </Select>
             </div>
 
-            <Field id="db-name" label="Name" hint="Used as the container name + DNS prefix.">
+            <Field
+              id="db-name"
+              label="Name"
+              hint="Used as the container name + DNS prefix."
+            >
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -421,14 +494,36 @@ function ProvisionDialog({
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            <Field id="db-size" label="Size (GB)" hint={`mounts at ${tmpl?.volume_spec.mount_path ?? "/data"}`}>
-              <Input type="number" min={1} step={1} value={size} onChange={(e) => setSize(e.target.value)} />
+            <Field
+              id="db-size"
+              label="Size (GB)"
+              hint={`mounts at ${tmpl?.volume_spec.mount_path ?? "/data"}`}
+            >
+              <Input
+                type="number"
+                min={1}
+                step={1}
+                value={size}
+                onChange={(e) => setSize(e.target.value)}
+              />
             </Field>
             <Field id="db-cpu" label="CPU (m)">
-              <Input type="number" min={50} step={50} value={cpu} onChange={(e) => setCpu(e.target.value)} />
+              <Input
+                type="number"
+                min={50}
+                step={50}
+                value={cpu}
+                onChange={(e) => setCpu(e.target.value)}
+              />
             </Field>
             <Field id="db-mem" label="Memory (MiB)">
-              <Input type="number" min={64} step={64} value={memory} onChange={(e) => setMemory(e.target.value)} />
+              <Input
+                type="number"
+                min={64}
+                step={64}
+                value={memory}
+                onChange={(e) => setMemory(e.target.value)}
+              />
             </Field>
           </div>
 
@@ -443,7 +538,11 @@ function ProvisionDialog({
               <HardDrive className="h-4 w-4 text-ink-3" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr] gap-3">
-              <Field id="db-schedule" label="Schedule (cron)" hint="e.g. 0 3 * * * for 03:00 UTC daily">
+              <Field
+                id="db-schedule"
+                label="Schedule (cron)"
+                hint="e.g. 0 3 * * * for 03:00 UTC daily"
+              >
                 <Input
                   value={schedule}
                   onChange={(e) => setSchedule(e.target.value)}
@@ -466,7 +565,9 @@ function ProvisionDialog({
 
           <p className="font-mono text-[11px] text-ink-3 inline-flex items-center gap-2">
             <ServerIcon className="h-3 w-3" /> deploys to cluster
-            <span className="text-ink-1">{project.cluster_name ?? project.cluster_id}</span>
+            <span className="text-ink-1">
+              {project.cluster_name ?? project.cluster_id}
+            </span>
           </p>
         </DialogBody>
         <DialogFooter>
@@ -489,14 +590,21 @@ function ProvisionDialog({
   );
 }
 
-function dbTone(status: string): "online" | "warn" | "alert" | "neutral" | "signal" {
+function dbTone(
+  status: string,
+): "online" | "warn" | "alert" | "neutral" | "signal" {
   switch (status) {
-    case "running":      return "online";
-    case "provisioning": return "signal";
-    case "stopped":      return "warn";
+    case "running":
+      return "online";
+    case "provisioning":
+      return "signal";
+    case "stopped":
+      return "warn";
     case "error":
-    case "deleted":      return "alert";
-    default:             return "neutral";
+    case "deleted":
+      return "alert";
+    default:
+      return "neutral";
   }
 }
 

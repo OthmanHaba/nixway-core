@@ -5,6 +5,7 @@ import { DatabaseDetailClient } from "@/components/databases/DatabaseDetailClien
 import type {
   App,
   Database,
+  DatabaseBackup,
   DatabaseCredentialRotation,
   DatabaseLink,
 } from "@/lib/types";
@@ -28,12 +29,13 @@ export default async function ProjectDatabaseDetailPage({
     throw err;
   }
 
-  const [links, rotations, apps] = await Promise.all([
+  const [links, rotations, backups, apps] = await Promise.all([
     tryGet<DatabaseLink[]>(`/projects/${projectId}/databases/${databaseId}/links`, []),
     tryGet<DatabaseCredentialRotation[]>(
       `/projects/${projectId}/databases/${databaseId}/rotations`,
       [],
     ),
+    tryGet<DatabaseBackup[]>(`/projects/${projectId}/databases/${databaseId}/backups`, []),
     tryGet<App[]>(`/projects/${projectId}/apps`, []),
   ]);
 
@@ -43,6 +45,7 @@ export default async function ProjectDatabaseDetailPage({
       initialDatabase={database}
       initialLinks={links}
       initialRotations={rotations}
+      initialBackups={backups}
       projectApps={apps}
     />
   );

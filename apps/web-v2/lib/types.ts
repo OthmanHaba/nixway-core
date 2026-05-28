@@ -399,6 +399,38 @@ export interface RotateCredentialsResponse {
 }
 
 /**
+ * Snapshot of a managed database at a point in time. Initially status is
+ * `running` (in progress); the agent finalises it to `completed` or `failed`
+ * asynchronously. Type is one of "manual" / "scheduled".
+ */
+export interface DatabaseBackup {
+  id: string;
+  database_id: string;
+  type: string;
+  status: string;
+  size_bytes: number | null;
+  storage_type: string;
+  storage_path: string | null;
+  backup_tool: string;
+  triggered_by: string | null;
+  started_at: string;
+  completed_at: string | null;
+  error: string | null;
+}
+
+/**
+ * Result of POST /projects/{}/databases/{}/restore. The database is the target
+ * (same as source for "in_place", or the freshly provisioned one for "new").
+ * `restart_required` signals that linked apps need a redeploy to pick up the
+ * restored state.
+ */
+export interface RestoreResult {
+  database: Database;
+  restart_required: boolean;
+  note?: string;
+}
+
+/**
  * The Go API returns audit logs as a plain array. Pagination is via the
  * `before=<RFC3339>` query parameter using the last entry's `created_at`.
  */
