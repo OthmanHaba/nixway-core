@@ -590,36 +590,101 @@ func (s *Service) EnsureTrafficForDeployment(ctx context.Context, deploymentID u
 	if err != nil {
 		return fmt.Errorf("ensure route: %w", err)
 	}
-	count, _ := s.queries.CountTrafficBackendsByRoute(ctx, route.ID)
-	weight := int32(0)
-	label := "candidate"
-	if count == 0 {
-		weight = 100
-		label = "stable"
+
+	// Auto-promote: the newly healthy deployment becomes stable@100 and any
+	// prior backends on this route are demoted to weight=0 + draining.
+	// SyncTrafficRoute filters weight=0 rows so Traefik stops sending traffic
+	// to old backends as soon as the new one is ready; StopSupersededContainers
+	// then tears down the old containers after a short drain.
+	existing, err := s.queries.ListTrafficBackendsByRoute(ctx, route.ID)
+	if err != nil {
+		return fmt.Errorf("list existing backends: %w", err)
 	}
+
+	label := "stable"
 	if deployment.BuildID != uuid.Nil {
 		if build, err := s.queries.GetBuild(ctx, deployment.BuildID); err == nil && build.CommitSha != "" {
-			label = fmt.Sprintf("%s-%s", label, shortSHA(build.CommitSha))
+			label = fmt.Sprintf("stable-%s", shortSHA(build.CommitSha))
 		}
 	}
-	_, err = s.queries.UpsertTrafficBackend(ctx, db.UpsertTrafficBackendParams{
+
+	newBackend, err := s.queries.UpsertTrafficBackend(ctx, db.UpsertTrafficBackendParams{
 		RouteID:      route.ID,
 		DeploymentID: deployment.ID,
 		Label:        label,
-		Weight:       weight,
+		Weight:       100,
 		Status:       "active",
 	})
 	if err != nil {
 		return fmt.Errorf("upsert backend: %w", err)
 	}
+	// UpsertTrafficBackend's ON CONFLICT clause only touches label/status, so
+	// re-deploying the same deployment_id (rare, but happens with retries)
+	// would leave a stale weight. Force the weight to 100 explicitly.
+	if _, err := s.queries.UpdateTrafficBackendWeight(ctx, db.UpdateTrafficBackendWeightParams{
+		ID:      newBackend.ID,
+		RouteID: route.ID,
+		Weight:  100,
+	}); err != nil {
+		return fmt.Errorf("set new backend weight: %w", err)
+	}
+
+	demoted := 0
+	for _, prev := range existing {
+		if prev.DeploymentID == deployment.ID {
+			continue
+		}
+		if _, err := s.queries.UpdateTrafficBackendWeight(ctx, db.UpdateTrafficBackendWeightParams{
+			ID:      prev.ID,
+			RouteID: route.ID,
+			Weight:  0,
+		}); err != nil {
+			s.logger.Warn("demote backend weight failed", "backend", prev.ID, "error", err)
+			continue
+		}
+		if _, err := s.queries.SetTrafficBackendStatus(ctx, db.SetTrafficBackendStatusParams{
+			ID:      prev.ID,
+			RouteID: route.ID,
+			Status:  "draining",
+		}); err != nil {
+			s.logger.Warn("mark backend draining failed", "backend", prev.ID, "error", err)
+		}
+		demoted++
+	}
+
+	msg := fmt.Sprintf("Promoted deployment %s as %s@100", deployment.ID.String()[:8], label)
+	if demoted > 0 {
+		msg = fmt.Sprintf("%s; demoted %d previous backend(s)", msg, demoted)
+	}
 	_, _ = s.queries.CreateTrafficEvent(ctx, db.CreateTrafficEventParams{
 		RouteID:   route.ID,
 		ActorType: "system",
-		EventType: "backend_added",
-		Message:   fmt.Sprintf("Added deployment %s as %s with weight %d", deployment.ID.String()[:8], label, weight),
+		EventType: "deploy_promoted",
+		Message:   msg,
 		Metadata:  []byte(`{}`),
 	})
-	return s.SyncTrafficRoute(ctx, route.ID)
+
+	if err := s.SyncTrafficRoute(ctx, route.ID); err != nil {
+		return err
+	}
+
+	if demoted > 0 {
+		go s.stopSupersededAfterDrain(deployment.ID, 10*time.Second)
+	}
+	return nil
+}
+
+// stopSupersededAfterDrain waits a short window for Traefik to converge on the
+// new weighted config (so in-flight requests aren't dropped), then tells each
+// server hosting an old replica to stop it. Runs on its own context because the
+// caller's deploy-completion handler shouldn't block on this.
+func (s *Service) stopSupersededAfterDrain(deploymentID uuid.UUID, drain time.Duration) {
+	time.Sleep(drain)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	if err := s.StopSupersededContainers(ctx, deploymentID); err != nil {
+		s.logger.Warn("stop superseded containers failed", "deployment_id", deploymentID, "error", err)
+	}
 }
 
 func (s *Service) GetTraffic(ctx context.Context, appID uuid.UUID) (TrafficView, error) {

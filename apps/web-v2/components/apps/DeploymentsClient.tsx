@@ -2,13 +2,15 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, Layers, RotateCcw, Server as ServerIcon } from "lucide-react";
+import { ChevronDown, ChevronRight, Layers, RotateCcw, ScrollText, Server as ServerIcon, X } from "lucide-react";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/primitives/Table";
 import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { Alert } from "@/components/primitives/Alert";
 import { ConfirmDialog } from "@/components/primitives/Confirm";
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogEyebrow } from "@/components/primitives/Dialog";
 import { DeploymentStatusBadge } from "./DeploymentStatusBadge";
+import { LogStream } from "./LogStream";
 import { deploymentsApi, appsApi, ApiError } from "@/lib/api";
 import type { Deployment, DeploymentTarget, Environment } from "@/lib/types";
 
@@ -21,6 +23,7 @@ interface Props {
 export function DeploymentsClient({ appId, environments, initialDeployments }: Props) {
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [openLogs, setOpenLogs] = useState<Deployment | null>(null);
 
   const deployments = useQuery({
     queryKey: ["app-deployments", appId],
@@ -115,7 +118,7 @@ export function DeploymentsClient({ appId, environments, initialDeployments }: P
                 <TH>Replicas</TH>
                 <TH>Status</TH>
                 <TH>Started</TH>
-                <TH align="right" className="w-12"> </TH>
+                <TH align="right" className="w-24"> </TH>
               </TR>
             </THead>
             <TBody>
@@ -129,6 +132,7 @@ export function DeploymentsClient({ appId, environments, initialDeployments }: P
                     envName={envById.get(d.environment_id)?.name}
                     isOpen={isOpen}
                     onToggle={() => setExpanded(isOpen ? null : d.id)}
+                    onOpenLogs={() => setOpenLogs(d)}
                   />
                 );
               })}
@@ -136,7 +140,64 @@ export function DeploymentsClient({ appId, environments, initialDeployments }: P
           </Table>
         </div>
       )}
+
+      {openLogs && (
+        <DeploymentLogsDialog
+          appId={appId}
+          deployment={openLogs}
+          onClose={() => setOpenLogs(null)}
+        />
+      )}
     </div>
+  );
+}
+
+function DeploymentLogsDialog({
+  appId,
+  deployment,
+  onClose,
+}: {
+  appId: string;
+  deployment: Deployment;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent
+        className="w-[min(900px,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)]"
+        hideClose
+      >
+        <DialogHeader>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <DialogEyebrow>Deployment · logs</DialogEyebrow>
+              <DialogTitle className="text-xl font-mono">
+                {deployment.id.slice(0, 8)}
+              </DialogTitle>
+              <p className="mt-1 text-[12px] text-ink-3">
+                Status <span className="text-ink-2">{deployment.status}</span>
+                {" · "}
+                {deployment.replicas_ready}/{deployment.replicas_desired} replicas ready
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-7 w-7 grid place-items-center rounded-[var(--radius-sm)] text-ink-3 hover:text-ink-1 hover:bg-surface-2 transition-colors"
+              aria-label="Close"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </DialogHeader>
+        <DialogBody>
+          <LogStream
+            url={deploymentsApi.logsUrl(appId, deployment.id)}
+            title={`Deployment ${deployment.id.slice(0, 8)}`}
+          />
+        </DialogBody>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -146,12 +207,14 @@ function DeploymentRow({
   envName,
   isOpen,
   onToggle,
+  onOpenLogs,
 }: {
   appId: string;
   deployment: Deployment;
   envName?: string;
   isOpen: boolean;
   onToggle: () => void;
+  onOpenLogs: () => void;
 }) {
   const targets = useQuery({
     queryKey: ["deployment-targets", deployment.id],
@@ -206,9 +269,20 @@ function DeploymentRow({
           </span>
         </TD>
         <TD align="right">
-          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-4">
-            {isOpen ? "Hide" : "Targets"}
-          </span>
+          <div className="flex items-center justify-end gap-1.5">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onOpenLogs(); }}
+              className="flex items-center gap-1 px-1.5 py-1 rounded-[var(--radius-sm)] text-ink-3 hover:text-ink-1 hover:bg-surface-2 transition-colors font-mono text-[10px] uppercase tracking-[0.14em]"
+              title="View deployment logs"
+            >
+              <ScrollText className="h-3 w-3" />
+              Logs
+            </button>
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-4 px-1.5">
+              {isOpen ? "Hide" : "Targets"}
+            </span>
+          </div>
         </TD>
       </TR>
       {isOpen && (
