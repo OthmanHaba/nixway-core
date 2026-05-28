@@ -77,6 +77,26 @@ export type ServerStatus =
   | "provisioning"
   | "unknown";
 
+export type ServerRole = "worker" | "edge" | "both";
+
+export const SERVER_ROLES: { value: ServerRole; label: string; description: string }[] = [
+  {
+    value: "worker",
+    label: "Worker",
+    description: "Runs app & database containers scheduled by the cluster.",
+  },
+  {
+    value: "edge",
+    label: "Edge",
+    description: "Fronts the cluster with Traefik; routes public traffic to workers over the mesh.",
+  },
+  {
+    value: "both",
+    label: "Edge + Worker",
+    description: "Runs the edge LB and worker containers on the same node — for small / single-node clusters.",
+  },
+];
+
 export interface Server {
   id: string;
   team_id: string;
@@ -90,6 +110,7 @@ export interface Server {
   os_version: string | null;
   arch: string | null;
   status: ServerStatus;
+  role: ServerRole;
   last_seen_at: string | null;
   created_at: string;
   updated_at: string;

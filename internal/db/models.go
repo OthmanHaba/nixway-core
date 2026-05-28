@@ -491,6 +491,7 @@ type Server struct {
 	CreatedAt  time.Time          `json:"created_at"`
 	UpdatedAt  time.Time          `json:"updated_at"`
 	ClusterID  pgtype.UUID        `json:"cluster_id"`
+	Role       string             `json:"role"`
 }
 
 type ServerMetric struct {

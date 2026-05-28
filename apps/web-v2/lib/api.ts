@@ -12,6 +12,7 @@ import type {
   Server,
   ServerDetail,
   ServerMetric,
+  ServerRole,
   ServerTag,
   ProvisioningJob,
   ProvisioningComponent,
@@ -237,6 +238,8 @@ export const serversApi = {
   create:  (teamId: string, input: CreateServerInput)  => api.post<Server>(`/teams/${teamId}/servers`, input),
   rename:  (teamId: string, serverId: string, name: string) =>
     api.put<Server>(`/teams/${teamId}/servers/${serverId}`, { name }),
+  setRole: (teamId: string, serverId: string, role: ServerRole) =>
+    api.put<Server>(`/teams/${teamId}/servers/${serverId}/role`, { role }),
   remove:  (teamId: string, serverId: string)          => api.delete<void>(`/teams/${teamId}/servers/${serverId}`),
   cleanup: (teamId: string, serverId: string)          => api.post<void>(`/teams/${teamId}/servers/${serverId}/cleanup`),
   metrics: (teamId: string, serverId: string)          => api.get<ServerMetric>(`/teams/${teamId}/servers/${serverId}/metrics`),
