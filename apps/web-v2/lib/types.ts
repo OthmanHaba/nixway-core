@@ -399,6 +399,60 @@ export interface VerifyDomainResult {
 }
 
 /**
+ * A single traffic route belonging to an app's environment. The route binds
+ * a domain to one or more deployment backends, each with a relative weight.
+ * Mode is the high-level shape ("simple", "canary", "blue_green").
+ */
+export interface TrafficRoute {
+  id: string;
+  app_id: string;
+  environment_id: string;
+  domain: string;
+  mode: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * A backend points the route at a specific deployment. The shape from
+ * GET /apps/{id}/traffic is the join row with deployment metadata.
+ */
+export interface TrafficBackend {
+  id: string;
+  route_id: string;
+  deployment_id: string;
+  label: string;
+  weight: number;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  deployment_status: string;
+  replicas_ready: number;
+  replicas_desired: number;
+  commit_sha: string;
+  image_tag: string;
+}
+
+export interface TrafficEvent {
+  id: string;
+  route_id: string;
+  actor_id: string | null;
+  actor_type: string;
+  event_type: string;
+  message: string;
+  metadata?: unknown;
+  created_at: string;
+}
+
+/** Aggregate view returned by GET /apps/{id}/traffic. `route` is null when no route has been created yet. */
+export interface TrafficView {
+  route: TrafficRoute | null;
+  backends: TrafficBackend[];
+  events: TrafficEvent[];
+}
+
+/**
  * Team-scoped encrypted secret. The plaintext value is never returned
  * by list/get — call /reveal once to obtain it. `revealed_at` records the
  * one-time disclosure timestamp.

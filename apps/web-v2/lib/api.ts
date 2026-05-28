@@ -29,6 +29,7 @@ import type {
   ScalingEvent,
   ScaleResult,
   VerifyDomainResult,
+  TrafficView,
 } from "./types";
 
 const BASE = "/api/v1";
@@ -411,7 +412,18 @@ export const appsApi = {
     const suffix = qs.toString() ? `?${qs}` : "";
     return api.get<ScalingEvent[]>(`/apps/${appId}/scaling-events${suffix}`);
   },
+  getTraffic: (appId: string) => api.get<TrafficView>(`/apps/${appId}/traffic`),
+  updateTraffic: (appId: string, weights: TrafficWeightInput[]) =>
+    api.put<TrafficView>(`/apps/${appId}/traffic`, { weights }),
+  /** Sets the chosen backend's weight to 100 and zeroes the rest. */
+  promoteBackend: (appId: string, backendId: string) =>
+    api.post<TrafficView>(`/apps/${appId}/traffic/backends/${backendId}/promote`),
 };
+
+export interface TrafficWeightInput {
+  backend_id: string;
+  weight: number;
+}
 
 export interface ScaleInput {
   replicas: number;
