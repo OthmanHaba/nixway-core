@@ -47,6 +47,9 @@ import type {
   RowPage,
   QueryResult,
   QueryHistoryEntry,
+  NotificationChannel,
+  AlertRule,
+  AlertEvent,
 } from "./types";
 
 const BASE = "/api/v1";
@@ -660,4 +663,61 @@ export const dbToolingApi = {
     api.post<QueryResult>(`/databases/${dbId}/query`, input),
   listQueryHistory: (dbId: string, limit = 50) =>
     api.get<QueryHistoryEntry[]>(`/databases/${dbId}/query-history?limit=${limit}`),
+};
+
+/* ─── Observability (alerts + notification channels) ─── */
+
+export interface CreateChannelInput {
+  name: string;
+  type: string;
+  target: string;
+  enabled?: boolean;
+}
+
+export interface AlertRuleInput {
+  scope_type: string;
+  scope_id: string;
+  name: string;
+  metric_name: string;
+  comparison: string;
+  threshold: number;
+  duration_seconds: number;
+  severity: string;
+  enabled?: boolean;
+  notification_channels?: string[];
+}
+
+export interface AlertsScopeQuery {
+  scope_type?: string;
+  scope_id?: string;
+}
+
+export const observabilityApi = {
+  listChannels: (teamId: string) =>
+    api.get<NotificationChannel[]>(`/teams/${teamId}/observability/channels`),
+  createChannel: (teamId: string, input: CreateChannelInput) =>
+    api.post<NotificationChannel>(`/teams/${teamId}/observability/channels`, input),
+  listAlerts: (teamId: string, scope: AlertsScopeQuery = {}) => {
+    const qs = new URLSearchParams();
+    if (scope.scope_type) qs.set("scope_type", scope.scope_type);
+    if (scope.scope_id)   qs.set("scope_id",   scope.scope_id);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return api.get<AlertRule[]>(`/teams/${teamId}/observability/alerts${suffix}`);
+  },
+  createAlert: (teamId: string, input: AlertRuleInput) =>
+    api.post<AlertRule>(`/teams/${teamId}/observability/alerts`, input),
+  updateAlert: (teamId: string, alertId: string, input: AlertRuleInput) =>
+    api.put<AlertRule>(`/teams/${teamId}/observability/alerts/${alertId}`, input),
+  deleteAlert: (teamId: string, alertId: string) =>
+    api.delete<void>(`/teams/${teamId}/observability/alerts/${alertId}`),
+  evaluateAlerts: (teamId: string) =>
+    api.post<{ ok: boolean }>(`/teams/${teamId}/observability/alerts/evaluate`),
+  listEvents: (teamId: string, opts: { limit?: number; scope_type?: string; scope_id?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (opts.limit      != null) qs.set("limit", String(opts.limit));
+    if (opts.scope_type)         qs.set("scope_type", opts.scope_type);
+    if (opts.scope_id)           qs.set("scope_id", opts.scope_id);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return api.get<AlertEvent[]>(`/teams/${teamId}/observability/events${suffix}`);
+  },
 };

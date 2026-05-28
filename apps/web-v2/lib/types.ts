@@ -525,6 +525,68 @@ export interface QueryHistoryEntry {
   created_at: string;
 }
 
+/* ─── Observability (alerts + notification channels) ─── */
+
+export type NotificationChannelType = "slack" | "webhook" | "discord" | "email" | string;
+
+/**
+ * Outbound notification destination. `target` is type-specific: a Slack webhook
+ * URL, a generic webhook URL, a Discord webhook, or an email address.
+ */
+export interface NotificationChannel {
+  id: string;
+  team_id: string;
+  name: string;
+  type: NotificationChannelType;
+  target: string;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type AlertScopeType = "server" | "cluster" | "project" | "app" | "container" | string;
+
+/**
+ * Declarative alert tied to a specific resource (`scope_type` + `scope_id`).
+ * The evaluator updates `last_state` ("firing"/"ok"/"pending") and
+ * `last_value` on each tick.
+ */
+export interface AlertRule {
+  id: string;
+  team_id: string;
+  scope_type: AlertScopeType;
+  scope_id: string;
+  name: string;
+  metric_name: string;
+  comparison: string;
+  threshold: number;
+  duration_seconds: number;
+  severity: string;
+  enabled: boolean;
+  notification_channels: string[];
+  last_state: string;
+  last_value: number | null;
+  last_evaluated_at: string | null;
+  state_changed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Audit row written when an alert transitions state. */
+export interface AlertEvent {
+  id: string;
+  rule_id: string;
+  team_id: string;
+  scope_type: string;
+  scope_id: string;
+  state: string;
+  metric_value: number | null;
+  threshold: number;
+  message: string;
+  notified_at: string | null;
+  created_at: string;
+}
+
 /**
  * The Go API returns audit logs as a plain array. Pagination is via the
  * `before=<RFC3339>` query parameter using the last entry's `created_at`.
