@@ -159,6 +159,22 @@ func (q *Queries) SetPasswordResetToken(ctx context.Context, arg SetPasswordRese
 	return err
 }
 
+const setEmailVerifyToken = `-- name: SetEmailVerifyToken :exec
+UPDATE users SET email_verify_token = $2, email_verify_expires = $3, updated_at = now()
+WHERE id = $1
+`
+
+type SetEmailVerifyTokenParams struct {
+	ID                 uuid.UUID          `json:"id"`
+	EmailVerifyToken   *string            `json:"email_verify_token"`
+	EmailVerifyExpires pgtype.Timestamptz `json:"email_verify_expires"`
+}
+
+func (q *Queries) SetEmailVerifyToken(ctx context.Context, arg SetEmailVerifyTokenParams) error {
+	_, err := q.db.Exec(ctx, setEmailVerifyToken, arg.ID, arg.EmailVerifyToken, arg.EmailVerifyExpires)
+	return err
+}
+
 const updatePassword = `-- name: UpdatePassword :exec
 UPDATE users SET password_hash = $2, password_reset_token = NULL, password_reset_expires = NULL, updated_at = now()
 WHERE id = $1

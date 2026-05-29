@@ -96,6 +96,7 @@ func NewRouter(
 	mux.HandleFunc("POST /api/v1/auth/signup", authH.Signup)
 	mux.HandleFunc("POST /api/v1/auth/login", authH.Login)
 	mux.HandleFunc("POST /api/v1/auth/verify-email", authH.VerifyEmail)
+	mux.HandleFunc("POST /api/v1/auth/resend-verification", authH.ResendVerification)
 	mux.HandleFunc("POST /api/v1/auth/forgot-password", authH.ForgotPassword)
 	mux.HandleFunc("POST /api/v1/auth/reset-password", authH.ResetPassword)
 

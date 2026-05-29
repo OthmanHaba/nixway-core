@@ -152,6 +152,8 @@ export const authApi = {
     api.post<void>("/auth/reset-password", { token, password }),
   verifyEmail: (token: string) =>
     api.post<void>("/auth/verify-email", { token }),
+  resendVerification: (email: string) =>
+    api.post<void>("/auth/resend-verification", { email }),
 };
 
 /* ─── Teams ─── */
