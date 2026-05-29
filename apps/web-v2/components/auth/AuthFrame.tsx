@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { StatusPanel } from "./StatusPanel";
+import { Logo } from "@/components/layout/Logo";
 
 export function AuthFrame({ children }: { children: ReactNode }) {
   return (
@@ -8,7 +9,7 @@ export function AuthFrame({ children }: { children: ReactNode }) {
       <section className="relative flex flex-col px-6 sm:px-10 lg:px-16 py-8 lg:py-10">
         <header className="flex items-center justify-between text-[11px]">
           <div className="flex items-center gap-3">
-            <Wordmark />
+            <Logo />
             <span className="hidden sm:inline-block h-3 w-px bg-line-2" />
             <span className="hidden sm:inline-block font-mono uppercase tracking-[0.14em] text-ink-3">
               v0.4.0 · console
@@ -40,20 +41,6 @@ export function AuthFrame({ children }: { children: ReactNode }) {
       <aside className="hidden lg:block relative border-l border-line-1 bg-surface-1 overflow-hidden">
         <StatusPanel />
       </aside>
-    </div>
-  );
-}
-
-function Wordmark() {
-  return (
-    <div className="flex items-baseline gap-1.5">
-      <span className="inline-block h-2.5 w-2.5 rounded-[2px] bg-signal" />
-      <span className="font-mono uppercase tracking-[0.18em] text-ink-1 text-[12px] font-medium">
-        Nixway
-      </span>
-      <span className="font-mono uppercase tracking-[0.18em] text-ink-3 text-[12px]">
-        {"//core"}
-      </span>
     </div>
   );
 }

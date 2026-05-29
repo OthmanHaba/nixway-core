@@ -189,6 +189,37 @@ services:
       - public
       - internal
 
+  site:
+    build:
+      context: .
+      dockerfile: apps/site/Dockerfile
+    ports:
+      - "${NIXWAY_SITE_PORT:-5373}:80"
+    environment:
+      # Marketing site is fully static at runtime — only NIXWAY_CONSOLE_URL
+      # is consumed (server-rendered into "Sign in" / "Start free" links).
+      NIXWAY_CONSOLE_URL: ${NIXWAY_CONSOLE_URL:-https://console.nixway.dev}
+      NODE_ENV: production
+    healthcheck:
+      # /docs is public and exercises a dynamic route, so it's a useful probe.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/docs"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    labels:
+      # Marketing host (e.g. nixway.dev) routes here; the operator console
+      # router (nixway-web above) keeps the platform host. They run side by
+      # side behind one Traefik with a TLS cert per host.
+      - "traefik.enable=true"
+      - "traefik.http.routers.nixway-site.rule=Host(`${NIXWAY_MARKETING_DOMAIN:-localhost}`)"
+      - "traefik.http.routers.nixway-site.entrypoints=websecure"
+      - "traefik.http.routers.nixway-site.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.nixway-site.priority=10"
+      - "traefik.http.services.nixway-site.loadbalancer.server.port=80"
+      - "traefik.docker.network=${NIXWAY_DOCKER_PUBLIC_NETWORK:-nixway-public}"
+    networks:
+      - public
+
   victoria-metrics:
     image: victoriametrics/victoria-metrics:latest
     ports:
