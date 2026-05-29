@@ -70,6 +70,8 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/redis/go-redis/v9 v9.18.0 h1:pMkxYPkEbMPwRdenAzUNyFNrDgHx9U+DrBabWNfSRQs=
 github.com/redis/go-redis/v9 v9.18.0/go.mod h1:k3ufPphLU5YXwNTUcCRXGxUoF1fqxnhFQmscfkCoDA0=
+github.com/resend/resend-go/v3 v3.7.0 h1:puE9z+Re8i+regKcvPF8flIiBrKZcxJhbkbMQcwl0OE=
+github.com/resend/resend-go/v3 v3.7.0/go.mod h1:iI7VA0NoGjWvsNii5iNC5Dy0llsI3HncXPejhniYzwE=
 github.com/riverqueue/river v0.35.0 h1:ERjFYsrCTGIQb8zdGZDegXmCNtsZ2f38Mh/1pm8s+7s=
 github.com/riverqueue/river v0.35.0/go.mod h1:BhQ6qtWT5ngvHcZByD86GB6wFbFmWuovkqwp5Ybuw+g=
 github.com/riverqueue/river/riverdriver v0.35.0 h1:g23GXp2ukQBzFAjHoqEqU9/nvDBVNugvFSzDeh9QnDA=

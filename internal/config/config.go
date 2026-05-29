@@ -58,6 +58,7 @@ type EmailConfig struct {
 	SMTPPort int
 	SMTPUser string
 	SMTPPass string
+	APIKey   string // shared across HTTP-API drivers (currently: resend)
 	BaseURL  string
 }
 
@@ -230,6 +231,7 @@ func Load() (*Config, error) {
 	cfg.Email.SMTPPort = v.GetInt("email.smtp_port")
 	cfg.Email.SMTPUser = v.GetString("email.smtp_user")
 	cfg.Email.SMTPPass = v.GetString("email.smtp_pass")
+	cfg.Email.APIKey = v.GetString("email.api_key")
 	cfg.Email.BaseURL = v.GetString("email.base_url")
 	// Read master key directly from env — viper has issues with nested underscore keys
 	cfg.Crypto.MasterKey = os.Getenv("NIXWAY_CRYPTO_MASTER_KEY")
