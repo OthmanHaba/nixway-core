@@ -1,0 +1,772 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ────────────────────────────────────────────────────────────────────
+   NIXWAY // CORE — Marketing site tokens.
+   Inherited verbatim from the operator console (apps/web-v2). Any token
+   drift between this file and apps/web-v2/app/globals.css is a bug —
+   the site and the console share one identity.
+   ──────────────────────────────────────────────────────────────────── */
+
+:root {
+  --surface-0: oklch(0.985 0.003 80);
+  --surface-1: oklch(0.972 0.003 80);
+  --surface-2: oklch(0.955 0.004 80);
+  --surface-3: oklch(0.925 0.005 80);
+
+  --ink-1: oklch(0.18 0.01 70);
+  --ink-2: oklch(0.42 0.01 70);
+  --ink-3: oklch(0.62 0.008 70);
+  --ink-4: oklch(0.78 0.005 70);
+
+  --line-1: oklch(0.88 0.005 70);
+  --line-2: oklch(0.82 0.006 70);
+
+  --signal: oklch(0.74 0.155 65);
+  --signal-soft: oklch(0.92 0.06 70);
+  --signal-ink: oklch(0.28 0.08 60);
+
+  --online: oklch(0.66 0.13 165);
+  --warn: oklch(0.78 0.16 80);
+  --alert: oklch(0.58 0.20 25);
+  --info: oklch(0.62 0.11 240);
+
+  --focus: oklch(0.62 0.16 65);
+
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 10px;
+
+  --tracking-mono: 0.06em;
+  --tracking-label: 0.14em;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-instant: 80ms;
+  --dur-fast: 160ms;
+  --dur-base: 220ms;
+}
+
+.dark {
+  --surface-0: oklch(0.158 0.004 80);
+  --surface-1: oklch(0.185 0.004 80);
+  --surface-2: oklch(0.215 0.005 80);
+  --surface-3: oklch(0.265 0.006 80);
+
+  --ink-1: oklch(0.965 0.003 80);
+  --ink-2: oklch(0.78 0.005 80);
+  --ink-3: oklch(0.58 0.006 80);
+  --ink-4: oklch(0.40 0.006 80);
+
+  --line-1: oklch(0.255 0.005 80);
+  --line-2: oklch(0.305 0.006 80);
+
+  --signal: oklch(0.80 0.16 70);
+  --signal-soft: oklch(0.32 0.10 65);
+  --signal-ink: oklch(0.92 0.10 75);
+
+  --online: oklch(0.74 0.14 165);
+  --warn: oklch(0.82 0.16 80);
+  --alert: oklch(0.68 0.20 25);
+  --info: oklch(0.72 0.13 240);
+
+  --focus: oklch(0.78 0.16 70);
+}
+
+@theme inline {
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+
+  --color-ink-1: var(--ink-1);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-4: var(--ink-4);
+
+  --color-line-1: var(--line-1);
+  --color-line-2: var(--line-2);
+
+  --color-signal: var(--signal);
+  --color-signal-soft: var(--signal-soft);
+  --color-signal-ink: var(--signal-ink);
+
+  --color-online: var(--online);
+  --color-warn: var(--warn);
+  --color-alert: var(--alert);
+  --color-info: var(--info);
+
+  --color-focus: var(--focus);
+
+  --radius-sm: var(--radius-sm);
+  --radius: var(--radius);
+  --radius-lg: var(--radius-lg);
+
+  --font-display: var(--font-display), Georgia, serif;
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, monospace;
+}
+
+@layer base {
+  html, body {
+    background: var(--surface-0);
+    color: var(--ink-1);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01", "ss03";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body { min-height: 100dvh; }
+
+  ::selection {
+    background: var(--signal);
+    color: var(--signal-ink);
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  .num, [data-num] {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+}
+
+@layer components {
+  /* Eyebrow used sparingly across the site. Rationed: max 1 per 3 sections. */
+  .label-mono {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-weight: 500;
+  }
+
+  /* Crosshatch backdrop — the auth-panel signature, reused on the hero. */
+  .crosshatch {
+    background-image:
+      linear-gradient(to right, color-mix(in oklch, var(--ink-1) 8%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in oklch, var(--ink-1) 8%, transparent) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  /* Subtle scanline lifted from mission-control instrument panels. */
+  .scanlines {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 2px,
+      color-mix(in oklch, var(--ink-1) 5%, transparent) 3px,
+      transparent 4px
+    );
+  }
+
+  /* Restrained reveal — opacity + 6px translate. Matches the console. */
+  .reveal {
+    opacity: 0;
+    transform: translateY(6px);
+    animation: reveal var(--dur-base) var(--ease-out) forwards;
+  }
+  .reveal-1 { animation-delay: 40ms; }
+  .reveal-2 { animation-delay: 110ms; }
+  .reveal-3 { animation-delay: 180ms; }
+  .reveal-4 { animation-delay: 250ms; }
+  .reveal-5 { animation-delay: 320ms; }
+  @keyframes reveal {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Pulse for the "API · online" status pip. */
+  .pulse-online {
+    position: relative;
+  }
+  .pulse-online::before {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: 999px;
+    background: var(--online);
+    opacity: 0.35;
+    animation: pulse-ring 1.8s var(--ease-out) infinite;
+  }
+  @keyframes pulse-ring {
+    0%   { transform: scale(0.6); opacity: 0.5; }
+    70%  { transform: scale(1.4); opacity: 0;   }
+    100% { transform: scale(1.4); opacity: 0;   }
+  }
+
+  /* Terminal block used on the hero — real <pre>, not div-faked. */
+  .term {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: var(--ink-2);
+  }
+  .term .cmd { color: var(--ink-1); }
+  .term .prompt { color: var(--signal); }
+  .term .ok { color: var(--online); }
+  .term .dim { color: var(--ink-4); }
+
+  /* Prose styling for /docs/* pages — readable, narrow, hairlines not boxes. */
+  .prose-docs h1 {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    color: var(--ink-1);
+    font-size: 2.5rem;
+    line-height: 1.1;
+    padding-bottom: 0.25rem;
+  }
+  .prose-docs h2 {
+    color: var(--ink-1);
+    font-size: 1.25rem;
+    font-weight: 500;
+    margin-top: 2.5rem;
+    margin-bottom: 0.5rem;
+    letter-spacing: -0.01em;
+  }
+  .prose-docs h3 {
+    color: var(--ink-1);
+    font-size: 1rem;
+    font-weight: 500;
+    margin-top: 1.75rem;
+    margin-bottom: 0.25rem;
+  }
+  .prose-docs p {
+    color: var(--ink-2);
+    line-height: 1.7;
+    margin-bottom: 1rem;
+    max-width: 70ch;
+  }
+  .prose-docs ul, .prose-docs ol {
+    color: var(--ink-2);
+    padding-left: 1.25rem;
+    margin-bottom: 1rem;
+    max-width: 70ch;
+  }
+  .prose-docs ul { list-style: none; padding-left: 0; }
+  .prose-docs ul li {
+    position: relative;
+    padding-left: 1.25rem;
+    margin-bottom: 0.35rem;
+    line-height: 1.6;
+  }
+  .prose-docs ul li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.7em;
+    width: 6px;
+    height: 1px;
+    background: var(--ink-4);
+  }
+  .prose-docs ol { list-style: decimal; }
+  .prose-docs ol li { margin-bottom: 0.35rem; line-height: 1.6; }
+  .prose-docs code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    background: var(--surface-2);
+    border: 1px solid var(--line-1);
+    border-radius: 3px;
+    padding: 0.05em 0.35em;
+    color: var(--ink-1);
+  }
+  .prose-docs pre {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.7;
+    background: var(--surface-1);
+    border: 1px solid var(--line-1);
+    border-radius: var(--radius);
+    padding: 1rem 1.1rem;
+    overflow-x: auto;
+    color: var(--ink-2);
+    margin: 1rem 0;
+  }
+  .prose-docs pre code {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    color: inherit;
+    font-size: inherit;
+  }
+  .prose-docs a {
+    color: var(--signal);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .prose-docs strong { color: var(--ink-1); font-weight: 500; }
+  .prose-docs hr { border: 0; border-top: 1px solid var(--line-1); margin: 2.5rem 0; }
+  .prose-docs blockquote {
+    border-left: 2px solid var(--signal);
+    padding-left: 1rem;
+    color: var(--ink-2);
+    font-style: italic;
+    margin: 1rem 0;
+  }
+
+  .scrollbar-none { scrollbar-width: none; -ms-overflow-style: none; }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+
+  /* ────────────────────────────────────────────────────────────────
+     LIVE DEMO — 6-scene operator-console walkthrough.
+     Each scene mounts fresh on entry so its keyframes replay from 0.
+     All choreography lives in CSS so the React orchestrator only has
+     to track which step is active. Reduced motion collapses every
+     scene to its static end frame.
+     ──────────────────────────────────────────────────────────────── */
+
+  /* ── scene shell: slide-in from forward / back direction ── */
+  .demo-scene-in-forward {
+    animation: demo-scene-in-forward 420ms var(--ease-out) both;
+  }
+  .demo-scene-in-back {
+    animation: demo-scene-in-back 420ms var(--ease-out) both;
+  }
+  @keyframes demo-scene-in-forward {
+    0%   { opacity: 0; transform: translateX(18px); }
+    100% { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes demo-scene-in-back {
+    0%   { opacity: 0; transform: translateX(-18px); }
+    100% { opacity: 1; transform: translateX(0); }
+  }
+
+  /* ── URL pill cross-fade when route changes ── */
+  .demo-url {
+    animation: demo-url-fade 360ms var(--ease-out) both;
+  }
+  @keyframes demo-url-fade {
+    0%   { opacity: 0; transform: translateY(-2px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Scene 1 · Servers (extras) ── */
+  /* Install log streams its 5 lines while the drawer is open. */
+  .demo-install-line {
+    opacity: 0;
+    transform: translateY(3px);
+    animation: demo-row-in 220ms var(--ease-out) forwards;
+  }
+  .demo-install-line-0 { animation-delay: 900ms; }
+  .demo-install-line-1 { animation-delay: 1400ms; }
+  .demo-install-line-2 { animation-delay: 2000ms; }
+  .demo-install-line-3 { animation-delay: 2600ms; }
+  .demo-install-line-4 { animation-delay: 3100ms; }
+
+  .demo-drawer-phase {
+    animation: demo-phase-tick 5200ms steps(5) both;
+  }
+  @keyframes demo-phase-tick {
+    0%   { content: "phase 1/5"; }
+    100% { content: "phase 5/5"; }
+  }
+
+  /* ── Scene 2 · Mesh extras ── */
+  /* Latency labels fade in once each link is drawn. */
+  .demo-mesh-latency {
+    fill: var(--ink-3);
+    font-family: var(--font-mono);
+    font-size: 8.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    opacity: 0;
+    animation: demo-fade-in 280ms var(--ease-out) forwards;
+  }
+  .demo-mesh-latency-1 { animation-delay: 3000ms; }
+  .demo-mesh-latency-2 { animation-delay: 3500ms; }
+  .demo-mesh-latency-3 { animation-delay: 4000ms; }
+
+  /* Pulse dots travel along the mesh links once they're drawn. */
+  .demo-mesh-pulse {
+    fill: var(--signal);
+    opacity: 0;
+    animation: demo-mesh-pulse-1 2.6s linear infinite;
+  }
+  .demo-mesh-pulse-1 {
+    animation: demo-mesh-pulse-link1 2.6s linear 3400ms infinite;
+  }
+  .demo-mesh-pulse-2 {
+    animation: demo-mesh-pulse-link2 2.6s linear 3700ms infinite;
+  }
+  .demo-mesh-pulse-3 {
+    animation: demo-mesh-pulse-link3 2.6s linear 4000ms infinite;
+  }
+  @keyframes demo-mesh-pulse-link1 {
+    0%   { opacity: 0; transform: translate(40px, 55px); }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { opacity: 0; transform: translate(200px, 55px); }
+  }
+  @keyframes demo-mesh-pulse-link2 {
+    0%   { opacity: 0; transform: translate(40px, 55px); }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { opacity: 0; transform: translate(120px, 165px); }
+  }
+  @keyframes demo-mesh-pulse-link3 {
+    0%   { opacity: 0; transform: translate(200px, 55px); }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { opacity: 0; transform: translate(120px, 165px); }
+  }
+
+  /* ── Scene 3 · Projects (repo picker rows + buildpack auto-detect) ── */
+  .demo-repo-row {
+    opacity: 0;
+    transform: translateX(-6px);
+    animation: demo-cluster-row 280ms var(--ease-out) forwards;
+  }
+  .demo-repo-row-0 { animation-delay: 200ms; }
+  .demo-repo-row-1 { animation-delay: 350ms; }
+  .demo-repo-row-2 { animation-delay: 500ms; }
+  .demo-repo-row-3 { animation-delay: 650ms; }
+
+  .demo-detect-line {
+    opacity: 0;
+    transform: translateY(2px);
+    animation: demo-row-in 220ms var(--ease-out) forwards;
+  }
+  .demo-detect-line-0 { animation-delay: 1200ms; }
+  .demo-detect-line-1 { animation-delay: 1700ms; }
+  .demo-detect-line-2 { animation-delay: 2200ms; }
+
+  /* ── Scene 5 · Multi-phase pipeline (5 phases fill in sequence) ── */
+  .demo-phase-fill {
+    width: 0%;
+    animation: demo-phase-each 1100ms cubic-bezier(0.55, 0, 0.45, 1) forwards;
+  }
+  .demo-phase-fill-0 { animation-delay: 400ms; }
+  .demo-phase-fill-1 { animation-delay: 1700ms; }
+  .demo-phase-fill-2 { animation-delay: 3200ms; }
+  .demo-phase-fill-3 { animation-delay: 4500ms; }
+  .demo-phase-fill-4 { animation-delay: 6000ms; }
+  @keyframes demo-phase-each {
+    0%   { width: 0%; }
+    100% { width: 100%; }
+  }
+
+  /* ── Scene 1 · Servers ── */
+  .demo-drawer {
+    transform: translateX(100%);
+    animation:
+      demo-drawer-in  500ms var(--ease-out) 200ms both,
+      demo-drawer-out 400ms var(--ease-in-out) 3400ms both;
+  }
+  @keyframes demo-drawer-in  { to { transform: translateX(0); } }
+  @keyframes demo-drawer-out { to { transform: translateX(100%); } }
+
+  .demo-drawer-submit {
+    animation: demo-button-pulse 700ms ease-out 3000ms both;
+  }
+  @keyframes demo-button-pulse {
+    0%   { box-shadow: inset 0 1px 0 color-mix(in oklch, white 30%, transparent), 0 0 0 0 color-mix(in oklch, var(--signal) 70%, transparent); }
+    100% { box-shadow: inset 0 1px 0 color-mix(in oklch, white 30%, transparent), 0 0 0 12px transparent; }
+  }
+
+  .demo-row-appear {
+    opacity: 0;
+    transform: translateY(6px);
+    animation: demo-row-in 360ms var(--ease-out) 3700ms forwards;
+  }
+  @keyframes demo-row-in {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .demo-status-pip {
+    animation: demo-status-pip 1800ms ease-in-out 3700ms forwards;
+  }
+  @keyframes demo-status-pip {
+    0%   { background: var(--warn); }
+    100% { background: var(--online); }
+  }
+
+  .demo-status-label {
+    animation: demo-status-label 1800ms ease-in-out 3700ms forwards;
+  }
+  @keyframes demo-status-label {
+    0%   { color: var(--warn); }
+    99%  { color: var(--warn); }
+    100% { color: var(--online); }
+  }
+
+  /* ── Scene 2 · Clusters & mesh ── */
+  .demo-cluster-row {
+    opacity: 0;
+    transform: translateX(-6px);
+    animation: demo-cluster-row 360ms var(--ease-out) forwards;
+  }
+  .demo-cluster-row-0 { animation-delay: 200ms; }
+  .demo-cluster-row-1 { animation-delay: 500ms; }
+  .demo-cluster-row-2 { animation-delay: 800ms; }
+  @keyframes demo-cluster-row {
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .demo-mesh-node circle {
+    fill: var(--surface-2);
+    stroke: var(--signal);
+    stroke-width: 2;
+    opacity: 0;
+    animation: demo-mesh-node-in 320ms var(--ease-out) forwards;
+  }
+  .demo-mesh-node text {
+    fill: var(--ink-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    opacity: 0;
+    animation: demo-mesh-node-in 320ms var(--ease-out) forwards;
+  }
+  .demo-mesh-node-1 circle, .demo-mesh-node-1 text { animation-delay: 1400ms; }
+  .demo-mesh-node-2 circle, .demo-mesh-node-2 text { animation-delay: 1700ms; }
+  .demo-mesh-node-3 circle, .demo-mesh-node-3 text { animation-delay: 2000ms; }
+  @keyframes demo-mesh-node-in {
+    0%   { opacity: 0; transform: scale(0.5); transform-origin: center; }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  .demo-mesh-line {
+    stroke: var(--signal);
+    stroke-width: 1.5;
+    fill: none;
+    stroke-dasharray: 300;
+    stroke-dashoffset: 300;
+    opacity: 0.65;
+    animation: demo-mesh-line-draw 900ms var(--ease-out) forwards;
+  }
+  .demo-mesh-line-1 { animation-delay: 2300ms; }
+  .demo-mesh-line-2 { animation-delay: 2800ms; }
+  .demo-mesh-line-3 { animation-delay: 3300ms; }
+  @keyframes demo-mesh-line-draw {
+    to { stroke-dashoffset: 0; }
+  }
+
+  .demo-mesh-status-text {
+    animation: demo-mesh-flip 200ms ease-out 4400ms forwards;
+  }
+  @keyframes demo-mesh-flip {
+    0%   { color: var(--warn); }
+    100% { color: var(--online); }
+  }
+  .demo-mesh-status-text::after {
+    content: "";
+    animation: demo-mesh-text-swap 1ms linear 4400ms forwards;
+  }
+  /* Swap the literal text by animating ::after content trick. Cheap, works. */
+  @keyframes demo-mesh-text-swap {
+    to { content: " 3 nodes · 3 links"; }
+  }
+
+  /* ── Scene 3 · Projects ── */
+  .demo-form-connect {
+    opacity: 0;
+    animation: demo-fade-in 300ms var(--ease-out) 1400ms forwards;
+  }
+  @keyframes demo-fade-in {
+    to { opacity: 1; }
+  }
+
+  .demo-project-tile {
+    opacity: 0;
+    transform: translateY(10px);
+    animation: demo-tile-in 450ms var(--ease-out) 2300ms forwards;
+  }
+  @keyframes demo-tile-in {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Scene 4 · App ── */
+  .demo-app-row {
+    opacity: 0;
+    transform: translateY(6px);
+    animation: demo-row-in 360ms var(--ease-out) 800ms forwards;
+  }
+  .demo-env-card {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  .demo-env-card-0 { animation: demo-row-in 360ms var(--ease-out) 1800ms forwards; }
+  .demo-env-card-1 { animation: demo-row-in 360ms var(--ease-out) 2200ms forwards; }
+
+  /* ── Scene 5 · Deploy ── */
+  .demo-deploy-progress {
+    width: 0%;
+    animation: demo-deploy-fill 6500ms cubic-bezier(0.55, 0, 0.45, 1) 400ms forwards;
+  }
+  @keyframes demo-deploy-fill {
+    0%   { width: 0%; }
+    8%   { width: 6%; }
+    20%  { width: 22%; }
+    35%  { width: 38%; }
+    55%  { width: 65%; }
+    78%  { width: 90%; }
+    100% { width: 100%; }
+  }
+
+  .demo-deploy-status {
+    animation: demo-deploy-status 200ms ease-out 6700ms forwards;
+  }
+  @keyframes demo-deploy-status {
+    0% {
+      border-color: color-mix(in oklch, var(--warn) 30%, transparent);
+      background: color-mix(in oklch, var(--warn) 18%, transparent);
+      color: var(--warn);
+    }
+    100% {
+      border-color: color-mix(in oklch, var(--online) 30%, transparent);
+      background: color-mix(in oklch, var(--online) 18%, transparent);
+      color: var(--online);
+    }
+  }
+  .demo-deploy-status .demo-deploy-status-label::after {
+    content: "";
+    animation: demo-deploy-status-text 1ms linear 6700ms forwards;
+  }
+  @keyframes demo-deploy-status-text {
+    to { content: " · live"; }
+  }
+  .demo-deploy-status > span:first-child {
+    animation: demo-deploy-status-dot 200ms ease-out 6700ms forwards;
+  }
+  @keyframes demo-deploy-status-dot {
+    0%   { background: var(--warn); }
+    100% { background: var(--online); }
+  }
+
+  .demo-log-line {
+    opacity: 0;
+    transform: translateY(4px);
+    animation: demo-row-in 240ms var(--ease-out) forwards;
+  }
+  .demo-log-line-0 { animation-delay: 600ms; }
+  .demo-log-line-1 { animation-delay: 1100ms; }
+  .demo-log-line-2 { animation-delay: 1700ms; }
+  .demo-log-line-3 { animation-delay: 2400ms; }
+  .demo-log-line-4 { animation-delay: 3300ms; }
+  .demo-log-line-5 { animation-delay: 4300ms; }
+  .demo-log-line-6 { animation-delay: 5300ms; }
+  .demo-log-line-7 { animation-delay: 6000ms; }
+  .demo-log-line-8 { animation-delay: 6700ms; }
+
+  .demo-region-pip {
+    animation: demo-region-pip-cycle 1200ms ease-out forwards;
+  }
+  .demo-region-pip-0 { animation-delay: 3000ms; }
+  .demo-region-pip-1 { animation-delay: 4000ms; }
+  .demo-region-pip-2 { animation-delay: 5000ms; }
+  @keyframes demo-region-pip-cycle {
+    0%   { background: var(--ink-4); }
+    20%  { background: var(--warn); }
+    100% { background: var(--online); }
+  }
+
+  .demo-region-label {
+    animation: demo-region-label-cycle 1200ms ease-out forwards;
+  }
+  .demo-region-label-0 { animation-delay: 3000ms; }
+  .demo-region-label-1 { animation-delay: 4000ms; }
+  .demo-region-label-2 { animation-delay: 5000ms; }
+  @keyframes demo-region-label-cycle {
+    0%   { color: var(--ink-3); }
+    20%  { color: var(--warn); }
+    100% { color: var(--online); }
+  }
+  .demo-region-label::after {
+    content: "";
+    animation: demo-region-text 1ms linear forwards;
+  }
+  .demo-region-label-0::after { animation-delay: 3300ms; }
+  .demo-region-label-1::after { animation-delay: 4300ms; }
+  .demo-region-label-2::after { animation-delay: 5300ms; }
+  @keyframes demo-region-text {
+    to { content: " · live"; }
+  }
+
+  .demo-deploy-toast {
+    opacity: 0;
+    transform: translateY(10px);
+    animation: demo-tile-in 380ms var(--ease-out) 6800ms forwards;
+  }
+
+  /* ── Scene 6 · Overview ── */
+  .demo-overview-stat {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  .demo-overview-stat-0 { animation: demo-row-in 320ms var(--ease-out) 200ms forwards; }
+  .demo-overview-stat-1 { animation: demo-row-in 320ms var(--ease-out) 400ms forwards; }
+  .demo-overview-stat-2 { animation: demo-row-in 320ms var(--ease-out) 600ms forwards; }
+  .demo-overview-stat-3 { animation: demo-row-in 320ms var(--ease-out) 800ms forwards; }
+
+  .demo-overview-row {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  .demo-overview-row-0 { animation: demo-cluster-row 320ms var(--ease-out) 1100ms forwards; }
+  .demo-overview-row-1 { animation: demo-cluster-row 320ms var(--ease-out) 1400ms forwards; }
+  .demo-overview-row-2 { animation: demo-cluster-row 320ms var(--ease-out) 1700ms forwards; }
+
+  .demo-overview-bar {
+    opacity: 0;
+  }
+  .demo-overview-bar-0 { animation: demo-fade-in 300ms var(--ease-out) 1300ms forwards; }
+  .demo-overview-bar-1 { animation: demo-fade-in 300ms var(--ease-out) 1500ms forwards; }
+  .demo-overview-bar-2 { animation: demo-fade-in 300ms var(--ease-out) 1700ms forwards; }
+
+  /* Reduced-motion: skip every entrance + status flip, show the end state. */
+  @media (prefers-reduced-motion: reduce) {
+    .demo-scene-in-forward,
+    .demo-scene-in-back,
+    .demo-url,
+    .demo-install-line,
+    .demo-mesh-latency,
+    .demo-mesh-pulse,
+    .demo-repo-row,
+    .demo-detect-line,
+    .demo-phase-fill,
+    .demo-drawer,
+    .demo-drawer-submit,
+    .demo-row-appear,
+    .demo-status-pip,
+    .demo-status-label,
+    .demo-cluster-row,
+    .demo-mesh-node circle,
+    .demo-mesh-node text,
+    .demo-mesh-line,
+    .demo-mesh-status-text,
+    .demo-form-connect,
+    .demo-project-tile,
+    .demo-app-row,
+    .demo-env-card,
+    .demo-deploy-progress,
+    .demo-deploy-status,
+    .demo-deploy-status > span:first-child,
+    .demo-log-line,
+    .demo-region-pip,
+    .demo-region-label,
+    .demo-deploy-toast,
+    .demo-overview-stat,
+    .demo-overview-row,
+    .demo-overview-bar { animation: none !important; opacity: 1 !important; transform: none !important; }
+
+    .demo-drawer { transform: translateX(0) !important; }
+    .demo-status-pip,
+    .demo-region-pip { background: var(--online) !important; }
+    .demo-status-label,
+    .demo-region-label,
+    .demo-mesh-status-text { color: var(--online) !important; }
+    .demo-deploy-progress { width: 100% !important; }
+    .demo-mesh-line { stroke-dashoffset: 0 !important; }
+    .demo-phase-fill { width: 100% !important; }
+    .demo-mesh-pulse { opacity: 0 !important; }
+  }
+}
