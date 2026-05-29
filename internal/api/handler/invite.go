@@ -60,7 +60,7 @@ func (h *TeamHandler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send invite email
-	inviteURL := fmt.Sprintf("%s/invites/accept?token=%s", h.config.Email.BaseURL, auth.HashToken(token))
+	inviteURL := fmt.Sprintf("%s/invites/accept/%s", h.config.Email.BaseURL, auth.HashToken(token))
 	subject := "You've been invited to a Nixway team"
 	body := fmt.Sprintf("You've been invited to join a team. Click here to accept: %s", inviteURL)
 	_ = h.email.Send(r.Context(), req.Email, subject, body, body)

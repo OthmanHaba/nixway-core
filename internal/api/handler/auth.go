@@ -100,7 +100,7 @@ func (h *AuthHandler) Signup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	verifyURL := fmt.Sprintf("%s/verify-email?token=%s", h.config.Email.BaseURL, tokenHash)
+	verifyURL := fmt.Sprintf("%s/verify-email/%s", h.config.Email.BaseURL, tokenHash)
 	subject := "Verify your Nixway email"
 	body := fmt.Sprintf("Click here to verify your email: %s", verifyURL)
 	_ = h.email.Send(r.Context(), req.Email, subject, body, body)
@@ -159,6 +159,57 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 	})
 
 	respond.JSON(w, http.StatusOK, map[string]string{"status": "email verified"})
+}
+
+type resendVerificationRequest struct {
+	Email string `json:"email"`
+}
+
+// ResendVerification mints a fresh verification token for an unverified
+// account and emails the link. The response is intentionally constant so
+// callers cannot enumerate which addresses are registered.
+func (h *AuthHandler) ResendVerification(w http.ResponseWriter, r *http.Request) {
+	var req resendVerificationRequest
+	if err := respond.DecodeJSON(r, &req); err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if _, err := mail.ParseAddress(req.Email); err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid email address")
+		return
+	}
+
+	// Always respond with the same payload regardless of outcome so this
+	// endpoint can't be used to probe which emails have accounts.
+	defer respond.JSON(w, http.StatusOK, map[string]string{"status": "verification email sent if account exists"})
+
+	user, err := h.queries.GetUserByEmail(r.Context(), req.Email)
+	if err != nil {
+		return
+	}
+	if user.EmailVerified {
+		return
+	}
+
+	_, tokenHash, err := auth.GenerateAPIToken(32)
+	if err != nil {
+		h.logger.Error("failed to generate verify token", "error", err)
+		return
+	}
+	expires := time.Now().Add(h.config.Auth.VerifyEmailTTL)
+	if err := h.queries.SetEmailVerifyToken(r.Context(), db.SetEmailVerifyTokenParams{
+		ID:                 user.ID,
+		EmailVerifyToken:   &tokenHash,
+		EmailVerifyExpires: pgtype.Timestamptz{Time: expires, Valid: true},
+	}); err != nil {
+		h.logger.Error("failed to update verify token", "error", err)
+		return
+	}
+
+	verifyURL := fmt.Sprintf("%s/verify-email/%s", h.config.Email.BaseURL, tokenHash)
+	subject := "Verify your Nixway email"
+	body := fmt.Sprintf("Click here to verify your email: %s", verifyURL)
+	_ = h.email.Send(r.Context(), user.Email, subject, body, body)
 }
 
 type loginRequest struct {
@@ -293,7 +344,7 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resetURL := fmt.Sprintf("%s/reset-password?token=%s", h.config.Email.BaseURL, tokenHash)
+	resetURL := fmt.Sprintf("%s/reset-password/%s", h.config.Email.BaseURL, tokenHash)
 	subject := "Reset your Nixway password"
 	body := fmt.Sprintf("Click here to reset your password: %s", resetURL)
 	_ = h.email.Send(r.Context(), req.Email, subject, body, body)

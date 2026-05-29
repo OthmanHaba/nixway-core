@@ -28,8 +28,10 @@ export function SignupForm() {
     setLoading(true);
     try {
       await authApi.signup(name, email, password);
-      router.replace("/dashboard");
-      router.refresh();
+      // Account created in an unverified state; send the user to the
+      // "check your inbox" page with the email pre-filled so the
+      // resend button works in one click.
+      router.replace(`/verify-email?email=${encodeURIComponent(email)}`);
     } catch (err) {
       setError(
         err instanceof ApiError

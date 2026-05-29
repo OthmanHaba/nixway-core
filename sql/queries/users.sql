@@ -16,6 +16,10 @@ SELECT * FROM users WHERE email_verify_token = $1 AND email_verify_expires > now
 UPDATE users SET email_verified = true, email_verify_token = NULL, email_verify_expires = NULL, updated_at = now()
 WHERE id = $1;
 
+-- name: SetEmailVerifyToken :exec
+UPDATE users SET email_verify_token = $2, email_verify_expires = $3, updated_at = now()
+WHERE id = $1;
+
 -- name: SetPasswordResetToken :exec
 UPDATE users SET password_reset_token = $2, password_reset_expires = $3, updated_at = now()
 WHERE id = $1;
