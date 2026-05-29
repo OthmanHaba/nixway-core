@@ -10,6 +10,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/minio/minio-go/v7 v7.0.100
 	github.com/redis/go-redis/v9 v9.18.0
+	github.com/resend/resend-go/v3 v3.7.0
 	github.com/riverqueue/river v0.35.0
 	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.35.0
 	github.com/spf13/viper v1.21.0

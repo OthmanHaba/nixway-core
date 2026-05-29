@@ -43,9 +43,16 @@ func main() {
 	queries := db.New(pool)
 
 	var emailSender email.Sender
-	if cfg.Email.Driver == "smtp" {
+	switch cfg.Email.Driver {
+	case "smtp":
 		emailSender = email.NewSMTPSender(cfg.Email.SMTPHost, cfg.Email.SMTPPort, cfg.Email.SMTPUser, cfg.Email.SMTPPass, cfg.Email.From)
-	} else {
+	case "resend":
+		if cfg.Email.APIKey == "" {
+			logger.Error("email driver is resend but NIXWAY_EMAIL_API_KEY is empty")
+			os.Exit(1)
+		}
+		emailSender = email.NewResendSender(cfg.Email.APIKey, cfg.Email.From)
+	default:
 		emailSender = email.NewConsoleSender(logger)
 	}
 

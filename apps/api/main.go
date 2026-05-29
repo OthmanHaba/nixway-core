@@ -82,6 +82,12 @@ func main() {
 			cfg.Email.SMTPPass,
 			cfg.Email.From,
 		)
+	case "resend":
+		if cfg.Email.APIKey == "" {
+			logger.Error("email driver is resend but NIXWAY_EMAIL_API_KEY is empty")
+			os.Exit(1)
+		}
+		emailSender = email.NewResendSender(cfg.Email.APIKey, cfg.Email.From)
 	default:
 		emailSender = email.NewConsoleSender(logger)
 	}

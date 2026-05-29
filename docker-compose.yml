@@ -93,6 +93,7 @@ services:
       NIXWAY_AUTH_SESSION_TTL: ${NIXWAY_AUTH_SESSION_TTL:-24h}
       NIXWAY_EMAIL_DRIVER: ${NIXWAY_EMAIL_DRIVER:-console}
       NIXWAY_EMAIL_FROM: ${NIXWAY_EMAIL_FROM:-noreply@nixway.dev}
+      NIXWAY_EMAIL_API_KEY: ${NIXWAY_EMAIL_API_KEY:-}
       NIXWAY_EMAIL_BASE_URL: ${NIXWAY_EMAIL_BASE_URL:-http://localhost:5173}
       NIXWAY_GITHUB_BASE_URL: ${NIXWAY_GITHUB_BASE_URL:-https://github.com}
       NIXWAY_GITHUB_API_URL: ${NIXWAY_GITHUB_API_URL:-https://api.github.com}
@@ -149,6 +150,7 @@ services:
       NIXWAY_REDIS_URL: ${NIXWAY_REDIS_URL:-redis://redis:6379/0}
       NIXWAY_EMAIL_DRIVER: ${NIXWAY_EMAIL_DRIVER:-console}
       NIXWAY_EMAIL_FROM: ${NIXWAY_EMAIL_FROM:-noreply@nixway.dev}
+      NIXWAY_EMAIL_API_KEY: ${NIXWAY_EMAIL_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
