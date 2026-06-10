@@ -387,3 +387,43 @@ func (q *Queries) UpdateServerStatus(ctx context.Context, arg UpdateServerStatus
 	_, err := q.db.Exec(ctx, updateServerStatus, arg.ID, arg.Status, arg.LastSeenAt)
 	return err
 }
+
+const updateServerInfo = `-- name: UpdateServerInfo :one
+UPDATE servers
+SET name = $3, hostname = $4, public_ip = $5, updated_at = now()
+WHERE id = $1 AND team_id = $2
+RETURNING id, team_id, agent_id, name, hostname, public_ip, ssh_port, ssh_user, os, os_version, arch, status, last_seen_at, created_at, updated_at, cluster_id, role
+`
+
+type UpdateServerInfoParams struct {
+	ID       uuid.UUID  `json:"id"`
+	TeamID   uuid.UUID  `json:"team_id"`
+	Name     string     `json:"name"`
+	Hostname string     `json:"hostname"`
+	PublicIp netip.Addr `json:"public_ip"`
+}
+
+func (q *Queries) UpdateServerInfo(ctx context.Context, arg UpdateServerInfoParams) (Server, error) {
+	row := q.db.QueryRow(ctx, updateServerInfo, arg.ID, arg.TeamID, arg.Name, arg.Hostname, arg.PublicIp)
+	var i Server
+	err := row.Scan(
+		&i.ID,
+		&i.TeamID,
+		&i.AgentID,
+		&i.Name,
+		&i.Hostname,
+		&i.PublicIp,
+		&i.SshPort,
+		&i.SshUser,
+		&i.Os,
+		&i.OsVersion,
+		&i.Arch,
+		&i.Status,
+		&i.LastSeenAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ClusterID,
+		&i.Role,
+	)
+	return i, err
+}

@@ -742,6 +742,67 @@ func TestSSHKeyAuditLogging(t *testing.T) {
 	assert.True(t, actions["ssh_key.delete"], "audit log should contain ssh_key.delete")
 }
 
+// TestServerUpdateInfoAPI verifies updating hostname and public_ip via the API.
+func TestServerUpdateInfoAPI(t *testing.T) {
+	env := SetupTestEnv(t)
+
+	env.SignupAndLogin(env.Client, "srvupdate@example.com", "password123", "SrvUpdate User")
+	teamID := env.CreateTeamAsUser(env.Client, "srvupdate-test-team")
+	teamUUID, err := uuid.Parse(teamID)
+	require.NoError(t, err)
+
+	srv := insertTestServer(t, env, teamUUID)
+	serverID := srv.ID.String()
+
+	// --- Update hostname and public_ip ---
+	resp := env.Put(fmt.Sprintf("/api/v1/teams/%s/servers/%s", teamID, serverID), map[string]string{
+		"hostname":  "new.example.com",
+		"public_ip": "10.0.0.99",
+	})
+	require.Equal(t, http.StatusOK, resp.StatusCode, "update hostname+public_ip should return 200")
+	data := ReadJSONMap(t, resp)
+	assert.Equal(t, "new.example.com", data["hostname"])
+	assert.Equal(t, "10.0.0.99", data["public_ip"])
+	// name should be unchanged
+	assert.Equal(t, "test-server", data["name"])
+
+	// Verify persisted via GET
+	resp = env.Get(fmt.Sprintf("/api/v1/teams/%s/servers/%s", teamID, serverID))
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	get := ReadJSONMap(t, resp)
+	assert.Equal(t, "new.example.com", get["hostname"])
+	assert.Equal(t, "10.0.0.99", get["public_ip"])
+
+	// --- Name-only payload (legacy rename shape) stays backward compatible ---
+	resp = env.Put(fmt.Sprintf("/api/v1/teams/%s/servers/%s", teamID, serverID), map[string]string{
+		"name": "renamed-server",
+	})
+	require.Equal(t, http.StatusOK, resp.StatusCode, "name-only update should return 200")
+	renamed := ReadJSONMap(t, resp)
+	assert.Equal(t, "renamed-server", renamed["name"])
+	assert.Equal(t, "new.example.com", renamed["hostname"], "hostname should be untouched by rename")
+	assert.Equal(t, "10.0.0.99", renamed["public_ip"], "public_ip should be untouched by rename")
+
+	// --- Empty body {} → 400 ---
+	resp = env.Put(fmt.Sprintf("/api/v1/teams/%s/servers/%s", teamID, serverID), map[string]string{})
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "empty body should return 400")
+	resp.Body.Close()
+
+	// --- Hostname with whitespace → 400 ---
+	resp = env.Put(fmt.Sprintf("/api/v1/teams/%s/servers/%s", teamID, serverID), map[string]string{
+		"hostname": "bad host",
+	})
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "hostname with whitespace should return 400")
+	resp.Body.Close()
+
+	// --- Bad public_ip → 400 ---
+	resp = env.Put(fmt.Sprintf("/api/v1/teams/%s/servers/%s", teamID, serverID), map[string]string{
+		"public_ip": "not-an-ip",
+	})
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "invalid public_ip should return 400")
+	resp.Body.Close()
+}
+
 // insertTestServerWithName inserts a server with a custom name and IP.
 func insertTestServerWithName(t *testing.T, env *TestEnv, teamID uuid.UUID, name, ip string) db.Server {
 	t.Helper()

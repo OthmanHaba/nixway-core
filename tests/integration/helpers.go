@@ -162,6 +162,11 @@ func SetupTestEnv(t *testing.T) *TestEnv {
 		"00010_traffic_routing.sql",
 		"00011_observability.sql",
 		"00012_volumes_databases.sql",
+		"00013_database_provision_log.sql",
+		"00014_server_roles.sql",
+		"00015_edge_routing.sql",
+		"00016_provisioning_steps.sql",
+		"00017_deployment_archival.sql",
 	} {
 		raw, err := os.ReadFile("../../sql/migrations/" + fname)
 		require.NoError(t, err, "read migration %s", fname)
@@ -235,7 +240,7 @@ func SetupTestEnv(t *testing.T) *TestEnv {
 	projectSvc := project.NewService(queries, logger)
 	appService := appsvc.NewService(queries, logger)
 	buildSvc := build.NewService(queries, redisClient, connMgr, githubService, masterKey, logger)
-	deploySvc := deploy.NewService(queries, redisClient, connMgr, secretSvc, logger)
+	deploySvc := deploy.NewService(queries, redisClient, connMgr, secretSvc, masterKey, logger)
 
 	// --- Create API router and test server ---
 	// Use TLS server so that Secure cookies are preserved by the cookie jar.

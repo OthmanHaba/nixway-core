@@ -42,3 +42,6 @@ UPDATE servers SET cluster_id = $2 WHERE id = $1;
 
 -- name: ClearServerClusterID :exec
 UPDATE servers SET cluster_id = NULL WHERE id = $1;
+
+-- name: UpdateClusterMemberEndpoint :exec
+UPDATE cluster_members SET wireguard_endpoint = $2 WHERE server_id = $1;
