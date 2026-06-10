@@ -39,6 +39,12 @@ SET role = $3, updated_at = now()
 WHERE id = $1 AND team_id = $2
 RETURNING *;
 
+-- name: UpdateServerInfo :one
+UPDATE servers
+SET name = $3, hostname = $4, public_ip = $5, updated_at = now()
+WHERE id = $1 AND team_id = $2
+RETURNING *;
+
 -- name: ListEdgeServersByCluster :many
 SELECT * FROM servers
 WHERE cluster_id = $1 AND role IN ('edge', 'both')
