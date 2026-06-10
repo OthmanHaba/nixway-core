@@ -303,3 +303,17 @@ func (q *Queries) UpdateServerClusterID(ctx context.Context, arg UpdateServerClu
 	_, err := q.db.Exec(ctx, updateServerClusterID, arg.ID, arg.ClusterID)
 	return err
 }
+
+const updateClusterMemberEndpoint = `-- name: UpdateClusterMemberEndpoint :exec
+UPDATE cluster_members SET wireguard_endpoint = $2 WHERE server_id = $1
+`
+
+type UpdateClusterMemberEndpointParams struct {
+	ServerID          uuid.UUID `json:"server_id"`
+	WireguardEndpoint string    `json:"wireguard_endpoint"`
+}
+
+func (q *Queries) UpdateClusterMemberEndpoint(ctx context.Context, arg UpdateClusterMemberEndpointParams) error {
+	_, err := q.db.Exec(ctx, updateClusterMemberEndpoint, arg.ServerID, arg.WireguardEndpoint)
+	return err
+}

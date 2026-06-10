@@ -238,8 +238,8 @@ export const serversApi = {
   list:    (teamId: string)                            => api.get<Server[]>(`/teams/${teamId}/servers`),
   get:     (teamId: string, serverId: string)          => api.get<ServerDetail>(`/teams/${teamId}/servers/${serverId}`),
   create:  (teamId: string, input: CreateServerInput)  => api.post<Server>(`/teams/${teamId}/servers`, input),
-  rename:  (teamId: string, serverId: string, name: string) =>
-    api.put<Server>(`/teams/${teamId}/servers/${serverId}`, { name }),
+  update:  (teamId: string, serverId: string, input: { name?: string; hostname?: string; public_ip?: string }) =>
+    api.put<Server>(`/teams/${teamId}/servers/${serverId}`, input),
   setRole: (teamId: string, serverId: string, role: ServerRole) =>
     api.put<Server>(`/teams/${teamId}/servers/${serverId}/role`, { role }),
   remove:  (teamId: string, serverId: string)          => api.delete<void>(`/teams/${teamId}/servers/${serverId}`),

@@ -66,7 +66,7 @@ func NewRouter(
 	tokenH := handler.NewTokenHandler(queries, auditWriter, cfg, logger)
 	auditH := handler.NewAuditLogHandler(queries, logger)
 	sshKeyH := handler.NewSSHKeyHandler(queries, auditWriter, logger, masterKey)
-	serverH := handler.NewServerHandler(queries, auditWriter, onboardingSvc, connMgr, redisClient, logger)
+	serverH := handler.NewServerHandler(queries, auditWriter, onboardingSvc, connMgr, redisClient, meshMgr, logger)
 	tagH := handler.NewTagHandler(queries, logger)
 	provisionH := handler.NewProvisionHandler(queries, redisClient, auditWriter, provisionSvc, logger)
 	discoverH := handler.NewDiscoveryHandler(logger)

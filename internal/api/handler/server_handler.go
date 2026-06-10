@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -14,6 +17,7 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/api/respond"
 	"github.com/othmanhaba/nixway-core/internal/audit"
 	"github.com/othmanhaba/nixway-core/internal/db"
+	"github.com/othmanhaba/nixway-core/internal/mesh"
 	"github.com/othmanhaba/nixway-core/internal/model"
 	"github.com/othmanhaba/nixway-core/internal/server"
 	"github.com/redis/go-redis/v9"
@@ -25,16 +29,18 @@ type ServerHandler struct {
 	onboarding *server.OnboardingService
 	connMgr    *agent.ConnManager
 	redis      *redis.Client
+	meshMgr    *mesh.Manager
 	logger     *slog.Logger
 }
 
-func NewServerHandler(queries *db.Queries, auditWriter *audit.Writer, onboarding *server.OnboardingService, connMgr *agent.ConnManager, redisClient *redis.Client, logger *slog.Logger) *ServerHandler {
+func NewServerHandler(queries *db.Queries, auditWriter *audit.Writer, onboarding *server.OnboardingService, connMgr *agent.ConnManager, redisClient *redis.Client, meshMgr *mesh.Manager, logger *slog.Logger) *ServerHandler {
 	return &ServerHandler{
 		queries:    queries,
 		audit:      auditWriter,
 		onboarding: onboarding,
 		connMgr:    connMgr,
 		redis:      redisClient,
+		meshMgr:    meshMgr,
 		logger:     logger,
 	}
 }
@@ -272,7 +278,9 @@ func (h *ServerHandler) Metrics(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateServerRequest struct {
-	Name string `json:"name"`
+	Name     *string `json:"name"`
+	Hostname *string `json:"hostname"`
+	PublicIP *string `json:"public_ip"`
 }
 
 func (h *ServerHandler) Update(w http.ResponseWriter, r *http.Request) {
@@ -303,19 +311,99 @@ func (h *ServerHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Name == "" {
-		respond.Error(w, http.StatusBadRequest, "name is required")
+	if req.Name == nil && req.Hostname == nil && req.PublicIP == nil {
+		respond.Error(w, http.StatusBadRequest, "at least one field (name, hostname, public_ip) is required")
 		return
 	}
 
-	srv, err := h.queries.UpdateServerName(r.Context(), db.UpdateServerNameParams{
+	// Load current server to resolve final values and detect changes.
+	current, err := h.queries.GetServerByID(r.Context(), db.GetServerByIDParams{
 		ID:     serverID,
 		TeamID: teamID,
-		Name:   req.Name,
 	})
 	if err != nil {
 		respond.Error(w, http.StatusNotFound, "server not found")
 		return
+	}
+
+	// Resolve final values (default to current).
+	finalName := current.Name
+	finalHostname := current.Hostname
+	finalIP := current.PublicIp
+
+	if req.Name != nil {
+		if *req.Name == "" {
+			respond.Error(w, http.StatusBadRequest, "name must not be empty")
+			return
+		}
+		finalName = *req.Name
+	}
+	if req.Hostname != nil {
+		if *req.Hostname == "" {
+			respond.Error(w, http.StatusBadRequest, "hostname must not be empty")
+			return
+		}
+		if strings.ContainsAny(*req.Hostname, " \t\n\r") {
+			respond.Error(w, http.StatusBadRequest, "hostname must not contain whitespace")
+			return
+		}
+		finalHostname = *req.Hostname
+	}
+	if req.PublicIP != nil {
+		parsed, parseErr := netip.ParseAddr(*req.PublicIP)
+		if parseErr != nil {
+			respond.Error(w, http.StatusBadRequest, "public_ip is not a valid IP address")
+			return
+		}
+		finalIP = parsed
+	}
+
+	srv, err := h.queries.UpdateServerInfo(r.Context(), db.UpdateServerInfoParams{
+		ID:       serverID,
+		TeamID:   teamID,
+		Name:     finalName,
+		Hostname: finalHostname,
+		PublicIp: finalIP,
+	})
+	if err != nil {
+		respond.Error(w, http.StatusNotFound, "server not found")
+		return
+	}
+
+	// If IP changed and server belongs to a cluster, update the mesh endpoint.
+	if req.PublicIP != nil && finalIP != current.PublicIp && current.ClusterID.Valid {
+		clusterID := current.ClusterID.Bytes
+		newEndpoint := fmt.Sprintf("%s:51820", finalIP.String())
+		if endpointErr := h.queries.UpdateClusterMemberEndpoint(r.Context(), db.UpdateClusterMemberEndpointParams{
+			ServerID:          serverID,
+			WireguardEndpoint: newEndpoint,
+		}); endpointErr != nil {
+			// Don't regenerate the mesh on failure: it would push the stale
+			// endpoint from cluster_members to every peer.
+			h.logger.Error("failed to update cluster member endpoint", "error", endpointErr)
+		} else if h.meshMgr != nil {
+			go func() {
+				bgCtx := context.Background()
+				if err := h.meshMgr.RegenerateMesh(bgCtx, clusterID); err != nil {
+					h.logger.Error("failed to regenerate mesh after ip update", "error", err)
+				}
+			}()
+		}
+	}
+
+	// Build audit metadata with only changed fields.
+	auditMeta := map[string]string{}
+	if req.Name != nil && finalName != current.Name {
+		auditMeta["old_name"] = current.Name
+		auditMeta["name"] = finalName
+	}
+	if req.Hostname != nil && finalHostname != current.Hostname {
+		auditMeta["old_hostname"] = current.Hostname
+		auditMeta["hostname"] = finalHostname
+	}
+	if req.PublicIP != nil && finalIP != current.PublicIp {
+		auditMeta["old_public_ip"] = current.PublicIp.String()
+		auditMeta["public_ip"] = finalIP.String()
 	}
 
 	ip := parseIP(r)
@@ -327,7 +415,7 @@ func (h *ServerHandler) Update(w http.ResponseWriter, r *http.Request) {
 		ResourceType: "server",
 		ResourceID:   &serverID,
 		IPAddress:    ip,
-		Metadata:     map[string]string{"name": req.Name},
+		Metadata:     auditMeta,
 	})
 
 	respond.JSON(w, http.StatusOK, srv)
