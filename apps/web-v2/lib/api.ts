@@ -23,6 +23,7 @@ import type {
   MeshPeer,
   Project,
   Environment,
+  AppEnvVar,
   App,
   Build,
   Deployment,
@@ -554,6 +555,29 @@ export const secretsApi = {
   reveal: (teamId: string, secretId: string)             =>
     api.post<{ value: string }>(`/teams/${teamId}/secrets/${secretId}/reveal`),
   remove: (teamId: string, secretId: string)             => api.delete<void>(`/teams/${teamId}/secrets/${secretId}`),
+};
+
+/* ─── App-level environment variables ─── */
+
+export interface CreateAppEnvVarInput {
+  environment: string;
+  key: string;
+  value: string;
+}
+
+export const appEnvVarsApi = {
+  list:   (appId: string, environment: string) =>
+    api.get<AppEnvVar[]>(`/apps/${appId}/env-vars?environment=${encodeURIComponent(environment)}`),
+  create: (appId: string, input: CreateAppEnvVarInput) =>
+    api.post<AppEnvVar>(`/apps/${appId}/env-vars`, input),
+  /** Replace the value of an existing variable. */
+  update: (appId: string, varId: string, value: string) =>
+    api.put<AppEnvVar>(`/apps/${appId}/env-vars/${varId}`, { value }),
+  /** Decrypt and return the current value (repeatable, unlike secrets). */
+  reveal: (appId: string, varId: string) =>
+    api.post<{ value: string }>(`/apps/${appId}/env-vars/${varId}/reveal`),
+  remove: (appId: string, varId: string) =>
+    api.delete<void>(`/apps/${appId}/env-vars/${varId}`),
 };
 
 /* ─── Service templates (databases/caches/queues catalog) ─── */

@@ -8,10 +8,27 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	agentv1 "github.com/othmanhaba/nixway-core/internal/agent/proto/agent/v1"
 )
+
+// envFlagArgs returns repeated `<flag> KEY=VALUE` pairs for each build arg,
+// sorted by key for deterministic command lines. Used to pass build-time env
+// to the builders that read it via an env flag (nixpacks/pack/railpack).
+func envFlagArgs(flag string, env map[string]string) []string {
+	keys := make([]string, 0, len(env))
+	for k := range env {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	args := make([]string, 0, len(env)*2)
+	for _, k := range keys {
+		args = append(args, flag, fmt.Sprintf("%s=%s", k, env[k]))
+	}
+	return args
+}
 
 const buildBaseDir = "/var/nixway/builds"
 
@@ -95,20 +112,28 @@ func HandleBuildCommand(ctx context.Context, cmd *agentv1.BuildCommand, stream a
 			dockerfilePath = "Dockerfile"
 		}
 		args := []string{"build", "-t", cmd.ImageTag, "-f", dockerfilePath}
-		for k, v := range cmd.BuildArgs {
-			args = append(args, "--build-arg", fmt.Sprintf("%s=%s", k, v))
-		}
+		// Docker consumes build-time env via --build-arg (the Dockerfile must
+		// declare a matching ARG to use it).
+		args = append(args, envFlagArgs("--build-arg", cmd.BuildArgs)...)
 		args = append(args, ".")
 		buildCmd = exec.CommandContext(ctx, "docker", args...)
 	case "nixpacks":
-		buildCmd = exec.CommandContext(ctx, "nixpacks", "build", ".", "--name", cmd.ImageTag)
+		args := []string{"build", ".", "--name", cmd.ImageTag}
+		args = append(args, envFlagArgs("--env", cmd.BuildArgs)...)
+		buildCmd = exec.CommandContext(ctx, "nixpacks", args...)
 	case "buildpacks":
-		buildCmd = exec.CommandContext(ctx, "pack", "build", cmd.ImageTag, "--builder", "heroku/builder:24")
+		args := []string{"build", cmd.ImageTag, "--builder", "heroku/builder:24"}
+		args = append(args, envFlagArgs("--env", cmd.BuildArgs)...)
+		buildCmd = exec.CommandContext(ctx, "pack", args...)
 	case "railpack":
-		buildCmd = exec.CommandContext(ctx, "railpack", "build", "--tag", cmd.ImageTag)
+		args := []string{"build", "--tag", cmd.ImageTag}
+		args = append(args, envFlagArgs("--env", cmd.BuildArgs)...)
+		buildCmd = exec.CommandContext(ctx, "railpack", args...)
 	default:
 		// Fallback to nixpacks
-		buildCmd = exec.CommandContext(ctx, "nixpacks", "build", ".", "--name", cmd.ImageTag)
+		args := []string{"build", ".", "--name", cmd.ImageTag}
+		args = append(args, envFlagArgs("--env", cmd.BuildArgs)...)
+		buildCmd = exec.CommandContext(ctx, "nixpacks", args...)
 	}
 	buildCmd.Dir = workDir
 

@@ -107,6 +107,18 @@ type App struct {
 	PinnedServerIds      []uuid.UUID `json:"pinned_server_ids"`
 }
 
+type AppEnvVar struct {
+	ID             uuid.UUID   `json:"id"`
+	AppID          uuid.UUID   `json:"app_id"`
+	EnvironmentID  uuid.UUID   `json:"environment_id"`
+	Key            string      `json:"key"`
+	EncryptedValue []byte      `json:"encrypted_value"`
+	CreatedBy      pgtype.UUID `json:"created_by"`
+	UpdatedBy      pgtype.UUID `json:"updated_by"`
+	CreatedAt      time.Time   `json:"created_at"`
+	UpdatedAt      time.Time   `json:"updated_at"`
+}
+
 type AuditLog struct {
 	ID           uuid.UUID       `json:"id"`
 	TeamID       pgtype.UUID     `json:"team_id"`
@@ -197,30 +209,30 @@ type ContainerLog struct {
 }
 
 type Database struct {
-	ID                    uuid.UUID   `json:"id"`
-	TeamID                uuid.UUID   `json:"team_id"`
-	ProjectID             uuid.UUID   `json:"project_id"`
-	ClusterID             uuid.UUID   `json:"cluster_id"`
-	ServerID              uuid.UUID   `json:"server_id"`
-	VolumeID              pgtype.UUID `json:"volume_id"`
-	TemplateSlug          string      `json:"template_slug"`
-	Version               string      `json:"version"`
-	Name                  string      `json:"name"`
-	ContainerName         string      `json:"container_name"`
-	Status                string      `json:"status"`
-	Port                  int32       `json:"port"`
-	DnsRecord             *string     `json:"dns_record"`
-	SuperuserSecretID     pgtype.UUID `json:"superuser_secret_id"`
-	AppuserSecretID       pgtype.UUID `json:"appuser_secret_id"`
-	ResourceCpuMillicores int32       `json:"resource_cpu_millicores"`
-	ResourceMemoryMb      int32       `json:"resource_memory_mb"`
-	BackupSchedule        *string     `json:"backup_schedule"`
-	BackupRetentionDays   *int32      `json:"backup_retention_days"`
-	BackupStorageType     *string     `json:"backup_storage_type"`
+	ID                    uuid.UUID       `json:"id"`
+	TeamID                uuid.UUID       `json:"team_id"`
+	ProjectID             uuid.UUID       `json:"project_id"`
+	ClusterID             uuid.UUID       `json:"cluster_id"`
+	ServerID              uuid.UUID       `json:"server_id"`
+	VolumeID              pgtype.UUID     `json:"volume_id"`
+	TemplateSlug          string          `json:"template_slug"`
+	Version               string          `json:"version"`
+	Name                  string          `json:"name"`
+	ContainerName         string          `json:"container_name"`
+	Status                string          `json:"status"`
+	Port                  int32           `json:"port"`
+	DnsRecord             *string         `json:"dns_record"`
+	SuperuserSecretID     pgtype.UUID     `json:"superuser_secret_id"`
+	AppuserSecretID       pgtype.UUID     `json:"appuser_secret_id"`
+	ResourceCpuMillicores int32           `json:"resource_cpu_millicores"`
+	ResourceMemoryMb      int32           `json:"resource_memory_mb"`
+	BackupSchedule        *string         `json:"backup_schedule"`
+	BackupRetentionDays   *int32          `json:"backup_retention_days"`
+	BackupStorageType     *string         `json:"backup_storage_type"`
 	ProvisionLog          json.RawMessage `json:"provision_log"`
 	ErrorMessage          *string         `json:"error_message"`
-	CreatedAt             time.Time   `json:"created_at"`
-	UpdatedAt             time.Time   `json:"updated_at"`
+	CreatedAt             time.Time       `json:"created_at"`
+	UpdatedAt             time.Time       `json:"updated_at"`
 }
 
 type DatabaseBackup struct {

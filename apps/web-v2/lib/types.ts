@@ -299,6 +299,19 @@ export interface Environment {
   created_at: string;
 }
 
+/**
+ * App-level environment variable, scoped to a single (app, environment).
+ * Values are encrypted at rest and never returned by list — use reveal.
+ */
+export interface AppEnvVar {
+  id: string;
+  app_id: string;
+  environment_id: string;
+  key: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export type AppSourceType = "github" | "docker_image" | string;
 export type AppStatus = "active" | "paused" | "error" | "building" | "deploying" | string;
 

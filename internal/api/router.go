@@ -11,6 +11,7 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/api/middleware"
 	"github.com/othmanhaba/nixway-core/internal/api/respond"
 	"github.com/othmanhaba/nixway-core/internal/app"
+	"github.com/othmanhaba/nixway-core/internal/appenv"
 	"github.com/othmanhaba/nixway-core/internal/audit"
 	"github.com/othmanhaba/nixway-core/internal/auth"
 	"github.com/othmanhaba/nixway-core/internal/build"
@@ -79,6 +80,7 @@ func NewRouter(
 	secretH := handler.NewSecretHandler(queries, auditWriter, secretSvc, logger)
 	projectH := handler.NewProjectHandler(queries, auditWriter, projectSvc, logger)
 	appH := handler.NewAppHandler(queries, auditWriter, appSvc, logger)
+	appEnvVarH := handler.NewAppEnvVarHandler(queries, appenv.NewService(queries, masterKey, logger), deploySvc, auditWriter, logger)
 	buildH := handler.NewBuildHandler(queries, buildSvc, redisClient, logger)
 	deployH := handler.NewDeployHandler(queries, deploySvc, connMgr, redisClient, containerLogSvc, logger)
 	containerTermH := handler.NewContainerTerminalHandler(queries, connMgr, redisClient, logger)
@@ -229,6 +231,13 @@ func NewRouter(
 	protected.HandleFunc("GET /api/v1/projects/{projectId}/apps/{appId}", appH.Get)
 	protected.HandleFunc("PUT /api/v1/projects/{projectId}/apps/{appId}", appH.Update)
 	protected.HandleFunc("DELETE /api/v1/projects/{projectId}/apps/{appId}", appH.Delete)
+
+	// App-level environment variables (configurable .env per app + environment)
+	protected.HandleFunc("GET /api/v1/apps/{appId}/env-vars", appEnvVarH.List)
+	protected.HandleFunc("POST /api/v1/apps/{appId}/env-vars", appEnvVarH.Create)
+	protected.HandleFunc("POST /api/v1/apps/{appId}/env-vars/{varId}/reveal", appEnvVarH.Reveal)
+	protected.HandleFunc("PUT /api/v1/apps/{appId}/env-vars/{varId}", appEnvVarH.Update)
+	protected.HandleFunc("DELETE /api/v1/apps/{appId}/env-vars/{varId}", appEnvVarH.Delete)
 
 	// App (direct by ID, no projectId needed)
 	protected.HandleFunc("GET /api/v1/apps/{appId}", appH.GetDirect)

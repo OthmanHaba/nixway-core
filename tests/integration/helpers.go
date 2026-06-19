@@ -19,6 +19,7 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/agent"
 	"github.com/othmanhaba/nixway-core/internal/api"
 	appsvc "github.com/othmanhaba/nixway-core/internal/app"
+	"github.com/othmanhaba/nixway-core/internal/appenv"
 	"github.com/othmanhaba/nixway-core/internal/audit"
 	"github.com/othmanhaba/nixway-core/internal/auth"
 	"github.com/othmanhaba/nixway-core/internal/build"
@@ -62,6 +63,7 @@ type TestEnv struct {
 	Config      *config.Config
 	MasterKey   [32]byte
 	DatabaseSvc *database.Service
+	BuildSvc    *build.Service
 	transport   http.RoundTripper // TLS transport that trusts the test server cert
 }
 
@@ -167,6 +169,7 @@ func SetupTestEnv(t *testing.T) *TestEnv {
 		"00015_edge_routing.sql",
 		"00016_provisioning_steps.sql",
 		"00017_deployment_archival.sql",
+		"00018_app_env_vars.sql",
 	} {
 		raw, err := os.ReadFile("../../sql/migrations/" + fname)
 		require.NoError(t, err, "read migration %s", fname)
@@ -241,6 +244,7 @@ func SetupTestEnv(t *testing.T) *TestEnv {
 	appService := appsvc.NewService(queries, logger)
 	buildSvc := build.NewService(queries, redisClient, connMgr, githubService, masterKey, logger)
 	deploySvc := deploy.NewService(queries, redisClient, connMgr, secretSvc, masterKey, logger)
+	deploySvc.SetAppEnvResolver(appenv.NewService(queries, masterKey, logger))
 
 	// --- Create API router and test server ---
 	// Use TLS server so that Secure cookies are preserved by the cookie jar.
@@ -288,6 +292,7 @@ func SetupTestEnv(t *testing.T) *TestEnv {
 		Config:      cfg,
 		MasterKey:   masterKey,
 		DatabaseSvc: databaseSvc,
+		BuildSvc:    buildSvc,
 		transport:   transport,
 	}
 }
