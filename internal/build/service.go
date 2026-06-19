@@ -10,10 +10,12 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/othmanhaba/nixway-core/internal/agent"
 	agentv1 "github.com/othmanhaba/nixway-core/internal/agent/proto/agent/v1"
+	"github.com/othmanhaba/nixway-core/internal/appenv"
 	"github.com/othmanhaba/nixway-core/internal/crypto"
 	"github.com/othmanhaba/nixway-core/internal/db"
 	githubsvc "github.com/othmanhaba/nixway-core/internal/github"
 	"github.com/othmanhaba/nixway-core/internal/registry"
+	"github.com/othmanhaba/nixway-core/internal/secret"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -81,6 +83,46 @@ func (s *Service) TriggerBuild(ctx context.Context, appID, envID uuid.UUID, trig
 	go s.dispatchBuild(context.Background(), b, app)
 
 	return b, nil
+}
+
+// ResolveBuildEnv builds the env map injected at build time: team secrets for
+// the environment, overlaid by app-level env vars (app vars win, matching the
+// deploy-time precedence). Best-effort — a failure in any source logs and is
+// skipped rather than failing the build. Platform/DB-link vars are deploy-time
+// only and intentionally excluded here. Exported so the merge precedence can be
+// covered by integration tests.
+func (s *Service) ResolveBuildEnv(ctx context.Context, app db.App, envID, teamID uuid.UUID) map[string]string {
+	env := map[string]string{}
+
+	envRow, err := s.queries.GetEnvironment(ctx, envID)
+	if err != nil {
+		s.logger.Warn("build env: get environment failed; building without env", "app_id", app.ID, "error", err)
+		return env
+	}
+
+	// Team secrets for this environment.
+	secretSvc := secret.NewService(s.queries, s.masterKey, s.logger)
+	if secrets, err := secretSvc.List(ctx, teamID, envRow.Slug); err == nil && len(secrets) > 0 {
+		keys := make([]string, len(secrets))
+		for i, sec := range secrets {
+			keys[i] = sec.Key
+		}
+		if resolved, err := secretSvc.BulkResolve(ctx, teamID, envRow.Slug, keys, nil, "system"); err == nil {
+			env = resolved
+		}
+	}
+
+	// App-level env vars override matching secrets.
+	appEnvSvc := appenv.NewService(s.queries, s.masterKey, s.logger)
+	if appEnv, err := appEnvSvc.ResolveForDeploy(ctx, app.ID, envID); err == nil {
+		for k, v := range appEnv {
+			env[k] = v
+		}
+	} else {
+		s.logger.Warn("build env: resolve app env vars failed", "app_id", app.ID, "error", err)
+	}
+
+	return env
 }
 
 // dispatchBuild sends the BuildCommand to an available agent in the cluster.
@@ -156,6 +198,14 @@ func (s *Service) dispatchBuild(ctx context.Context, b db.Build, app db.App) {
 		imageTag = fmt.Sprintf("%s:%s", app.Slug, buildID[:8])
 	}
 
+	// Resolve build-time env: team secrets overlaid by app-level env vars, scoped
+	// to this build's environment. Passed as build args so values needed AT BUILD
+	// (e.g. NEXT_PUBLIC_*/VITE_* baked into bundles, private install tokens) are
+	// available. Builds are per-environment, so each environment bakes its own
+	// values. NOTE: build args are visible in image history — this is the
+	// accepted trade-off for build-time secrets.
+	buildEnv := s.ResolveBuildEnv(ctx, app, b.EnvironmentID, project.TeamID)
+
 	// Build the command
 	cmd := &agentv1.BuildCommand{
 		BuildId:        buildID,
@@ -166,6 +216,7 @@ func (s *Service) dispatchBuild(ctx context.Context, b db.Build, app db.App) {
 		Branch:         b.Branch,
 		RootPath:       app.RootPath,
 		Registry:       registryAuth,
+		BuildArgs:      buildEnv,
 	}
 
 	// Resolve repo URL and auth token for GitHub source

@@ -15,6 +15,7 @@ import (
 	agentv1 "github.com/othmanhaba/nixway-core/internal/agent/proto/agent/v1"
 	"github.com/othmanhaba/nixway-core/internal/api"
 	appsvc "github.com/othmanhaba/nixway-core/internal/app"
+	"github.com/othmanhaba/nixway-core/internal/appenv"
 	"github.com/othmanhaba/nixway-core/internal/audit"
 	"github.com/othmanhaba/nixway-core/internal/auth"
 	"github.com/othmanhaba/nixway-core/internal/build"
@@ -169,6 +170,7 @@ func main() {
 	appService := appsvc.NewService(queries, logger)
 	buildSvc := build.NewService(queries, redisClient, connMgr, githubService, masterKey, logger)
 	deploySvc := deploy.NewService(queries, redisClient, connMgr, secretSvc, masterKey, logger)
+	deploySvc.SetAppEnvResolver(appenv.NewService(queries, masterKey, logger))
 	deploySvc.StartAutoscalerLoop(ctx)
 	containerLogSvc := containerlog.NewService(queries, logger)
 	containerLogSvc.StartRetentionLoop(ctx, 7)

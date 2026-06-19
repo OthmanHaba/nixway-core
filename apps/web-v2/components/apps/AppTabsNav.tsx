@@ -15,6 +15,7 @@ export function AppTabsNav({ appId }: { appId: string }) {
     { href: `/apps/${appId}/scale`,       label: "Scale" },
     { href: `/apps/${appId}/autoscaling`, label: "Autoscale" },
     { href: `/apps/${appId}/resources`,   label: "Resources" },
+    { href: `/apps/${appId}/variables`,   label: "Variables" },
     { href: `/apps/${appId}/domains`,     label: "Domains" },
     { href: `/apps/${appId}/settings`,    label: "Settings" },
   ];

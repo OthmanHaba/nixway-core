@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/othmanhaba/nixway-core/internal/agent"
 	agentv1 "github.com/othmanhaba/nixway-core/internal/agent/proto/agent/v1"
+	"github.com/othmanhaba/nixway-core/internal/appenv"
 	"github.com/othmanhaba/nixway-core/internal/db"
 	"github.com/othmanhaba/nixway-core/internal/registry"
 	"github.com/othmanhaba/nixway-core/internal/scheduler"
@@ -31,6 +32,7 @@ type Service struct {
 	redis     *redis.Client
 	connMgr   *agent.ConnManager
 	secretSvc *secret.Service
+	appEnvSvc *appenv.Service
 	resolver  *registry.Resolver
 	dbLinks   DatabaseLinkResolver
 	logger    *slog.Logger
@@ -99,6 +101,13 @@ func (s *Service) SetDatabaseLinkResolver(r DatabaseLinkResolver) {
 	s.dbLinks = r
 }
 
+// SetAppEnvResolver wires the app-level env-var injector. Safe to leave nil; if
+// nil, deploys get no app-level env vars (only team secrets, DB links, and
+// platform-reserved vars).
+func (s *Service) SetAppEnvResolver(svc *appenv.Service) {
+	s.appEnvSvc = svc
+}
+
 // RedeployAppLatest triggers a fresh deploy of an app using its last-healthy
 // build into its production environment. Used by database.Service after a
 // link/unlink/rotation so apps pick up the new env. Returns a permission-style
@@ -113,6 +122,21 @@ func (s *Service) RedeployAppLatest(ctx context.Context, appID uuid.UUID) (db.De
 	if err != nil {
 		return db.Deployment{}, err
 	}
+	lastHealthy, err := s.queries.GetLastHealthyDeployment(ctx, db.GetLastHealthyDeploymentParams{
+		AppID:         appID,
+		EnvironmentID: envID,
+	})
+	if err != nil {
+		return db.Deployment{}, fmt.Errorf("no healthy deployment to redeploy: %w", err)
+	}
+	return s.TriggerDeploy(ctx, appID, envID, lastHealthy.BuildID, nil)
+}
+
+// RedeployAppEnv re-rolls an app into a specific environment using its
+// last-healthy build there. Used after an app env-var change so the new config
+// takes effect. Returns an error when the environment has no healthy deployment
+// yet (the change will apply on the next manual deploy instead).
+func (s *Service) RedeployAppEnv(ctx context.Context, appID, envID uuid.UUID) (db.Deployment, error) {
 	lastHealthy, err := s.queries.GetLastHealthyDeployment(ctx, db.GetLastHealthyDeploymentParams{
 		AppID:         appID,
 		EnvironmentID: envID,
@@ -223,6 +247,18 @@ func (s *Service) TriggerDeploy(ctx context.Context, appID, envID, buildID uuid.
 			resolved, err := s.secretSvc.BulkResolve(ctx, project.TeamID, env.Slug, keys, nil, "system")
 			if err == nil {
 				envVars = resolved
+			}
+		}
+	}
+	// Merge app-level env vars on top of team secrets. App vars OVERRIDE a
+	// matching team secret so a single app can override a shared team default.
+	if s.appEnvSvc != nil {
+		appEnv, err := s.appEnvSvc.ResolveForDeploy(ctx, appID, envID)
+		if err != nil {
+			s.logger.Warn("resolve app env vars failed; deploying without app env", "app_id", appID, "error", err)
+		} else {
+			for k, v := range appEnv {
+				envVars[k] = v
 			}
 		}
 	}
