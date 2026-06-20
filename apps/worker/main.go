@@ -12,6 +12,7 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/db"
 	"github.com/othmanhaba/nixway-core/internal/email"
 	"github.com/othmanhaba/nixway-core/internal/job"
+	"github.com/othmanhaba/nixway-core/internal/metrics"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 	"github.com/riverqueue/river/rivermigrate"
 )
@@ -27,6 +28,16 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	// Expose Prometheus metrics (+ /healthz) for the control-plane scraper.
+	// The worker has no HTTP listener of its own, so run a tiny one. Port is
+	// overridable via NIXWAY_WORKER_METRICS_ADDR (default :8090).
+	metricsAddr := os.Getenv("NIXWAY_WORKER_METRICS_ADDR")
+	if metricsAddr == "" {
+		metricsAddr = ":8090"
+	}
+	metricsSrv := metrics.StartServer(metricsAddr, logger)
+	defer metrics.Shutdown(context.Background(), metricsSrv)
 
 	pool, err := db.NewPool(ctx, cfg.Database.URL)
 	if err != nil {

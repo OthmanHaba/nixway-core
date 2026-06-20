@@ -111,6 +111,15 @@ traefik_email="${NIXWAY_TRAEFIK_ACME_EMAIL:-$(default_value NIXWAY_TRAEFIK_ACME_
 traefik_log_level="${NIXWAY_TRAEFIK_LOG_LEVEL:-$(default_value NIXWAY_TRAEFIK_LOG_LEVEL INFO)}"
 traefik_access_log="${NIXWAY_TRAEFIK_ACCESS_LOG:-$(default_value NIXWAY_TRAEFIK_ACCESS_LOG false)}"
 
+# Control-plane observability (Grafana + Loki + Alloy + exporters). Opt-in:
+# set NIXWAY_OBSERVABILITY_ENABLED=true. Grafana is served at NIXWAY_GRAFANA_DOMAIN
+# (default grafana.<console-domain>) behind Traefik.
+observability_enabled="${NIXWAY_OBSERVABILITY_ENABLED:-$(default_value NIXWAY_OBSERVABILITY_ENABLED false)}"
+grafana_domain="${NIXWAY_GRAFANA_DOMAIN:-$(default_value NIXWAY_GRAFANA_DOMAIN "")}"
+if [[ -z "${grafana_domain}" && -n "${public_domain}" ]]; then
+  grafana_domain="grafana.${public_domain}"
+fi
+
 # Fall back to admin@<console-domain> or admin@<marketing-domain> for
 # Let's Encrypt registration if no explicit ACME email was provided.
 if [[ -z "${traefik_email}" ]]; then
@@ -149,8 +158,15 @@ else
 fi
 
 compose() {
+  local profiles=()
   if [[ -n "${public_domain}" || -n "${marketing_domain}" ]]; then
-    COMPOSE_PROFILES=traefik docker compose "$@"
+    profiles+=("traefik")
+  fi
+  if [[ "${observability_enabled}" == "true" ]]; then
+    profiles+=("observability")
+  fi
+  if [[ ${#profiles[@]} -gt 0 ]]; then
+    COMPOSE_PROFILES="$(IFS=,; echo "${profiles[*]}")" docker compose "$@"
   else
     docker compose "$@"
   fi
@@ -186,6 +202,8 @@ upsert_env NIXWAY_EMAIL_BASE_URL "${email_base_url}"
 upsert_env NIXWAY_OBSERVABILITY_VICTORIA_METRICS_URL "http://victoria-metrics:8428"
 upsert_env NIXWAY_OBSERVABILITY_VMAGENT_URL "http://vmagent:8429"
 upsert_env NIXWAY_OBSERVABILITY_VMAGENT_CONFIG_PATH "/etc/vmagent/prometheus.yml"
+upsert_env NIXWAY_OBSERVABILITY_ENABLED "${observability_enabled}"
+upsert_env NIXWAY_GRAFANA_DOMAIN "${grafana_domain}"
 upsert_env NIXWAY_PLATFORMSTORAGE_ENDPOINT "http://minio:9000"
 upsert_env NIXWAY_PLATFORMSTORAGE_BUCKET "nixway-backups"
 upsert_env NIXWAY_PLATFORMSTORAGE_REGION "us-east-1"
@@ -198,6 +216,11 @@ if [[ -z "$(env_value NIXWAY_CRYPTO_MASTER_KEY)" ]]; then
   upsert_env NIXWAY_CRYPTO_MASTER_KEY "$(generate_hex_key)"
 fi
 
+# Generate a Grafana admin password once, on first observability deploy.
+if [[ "${observability_enabled}" == "true" && -z "$(env_value NIXWAY_GRAFANA_ADMIN_PASSWORD)" ]]; then
+  upsert_env NIXWAY_GRAFANA_ADMIN_PASSWORD "$(generate_hex_key)"
+fi
+
 echo "Building and starting Nixway..."
 compose build api worker web site migrate
 compose up -d postgres redis victoria-metrics vmagent minio
@@ -206,6 +229,11 @@ if [[ -n "${public_domain}" || -n "${marketing_domain}" ]]; then
   compose up -d traefik api worker web site
 else
   compose up -d api worker web site
+fi
+
+if [[ "${observability_enabled}" == "true" ]]; then
+  echo "Starting control-plane observability stack..."
+  compose up -d loki alloy grafana cadvisor node-exporter postgres-exporter redis-exporter
 fi
 
 # Site URL for the summary: marketing domain when Traefik routes it,
@@ -225,6 +253,15 @@ Nixway is deployed.
   Agent gRPC:  localhost:${grpc_port}
   MinIO:       http://localhost:9001
 EOF
+
+if [[ "${observability_enabled}" == "true" ]]; then
+  if [[ -n "${grafana_domain}" ]]; then
+    echo "  Grafana:     https://${grafana_domain} (user: admin)"
+  else
+    echo "  Grafana:     enabled (set NIXWAY_GRAFANA_DOMAIN for Traefik routing)"
+  fi
+  echo "  Grafana pw:  see NIXWAY_GRAFANA_ADMIN_PASSWORD in .env"
+fi
 
 if [[ -n "${public_domain}" || -n "${marketing_domain}" ]]; then
   if [[ -n "${public_domain}" ]]; then

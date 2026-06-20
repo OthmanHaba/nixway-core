@@ -24,6 +24,7 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/email"
 	githubsvc "github.com/othmanhaba/nixway-core/internal/github"
 	"github.com/othmanhaba/nixway-core/internal/mesh"
+	"github.com/othmanhaba/nixway-core/internal/metrics"
 	"github.com/othmanhaba/nixway-core/internal/observability"
 	"github.com/othmanhaba/nixway-core/internal/platform"
 	"github.com/othmanhaba/nixway-core/internal/project"
@@ -393,12 +394,18 @@ func NewRouter(
 		respond.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
+	// Prometheus scrape endpoint. Internal-only: the public Traefik router only
+	// forwards /api and /agent path prefixes, so this is reachable on the docker
+	// network (api:8080/metrics) but never publicly exposed.
+	mux.Handle("GET /metrics", metrics.Handler())
+
 	// Apply global middleware chain
 	corsConfig := middleware.CORSConfig{
 		AllowedOrigins: []string{cfg.Email.BaseURL, "http://localhost:5173"},
 	}
 
 	var h http.Handler = mux
+	h = metrics.Middleware(h)
 	h = middleware.CORS(corsConfig)(h)
 	h = middleware.Recover(logger)(h)
 	h = middleware.Logging(logger)(h)

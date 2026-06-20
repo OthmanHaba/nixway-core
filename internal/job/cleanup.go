@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/othmanhaba/nixway-core/internal/db"
+	"github.com/othmanhaba/nixway-core/internal/metrics"
 	"github.com/riverqueue/river"
 )
 
@@ -19,7 +20,8 @@ type CleanupExpiredInvitesWorker struct {
 	logger  *slog.Logger
 }
 
-func (w *CleanupExpiredInvitesWorker) Work(ctx context.Context, job *river.Job[CleanupExpiredInvitesArgs]) error {
+func (w *CleanupExpiredInvitesWorker) Work(ctx context.Context, job *river.Job[CleanupExpiredInvitesArgs]) (err error) {
+	defer func() { metrics.RecordJob(CleanupExpiredInvitesArgs{}.Kind(), err) }()
 	count, err := w.queries.DeleteExpiredInvites(ctx)
 	if err != nil {
 		return fmt.Errorf("cleanup invites: %w", err)
