@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Github, Box, Star } from "lucide-react";
+import { ArrowRight, Github, Box, Star, RefreshCw } from "lucide-react";
 import {
   Dialog,
   DialogTrigger,
@@ -86,11 +87,19 @@ export function CreateAppDialog({
   }, [installations, installationId]);
 
   const selectedInstallation = installations.find((i) => i.id === installationId) ?? null;
-  // Only force the manual fallback when we KNOW there are zero installations
-  // (a successful fetch that returned none). A transient/error/loading state must
-  // NOT collapse the repo picker — otherwise the select intermittently disappears.
-  const githubUnavailable =
-    !teamId || (installationsQ.isSuccess && installations.length === 0);
+
+  // Explicit GitHub connection states, so the repo control is never a dead,
+  // empty "select" that does nothing. Each maps to a distinct piece of UI.
+  const noTeam = !teamId;
+  const installationsLoading = installationsQ.isLoading; // first load while enabled
+  // The installations endpoint 404s when no GitHub App is connected to the team.
+  const noAppConnected =
+    installationsQ.isError &&
+    installationsQ.error instanceof ApiError &&
+    installationsQ.error.status === 404;
+  const installationsFailed = installationsQ.isError && !noAppConnected; // token/API error
+  const appButNoInstalls = installationsQ.isSuccess && installations.length === 0;
+  const hasInstalls = installations.length > 0;
 
   const reposQ = useQuery({
     queryKey: ["github-repos", teamId, selectedInstallation?.installation_id],
@@ -111,6 +120,26 @@ export function CreateAppDialog({
         hint: `${r.private ? "private" : "public"} · ${r.default_branch}`,
       })),
     [reposQ.data],
+  );
+
+  // Re-reconcile the connected GitHub App against GitHub and reload repos. The
+  // installations endpoint live-syncs server-side, so refetching is enough to
+  // pick up a freshly installed app or newly granted repos.
+  const refreshGithub = useCallback(() => {
+    if (!teamId) return;
+    queryClient.invalidateQueries({ queryKey: ["github-installations", teamId] });
+    queryClient.invalidateQueries({ queryKey: ["github-repos", teamId] });
+  }, [queryClient, teamId]);
+
+  const refreshButton = (
+    <button
+      type="button"
+      onClick={refreshGithub}
+      className="inline-flex items-center gap-1 text-ink-3 hover:text-signal transition-colors underline underline-offset-2"
+    >
+      <RefreshCw className={cn("h-3 w-3", installationsQ.isFetching && "animate-spin")} />
+      Refresh
+    </button>
   );
 
   // ─── Docker Hub search (remote, debounced) + tags ───
@@ -301,27 +330,64 @@ export function CreateAppDialog({
             {/* source-specific */}
             {source === "github" ? (
               <div className="space-y-5">
-                {/* installation picker (only when more than one) */}
-                {!repoManual && !githubUnavailable && installations.length > 1 && (
-                  <Field id="app-gh-account" label="GitHub account">
-                    <Select
-                      value={installationId}
-                      onValueChange={(v) => {
-                        setInstallationId(v);
-                        setRepo("");
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select an account" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {installations.map((inst) => (
-                          <SelectItem key={inst.id} value={inst.id}>
-                            {inst.account_login}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                {/* connection state — never leaves the user with a dead, empty select */}
+                {noTeam ? (
+                  <Alert tone="info">
+                    No active team in context — enter the repository manually below.
+                  </Alert>
+                ) : noAppConnected ? (
+                  <Alert tone="warn">
+                    No GitHub App is connected for this team. Connect one in{" "}
+                    <Link href="/integrations" className="underline underline-offset-2 hover:text-signal">
+                      Integrations
+                    </Link>
+                    , then {refreshButton} — or enter the repository manually below.
+                  </Alert>
+                ) : installationsFailed ? (
+                  <Alert tone="error">
+                    Couldn’t reach GitHub to list your installations. {refreshButton} or enter the
+                    repository manually below.
+                  </Alert>
+                ) : appButNoInstalls ? (
+                  <Alert tone="warn">
+                    Your GitHub App isn’t installed on any account yet. Install it on the account or
+                    org that owns the repo, then {refreshButton}.
+                  </Alert>
+                ) : null}
+
+                {/* GitHub App / account selector — always shown when at least one
+                    installation exists, so you can deliberately pick which account
+                    to browse repos from (not just when there are 2+). */}
+                {hasInstalls && !repoManual && (
+                  <Field
+                    id="app-gh-account"
+                    label="GitHub account"
+                    hint="The GitHub App account or org to browse repositories from."
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 min-w-0">
+                        <Select
+                          value={installationId}
+                          onValueChange={(v) => {
+                            setInstallationId(v);
+                            setRepo("");
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select an account" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {installations.map((inst) => (
+                              <SelectItem key={inst.id} value={inst.id}>
+                                {inst.account_login}
+                                <span className="text-ink-3"> · {inst.account_type}</span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {refreshButton}
+                    </div>
                   </Field>
                 )}
 
@@ -330,20 +396,12 @@ export function CreateAppDialog({
                     id="app-repo"
                     label="Repository"
                     hint={
-                      repoManual
+                      repoManual || !hasInstalls
                         ? "Format: owner/repo."
-                        : "Pick a repo from your GitHub installation."
+                        : "Pick a repo from the selected account."
                     }
                   >
-                    {repoManual || githubUnavailable ? (
-                      <Input
-                        value={repo}
-                        onChange={(e) => setRepo(e.target.value)}
-                        required
-                        autoComplete="off"
-                        placeholder="acme/api"
-                      />
-                    ) : (
+                    {!repoManual && hasInstalls ? (
                       <Combobox
                         value={repo || null}
                         onChange={(v) => {
@@ -353,11 +411,22 @@ export function CreateAppDialog({
                         }}
                         items={repoItems}
                         loading={reposQ.isFetching}
+                        disabled={!selectedInstallation}
                         placeholder="Select a repository"
                         searchPlaceholder="Filter repositories…"
                         emptyText={
                           reposQ.isError ? "Couldn't load repositories." : "No repositories found."
                         }
+                      />
+                    ) : !repoManual && installationsLoading ? (
+                      <Input value="" disabled placeholder="Loading GitHub accounts…" />
+                    ) : (
+                      <Input
+                        value={repo}
+                        onChange={(e) => setRepo(e.target.value)}
+                        required
+                        autoComplete="off"
+                        placeholder="acme/api"
                       />
                     )}
                   </Field>
@@ -371,15 +440,9 @@ export function CreateAppDialog({
                   </Field>
                 </div>
 
-                {/* manual toggle / availability note */}
-                <div className="text-[11px] text-ink-3">
-                  {githubUnavailable ? (
-                    <span>
-                      {teamId
-                        ? "No GitHub App installation found for this team. Enter the repository manually, or install the app from Integrations."
-                        : "Enter the repository manually."}
-                    </span>
-                  ) : (
+                {/* manual <-> picker toggle — only meaningful when an app is connected */}
+                {hasInstalls && (
+                  <div className="text-[11px] text-ink-3">
                     <button
                       type="button"
                       onClick={() => {
@@ -390,8 +453,8 @@ export function CreateAppDialog({
                     >
                       {repoManual ? "Pick from GitHub instead" : "Enter repository manually"}
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="space-y-5">

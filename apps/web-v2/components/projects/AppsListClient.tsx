@@ -57,6 +57,7 @@ export function AppsListClient({
         </div>
         <CreateAppDialog
           projectId={projectId}
+          teamId={teamId}
           trigger={
             <Button>
               <Plus className="h-3.5 w-3.5" /> Create app
