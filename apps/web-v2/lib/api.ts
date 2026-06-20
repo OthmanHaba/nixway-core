@@ -484,6 +484,8 @@ export const appsApi = {
   create: (projectId: string, input: CreateAppInput)                => api.post<App>(`/projects/${projectId}/apps`, input),
   update: (projectId: string, appId: string, patch: UpdateAppInput) => api.put<App>(`/projects/${projectId}/apps/${appId}`, patch),
   remove: (projectId: string, appId: string)                        => api.delete<void>(`/projects/${projectId}/apps/${appId}`),
+  setRegistryCredential: (appId: string, registry_credential_id: string | null) =>
+    api.put<App>(`/apps/${appId}/registry-credential`, { registry_credential_id }),
   setDomain:    (appId: string, custom_domain: string)              => api.post<App>(`/apps/${appId}/domain`, { custom_domain }),
   verifyDomain: (appId: string)                                     => api.post<VerifyDomainResult>(`/apps/${appId}/domain/verify`),
   /**
