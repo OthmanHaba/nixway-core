@@ -21,6 +21,7 @@ type Config struct {
 	GitHub          GitHubConfig
 	Webhook         WebhookConfig
 	Domain          DomainConfig
+	Cloudflare      CloudflareConfig
 	Observability   ObservabilityConfig
 	PlatformStorage PlatformStorageConfig
 }
@@ -83,6 +84,17 @@ type WebhookConfig struct {
 
 type DomainConfig struct {
 	BaseDomain string // Platform wildcard base domain (e.g., "apps.nixway.dev")
+}
+
+// CloudflareConfig drives per-app public DNS for platform domains. When
+// APIToken is set, each deploy upserts an A record for its generated
+// platform domain (under Domain.BaseDomain) pointing at the serving node's
+// public IP. Left blank, the platform falls back to *.nip.io and no DNS
+// records are managed.
+type CloudflareConfig struct {
+	APIToken string // Cloudflare API token with DNS edit permission on the zone
+	ZoneID   string // Optional explicit zone ID; resolved from BaseDomain when empty
+	Proxied  bool   // Orange-cloud records (TLS terminated at Cloudflare's edge)
 }
 
 type ObservabilityConfig struct {
@@ -163,6 +175,11 @@ func Load() (*Config, error) {
 
 	// Domain defaults
 	v.SetDefault("domain.base_domain", "apps.nixway.dev")
+
+	// Cloudflare DNS defaults (blank token = disabled, falls back to nip.io)
+	v.SetDefault("cloudflare.api_token", "")
+	v.SetDefault("cloudflare.zone_id", "")
+	v.SetDefault("cloudflare.proxied", true)
 
 	// Webhook defaults
 	v.SetDefault("webhook.event_retention_days", 10)
@@ -255,6 +272,18 @@ func Load() (*Config, error) {
 	cfg.Webhook.EventRetentionDays = v.GetInt("webhook.event_retention_days")
 
 	cfg.Domain.BaseDomain = v.GetString("domain.base_domain")
+
+	// Read directly from env — viper is unreliable with nested underscore keys.
+	cfg.Cloudflare.APIToken = os.Getenv("NIXWAY_CLOUDFLARE_API_TOKEN")
+	if cfg.Cloudflare.APIToken == "" {
+		cfg.Cloudflare.APIToken = v.GetString("cloudflare.api_token")
+	}
+	cfg.Cloudflare.ZoneID = os.Getenv("NIXWAY_CLOUDFLARE_ZONE_ID")
+	if cfg.Cloudflare.ZoneID == "" {
+		cfg.Cloudflare.ZoneID = v.GetString("cloudflare.zone_id")
+	}
+	cfg.Cloudflare.Proxied = v.GetBool("cloudflare.proxied")
+
 	cfg.Observability.VictoriaMetricsURL = v.GetString("observability.victoria_metrics_url")
 	cfg.Observability.VMAgentConfigPath = v.GetString("observability.vmagent_config_path")
 	cfg.Observability.VMAgentURL = v.GetString("observability.vmagent_url")

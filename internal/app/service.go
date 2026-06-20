@@ -10,16 +10,31 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/othmanhaba/nixway-core/internal/db"
+	"github.com/othmanhaba/nixway-core/internal/dns"
 	"github.com/othmanhaba/nixway-core/internal/scheduler"
 )
 
 type Service struct {
 	queries *db.Queries
 	logger  *slog.Logger
+
+	// Optional public DNS management for platform domains. When set, deleting
+	// an app also removes its <app>-<proj>-<team>.<baseDomain> record.
+	dns        dns.Provider
+	baseDomain string
 }
 
 func NewService(queries *db.Queries, logger *slog.Logger) *Service {
-	return &Service{queries: queries, logger: logger}
+	return &Service{queries: queries, logger: logger, dns: dns.Noop{}}
+}
+
+// SetDNSProvider wires public DNS cleanup for platform domains. Safe to leave
+// unset (cleanup becomes a no-op).
+func (s *Service) SetDNSProvider(p dns.Provider, baseDomain string) {
+	if p != nil {
+		s.dns = p
+	}
+	s.baseDomain = baseDomain
 }
 
 type CreateParams struct {
@@ -147,7 +162,30 @@ type UpdateParams struct {
 }
 
 func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
-	return s.queries.DeleteApp(ctx, id)
+	// Reconstruct the platform domain (if any) before the rows are gone so we
+	// can clean up its DNS record after a successful delete. Best-effort: a
+	// lookup failure must not block deletion.
+	domain := ""
+	if s.dns.Enabled() && s.baseDomain != "" {
+		if a, err := s.queries.GetApp(ctx, id); err == nil {
+			if project, err := s.queries.GetProject(ctx, a.ProjectID); err == nil {
+				if team, err := s.queries.GetTeamByID(ctx, project.TeamID); err == nil {
+					domain = GenerateDomain(a.Slug, project.Slug, team.Slug, s.baseDomain)
+				}
+			}
+		}
+	}
+
+	if err := s.queries.DeleteApp(ctx, id); err != nil {
+		return err
+	}
+
+	if domain != "" {
+		if err := s.dns.DeleteRecord(ctx, domain); err != nil {
+			s.logger.Warn("failed to delete DNS record for app", "app_id", id, "domain", domain, "error", err)
+		}
+	}
+	return nil
 }
 
 // GenerateDomain builds the platform domain for an app.

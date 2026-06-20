@@ -26,6 +26,7 @@ import (
 	"github.com/othmanhaba/nixway-core/internal/database"
 	"github.com/othmanhaba/nixway-core/internal/db"
 	"github.com/othmanhaba/nixway-core/internal/deploy"
+	"github.com/othmanhaba/nixway-core/internal/dns"
 	"github.com/othmanhaba/nixway-core/internal/email"
 	githubsvc "github.com/othmanhaba/nixway-core/internal/github"
 	"github.com/othmanhaba/nixway-core/internal/mesh"
@@ -165,11 +166,27 @@ func main() {
 	// Secrets service
 	secretSvc := secret.NewService(queries, masterKey, logger)
 
+	// Public DNS for platform domains. Disabled (Noop) unless a Cloudflare API
+	// token is configured, in which case deploys generate real subdomains under
+	// the base domain and manage their A records; otherwise *.nip.io is used.
+	var dnsProvider dns.Provider = dns.Noop{}
+	if cfg.Cloudflare.APIToken != "" {
+		dnsProvider = dns.NewCloudflare(
+			cfg.Cloudflare.APIToken,
+			cfg.Cloudflare.ZoneID,
+			dns.RegistrableDomain(cfg.Domain.BaseDomain),
+		)
+		logger.Info("cloudflare DNS enabled for platform domains",
+			"base_domain", cfg.Domain.BaseDomain, "proxied", cfg.Cloudflare.Proxied)
+	}
+
 	// Project & App services
 	projectSvc := project.NewService(queries, logger)
 	appService := appsvc.NewService(queries, logger)
+	appService.SetDNSProvider(dnsProvider, cfg.Domain.BaseDomain)
 	buildSvc := build.NewService(queries, redisClient, connMgr, githubService, masterKey, logger)
 	deploySvc := deploy.NewService(queries, redisClient, connMgr, secretSvc, masterKey, logger)
+	deploySvc.SetDNSProvider(dnsProvider, cfg.Domain.BaseDomain, cfg.Cloudflare.Proxied)
 	deploySvc.SetAppEnvResolver(appenv.NewService(queries, masterKey, logger))
 	deploySvc.StartAutoscalerLoop(ctx)
 	containerLogSvc := containerlog.NewService(queries, logger)

@@ -13,6 +13,7 @@ import (
 	agentv1 "github.com/othmanhaba/nixway-core/internal/agent/proto/agent/v1"
 	"github.com/othmanhaba/nixway-core/internal/appenv"
 	"github.com/othmanhaba/nixway-core/internal/db"
+	dnsprovider "github.com/othmanhaba/nixway-core/internal/dns"
 	"github.com/othmanhaba/nixway-core/internal/registry"
 	"github.com/othmanhaba/nixway-core/internal/scheduler"
 	"github.com/othmanhaba/nixway-core/internal/secret"
@@ -36,6 +37,13 @@ type Service struct {
 	resolver  *registry.Resolver
 	dbLinks   DatabaseLinkResolver
 	logger    *slog.Logger
+
+	// Public DNS for platform domains. When dns is enabled and baseDomain is
+	// set, deploys generate <app>-<proj>-<team>.<baseDomain> and upsert an A
+	// record to it; otherwise they fall back to the *.nip.io scheme.
+	dns        dnsprovider.Provider
+	baseDomain string
+	dnsProxied bool
 }
 
 type scheduledTarget struct {
@@ -91,7 +99,20 @@ func NewService(queries *db.Queries, redisClient *redis.Client, connMgr *agent.C
 		secretSvc: secretSvc,
 		resolver:  registry.NewResolver(masterKey),
 		logger:    logger,
+		dns:       dnsprovider.Noop{},
 	}
+}
+
+// SetDNSProvider wires public DNS management for platform domains. When the
+// provider is enabled and baseDomain is non-empty, deploys generate platform
+// domains under baseDomain and upsert A records via the provider; otherwise
+// they keep the *.nip.io fallback. Safe to leave unset.
+func (s *Service) SetDNSProvider(p dnsprovider.Provider, baseDomain string, proxied bool) {
+	if p != nil {
+		s.dns = p
+	}
+	s.baseDomain = baseDomain
+	s.dnsProxied = proxied
 }
 
 // SetDatabaseLinkResolver wires the DB-link env injector. Called after both
@@ -1203,8 +1224,26 @@ func (s *Service) dispatchDeploy(ctx context.Context, deployment db.Deployment, 
 	containerName := fmt.Sprintf("nixway-%s-%s", app.Slug, deployID[:8])
 
 	domains := []string{}
-	// Auto-generated domain using nip.io (resolves to server IP, no DNS setup needed)
-	platformDomain := fmt.Sprintf("%s-%s-%s.%s.nip.io", app.Slug, project.Slug, teamSlug, publicIP)
+	// Platform domain. When Cloudflare DNS is configured we generate a real
+	// subdomain under the base domain and upsert an A record pointing at the
+	// serving node (edge LB IP in edge mode, else the server IP). Otherwise we
+	// fall back to *.nip.io, which encodes the IP in the hostname and needs no
+	// DNS setup — handy for local/dev.
+	var platformDomain string
+	if s.dns.Enabled() && s.baseDomain != "" {
+		platformDomain = fmt.Sprintf("%s-%s-%s.%s", app.Slug, project.Slug, teamSlug, s.baseDomain)
+		if err := s.dns.EnsureRecord(ctx, platformDomain, publicIP.String(), s.dnsProxied); err != nil {
+			// Don't abort the deploy: the record may already exist, or DNS may
+			// recover. Surface it loudly so an unreachable domain is diagnosable.
+			s.logger.Error("deploy: failed to ensure DNS record", "deploy_id", deployID, "domain", platformDomain, "ip", publicIP, "error", err)
+			s.PublishLog(ctx, deployment.ID, fmt.Sprintf("WARNING: failed to create DNS record for %s -> %s: %v\n", platformDomain, publicIP, err))
+		} else {
+			s.PublishLog(ctx, deployment.ID, fmt.Sprintf("DNS: %s -> %s (cloudflare)\n", platformDomain, publicIP))
+		}
+	} else {
+		// Auto-generated domain using nip.io (resolves to server IP, no DNS setup needed)
+		platformDomain = fmt.Sprintf("%s-%s-%s.%s.nip.io", app.Slug, project.Slug, teamSlug, publicIP)
+	}
 	domains = append(domains, platformDomain)
 	if app.CustomDomain != nil && *app.CustomDomain != "" {
 		domains = append(domains, *app.CustomDomain)
