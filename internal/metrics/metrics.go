@@ -9,8 +9,11 @@
 package metrics
 
 import (
+	"bufio"
 	"context"
+	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"strconv"
 	"time"
@@ -47,6 +50,13 @@ type statusRecorder struct {
 	status int
 }
 
+// Ensure the wrapper stays transparent to streaming + hijacking so SSE and
+// WebSocket handlers keep working through this middleware.
+var (
+	_ http.Flusher  = (*statusRecorder)(nil)
+	_ http.Hijacker = (*statusRecorder)(nil)
+)
+
 func (r *statusRecorder) WriteHeader(code int) {
 	r.status = code
 	r.ResponseWriter.WriteHeader(code)
@@ -57,6 +67,25 @@ func (r *statusRecorder) Write(b []byte) (int, error) {
 		r.status = http.StatusOK
 	}
 	return r.ResponseWriter.Write(b)
+}
+
+// Flush forwards to the underlying ResponseWriter so SSE/streaming handlers
+// keep working. Embedding the http.ResponseWriter interface does NOT promote
+// the concrete writer's Flush method to a type assertion on this wrapper, so
+// without this, `w.(http.Flusher)` fails and streaming endpoints 500.
+func (r *statusRecorder) Flush() {
+	if f, ok := r.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+// Hijack forwards to the underlying ResponseWriter so WebSocket upgrades keep
+// working (same interface-embedding caveat as Flush).
+func (r *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hj, ok := r.ResponseWriter.(http.Hijacker); ok {
+		return hj.Hijack()
+	}
+	return nil, nil, errors.New("metrics: underlying ResponseWriter does not support hijacking")
 }
 
 // Middleware records request count (by method + status code) and latency
