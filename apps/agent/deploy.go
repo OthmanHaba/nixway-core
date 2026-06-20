@@ -5,10 +5,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -191,7 +192,12 @@ func HandleDeployCommand(ctx context.Context, cmd *agentv1.DeployCommand, stream
 		return
 	}
 
-	healthURL := fmt.Sprintf("http://%s:%d%s", containerIP, cmd.Port, cmd.HealthCheckPath)
+	// TCP health check: the app is "healthy" the moment its port accepts a
+	// connection — that is exactly the condition Traefik needs to route to it.
+	// We deliberately do NOT require an HTTP 2xx on a guessed path: stock images
+	// (nginx, redis, postgres, …) serve fine but 404 on /healthz, and gating the
+	// route on that left them unroutable (Traefik 404 with no router at all).
+	healthAddr := net.JoinHostPort(containerIP, strconv.Itoa(int(cmd.Port)))
 
 	for time.Now().Before(deadline) {
 		// Check container is still running
@@ -202,25 +208,27 @@ func HandleDeployCommand(ctx context.Context, cmd *agentv1.DeployCommand, stream
 			return
 		}
 
-		// HTTP health check
-		client := &http.Client{Timeout: 3 * time.Second}
-		resp, err := client.Get(healthURL)
+		// TCP health check: does anything accept connections on the app port?
+		conn, err := net.DialTimeout("tcp", healthAddr, 3*time.Second)
 		if err == nil {
-			resp.Body.Close()
-			if resp.StatusCode >= 200 && resp.StatusCode < 400 {
-				if !cmd.SkipTraefik && !edgeMode && cmd.Traefik != nil {
-					writeTraefikConfig(cmd.Traefik, cmd.Port, cmd.ContainerName)
-				}
-				sendOutput("healthy", containerID, true, true, "")
-				return
+			conn.Close()
+			if !cmd.SkipTraefik && !edgeMode && cmd.Traefik != nil {
+				writeTraefikConfig(cmd.Traefik, cmd.Port, cmd.ContainerName)
 			}
+			sendOutput("healthy", containerID, true, true, "")
+			return
 		}
 
 		time.Sleep(interval)
 	}
 
-	// Timeout — report unhealthy
-	sendOutput("failed", containerID, true, false, "health check timed out")
+	// Timeout — report unhealthy. Name the port so a port mismatch (the app
+	// listens on a different port than configured) is diagnosable instead of a
+	// silent downstream 404.
+	logs, _ := exec.CommandContext(ctx, "docker", "logs", "--tail", "50", cmd.ContainerName).CombinedOutput()
+	sendOutput("failed", containerID, true, false, fmt.Sprintf(
+		"health check timed out: nothing accepted TCP on container port %d. Does the app listen on this port? Logs:\n%s",
+		cmd.Port, string(logs)))
 }
 
 // ensureNetwork creates the nixway Docker network if it doesn't exist and connects Traefik to it.
@@ -244,34 +252,38 @@ func writeTraefikConfig(cfg *agentv1.TraefikConfig, port int32, containerName ..
 	}
 	hostRule := strings.Join(rules, " || ")
 
-	entryPoints := "web"
-	tlsConfig := ""
-	if cfg.Tls {
-		entryPoints = "websecure"
-		tlsConfig = `      tls:
-        certResolver: letsencrypt`
-	}
-
 	// Use container name as hostname (Docker DNS on nixway network)
 	target := "localhost"
 	if len(containerName) > 0 && containerName[0] != "" {
 		target = containerName[0]
 	}
 
+	// Publish on BOTH entrypoints so the app is reachable however traffic
+	// arrives: plain HTTP on :80 (e.g. Cloudflare "Flexible") and HTTPS on :443
+	// (e.g. Cloudflare "Full"). The websecure router uses `tls: {}` so Traefik
+	// serves its built-in default cert — no ACME, no per-app cert, no rate
+	// limits. Behind a proxy the origin cert is never user-visible; direct hits
+	// just get a self-signed warning. Two routers (not one with both
+	// entrypoints) because a router with `tls` set only answers on websecure.
 	yaml := fmt.Sprintf(`http:
   routers:
-    %s:
-      rule: "%s"
+    %[1]s:
+      rule: "%[2]s"
       entryPoints:
-        - %s
-%s
-      service: %s
+        - web
+      service: %[1]s
+    %[1]s-tls:
+      rule: "%[2]s"
+      entryPoints:
+        - websecure
+      tls: {}
+      service: %[1]s
   services:
-    %s:
+    %[1]s:
       loadBalancer:
         servers:
-          - url: "http://%s:%d"
-`, cfg.AppSlug, hostRule, entryPoints, tlsConfig, cfg.AppSlug, cfg.AppSlug, target, port)
+          - url: "http://%[3]s:%[4]d"
+`, cfg.AppSlug, hostRule, target, port)
 
 	configPath := filepath.Join(traefikDynamicDir, cfg.AppSlug+".yml")
 	os.WriteFile(configPath, []byte(yaml), 0644)

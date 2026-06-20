@@ -61,25 +61,27 @@ func writeWeightedTraefikConfig(cmd *agentv1.TrafficRouteCommand) error {
 		return fmt.Errorf("at least one non-empty domain is required")
 	}
 
-	entryPoints := "web"
-	tlsConfig := ""
-	if cmd.Tls {
-		entryPoints = "websecure"
-		tlsConfig = `      tls:
-        certResolver: letsencrypt`
-	}
-
 	weightedService := safeName(cmd.AppSlug + "-weighted")
+	hostRule := strings.Join(rules, " || ")
+	routerName := safeName(cmd.AppSlug)
+
+	// Publish on BOTH entrypoints (see writeTraefikConfig for the rationale):
+	// plain HTTP on :80 and HTTPS on :443 with Traefik's default cert, so the
+	// edge LB answers whichever port Cloudflare connects on. Two routers because
+	// a router with `tls` set only answers on websecure.
 	var b strings.Builder
 	fmt.Fprintf(&b, "http:\n")
 	fmt.Fprintf(&b, "  routers:\n")
-	fmt.Fprintf(&b, "    %s:\n", safeName(cmd.AppSlug))
-	fmt.Fprintf(&b, "      rule: \"%s\"\n", strings.Join(rules, " || "))
+	fmt.Fprintf(&b, "    %s:\n", routerName)
+	fmt.Fprintf(&b, "      rule: \"%s\"\n", hostRule)
 	fmt.Fprintf(&b, "      entryPoints:\n")
-	fmt.Fprintf(&b, "        - %s\n", entryPoints)
-	if tlsConfig != "" {
-		fmt.Fprintf(&b, "%s\n", tlsConfig)
-	}
+	fmt.Fprintf(&b, "        - web\n")
+	fmt.Fprintf(&b, "      service: %s\n", weightedService)
+	fmt.Fprintf(&b, "    %s-tls:\n", routerName)
+	fmt.Fprintf(&b, "      rule: \"%s\"\n", hostRule)
+	fmt.Fprintf(&b, "      entryPoints:\n")
+	fmt.Fprintf(&b, "        - websecure\n")
+	fmt.Fprintf(&b, "      tls: {}\n")
 	fmt.Fprintf(&b, "      service: %s\n", weightedService)
 	fmt.Fprintf(&b, "  services:\n")
 	fmt.Fprintf(&b, "    %s:\n", weightedService)
