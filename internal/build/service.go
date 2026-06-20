@@ -160,13 +160,42 @@ func (s *Service) dispatchBuild(ctx context.Context, b db.Build, app db.App) {
 		return
 	}
 
-	// Resolve registry credentials. A registry is OPTIONAL: it's only needed so
-	// that a deploy landing on a different node than the build can pull the
-	// image. When an app has a registry credential we tag with the registry
-	// prefix, push, and the deploy pulls. When it doesn't, we build a LOCAL
-	// image ("<slug>:<sha>", no prefix) — the agent skips the push, and the
-	// deploy reuses the local image on the build node (single-node clusters,
-	// the common case). docker_image source skips this whole branch below.
+	// A github build produces an image that must be reachable from whatever node
+	// the deploy lands on. The reliable way to do that across a multi-node
+	// cluster is to push it to a registry and pull it on the deploy node. So if
+	// this app has no registry attached yet, default to the team's registry
+	// (preferring a validated one) and PERSIST the choice — that way the deploy
+	// step, which reads app.RegistryCredentialID, pulls with the same credential.
+	// Only when the team has NO registry at all do we fall back to a local,
+	// single-node image (no prefix, no push).
+	if app.SourceType == "github" && !app.RegistryCredentialID.Valid {
+		if creds, lerr := s.queries.ListRegistryCredentials(ctx, project.TeamID); lerr == nil && len(creds) > 0 {
+			chosen := creds[0]
+			for _, c := range creds {
+				if c.ValidatedAt.Valid {
+					chosen = c
+					break
+				}
+			}
+			if updated, uerr := s.queries.UpdateAppRegistryCredential(ctx, db.UpdateAppRegistryCredentialParams{
+				ID:                   app.ID,
+				RegistryCredentialID: pgtype.UUID{Bytes: chosen.ID, Valid: true},
+			}); uerr != nil {
+				s.logger.Warn("build dispatch: auto-attach team registry failed", "build_id", buildID, "error", uerr)
+			} else {
+				app = updated
+				s.logger.Info("build dispatch: auto-attached team registry to app", "build_id", buildID, "app_id", app.ID, "registry", chosen.Name)
+			}
+		} else {
+			s.logger.Warn("build dispatch: github app has no registry and team has none — building a LOCAL single-node image; attach a registry to deploy across nodes", "build_id", buildID, "app_id", app.ID)
+		}
+	}
+
+	// Resolve registry credentials. When an app has a registry credential we tag
+	// with the registry prefix, push, and the deploy pulls. When it doesn't
+	// (team has no registry at all), we build a LOCAL image ("<slug>:<sha>", no
+	// prefix) — the agent skips the push, and the deploy reuses the local image
+	// on the build node. docker_image source skips this whole branch below.
 	var registryAuth *agentv1.RegistryAuth
 	var imageTag string
 	if app.SourceType == "github" && app.RegistryCredentialID.Valid {
