@@ -24,6 +24,10 @@ import type {
   Project,
   Environment,
   AppEnvVar,
+  GithubInstallation,
+  GithubRepo,
+  DockerHubImage,
+  DockerHubTag,
   App,
   Build,
   Deployment,
@@ -357,6 +361,24 @@ export const projectsApi = {
 export const environmentsApi = {
   list:   (projectId: string)                       => api.get<Environment[]>(`/projects/${projectId}/environments`),
   create: (projectId: string, name: string)         => api.post<Environment>(`/projects/${projectId}/environments`, { name }),
+};
+
+/* ─── GitHub (source picker) ─── */
+
+export const githubApi = {
+  installations: (teamId: string) =>
+    api.get<GithubInstallation[]>(`/teams/${teamId}/github/installations`),
+  repos: (teamId: string, installationId: number) =>
+    api.get<GithubRepo[]>(`/teams/${teamId}/github/installations/${installationId}/repos`),
+};
+
+/* ─── Docker Hub (image picker) ─── */
+
+export const dockerHubApi = {
+  search: (q: string) =>
+    api.get<DockerHubImage[]>(`/docker-hub/search?q=${encodeURIComponent(q)}`),
+  tags: (image: string) =>
+    api.get<DockerHubTag[]>(`/docker-hub/tags?image=${encodeURIComponent(image)}`),
 };
 
 /* ─── Apps ─── */
