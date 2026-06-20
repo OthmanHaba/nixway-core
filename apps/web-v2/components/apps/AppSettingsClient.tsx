@@ -77,18 +77,14 @@ export function AppSettingsClient({ app, teamId }: { app: App; teamId?: string }
             <div className="label-mono mb-1">Build &amp; registry</div>
             <h2 className="text-[18px] text-ink-1">Container registry</h2>
             <p className="mt-1 text-[13px] text-ink-3 max-w-md">
-              GitHub apps build an image on each push and push it to a registry before deploying.
-              A registry credential is required — without one, builds fail immediately.
+              <span className="text-ink-2">Optional.</span> GitHub apps build a local image on the
+              node that runs the build, which works out of the box on single-node clusters. Attach a
+              registry only if you scale across multiple nodes — the image is then pushed so any node
+              can pull it.
             </p>
           </CardHeader>
           <CardBody className="space-y-3">
             {error && <Alert tone="error">{error}</Alert>}
-            {!app.registry_credential_id && !registrySaved && (
-              <Alert tone="warn">
-                No registry is attached to this app. Pick one below, or builds will fail with
-                “app has no registry credential”.
-              </Alert>
-            )}
             {!teamId ? (
               <Alert tone="info">Couldn’t resolve this app’s team to list registries.</Alert>
             ) : noRegistries ? (

@@ -100,12 +100,19 @@ func HandleDeployCommand(ctx context.Context, cmd *agentv1.DeployCommand, stream
 	// error instead of getting buried inside `docker run` output. With
 	// credentials we log in and out around the pull so the daemon's
 	// config.json doesn't accumulate stale creds across deploys.
-	if err := pullDeployImage(ctx, cmd.Registry, cmd.ImageTag); err != nil {
-		sendOutput("failed", "", true, false, err.Error())
-		return
+	//
+	// When no registry is configured the image is a LOCAL build (tagged
+	// "<slug>:<sha>" with no registry host) that already exists on this node
+	// because the build ran here. Pulling it would hit Docker Hub and fail, so
+	// we skip the pull and let "--pull never" use the local image directly.
+	if cmd.Registry != nil && cmd.Registry.Server != "" {
+		if err := pullDeployImage(ctx, cmd.Registry, cmd.ImageTag); err != nil {
+			sendOutput("failed", "", true, false, err.Error())
+			return
+		}
 	}
 
-	// --pull never: image is already local from the explicit pull above.
+	// --pull never: image is already local (pulled above, or built on this node).
 	args = append(args, "--pull", "never", cmd.ImageTag)
 
 	// Optional CMD override (e.g. `redis-server --requirepass $REDIS_PASSWORD`).

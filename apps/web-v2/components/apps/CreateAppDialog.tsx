@@ -28,9 +28,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/primitives/Select";
-import { appsApi, githubApi, dockerHubApi, registriesApi, ApiError } from "@/lib/api";
+import { appsApi, githubApi, dockerHubApi, ApiError } from "@/lib/api";
 import { cn } from "@/lib/cn";
-import Link from "next/link";
 
 type Source = "github" | "docker_image";
 
@@ -61,7 +60,6 @@ export function CreateAppDialog({
   const [branch, setBranch] = useState("main");
   const [installationId, setInstallationId] = useState(""); // installation row UUID
   const [repoManual, setRepoManual] = useState(false);
-  const [registryCredentialId, setRegistryCredentialId] = useState(""); // required for github builds
 
   // Docker
   const [image, setImage] = useState(""); // image name (picker) or full ref (manual)
@@ -93,24 +91,6 @@ export function CreateAppDialog({
   // NOT collapse the repo picker — otherwise the select intermittently disappears.
   const githubUnavailable =
     !teamId || (installationsQ.isSuccess && installations.length === 0);
-
-  // ─── Registry credentials (required to build & push a github-source image) ───
-  const registriesQ = useQuery({
-    queryKey: ["registries", teamId],
-    queryFn: () => registriesApi.list(teamId!),
-    enabled: open && source === "github" && !!teamId,
-    staleTime: 60_000,
-  });
-  const registries = registriesQ.data ?? [];
-  const noRegistries = source === "github" && registriesQ.isSuccess && registries.length === 0;
-
-  // Auto-select the only registry, or keep a prior valid selection.
-  useEffect(() => {
-    if (registries.length === 0) return;
-    if (!registries.some((r) => r.id === registryCredentialId)) {
-      setRegistryCredentialId(registries[0].id);
-    }
-  }, [registries, registryCredentialId]);
 
   const reposQ = useQuery({
     queryKey: ["github-repos", teamId, selectedInstallation?.installation_id],
@@ -190,7 +170,6 @@ export function CreateAppDialog({
     setBranch("main");
     setInstallationId("");
     setRepoManual(false);
-    setRegistryCredentialId("");
     setImage("");
     setTag("latest");
     setImageManual(false);
@@ -213,8 +192,6 @@ export function CreateAppDialog({
           source === "github" && !repoManual && installationId ? installationId : undefined,
         repo_full_name: source === "github" ? repo.trim() : undefined,
         branch: source === "github" ? branch.trim() || undefined : undefined,
-        registry_credential_id:
-          source === "github" && registryCredentialId ? registryCredentialId : undefined,
         docker_image: source === "docker_image" ? dockerImage : undefined,
         port: Number(port) || 3000,
         replicas: Number(replicas) || 1,
@@ -242,11 +219,6 @@ export function CreateAppDialog({
     if (!name.trim()) return setError("App name is required.");
     if (source === "github" && !repo.trim()) {
       return setError("GitHub repository is required (e.g. owner/name).");
-    }
-    if (source === "github" && !registryCredentialId) {
-      return setError(
-        "Pick a container registry — GitHub apps build an image that must be pushed somewhere. Add one in Integrations if you have none.",
-      );
     }
     if (source === "docker_image" && !image.trim()) {
       return setError("Docker image is required.");
@@ -420,46 +392,6 @@ export function CreateAppDialog({
                     </button>
                   )}
                 </div>
-
-                {/* registry credential — required: github builds push an image */}
-                <Field
-                  id="app-registry"
-                  label="Container registry"
-                  hint="The built image is pushed here before deploy."
-                >
-                  {noRegistries ? (
-                    <Alert tone="warn">
-                      No container registry connected. Add one in{" "}
-                      <Link
-                        href="/integrations"
-                        className="underline underline-offset-2 hover:text-signal"
-                      >
-                        Integrations
-                      </Link>{" "}
-                      before creating a GitHub app.
-                    </Alert>
-                  ) : (
-                    <Select
-                      value={registryCredentialId}
-                      onValueChange={setRegistryCredentialId}
-                    >
-                      <SelectTrigger>
-                        <SelectValue
-                          placeholder={
-                            registriesQ.isFetching ? "Loading registries…" : "Select a registry"
-                          }
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {registries.map((reg) => (
-                          <SelectItem key={reg.id} value={reg.id}>
-                            {reg.name} · {reg.registry_type}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </Field>
               </div>
             ) : (
               <div className="space-y-5">

@@ -160,17 +160,16 @@ func (s *Service) dispatchBuild(ctx context.Context, b db.Build, app db.App) {
 		return
 	}
 
-	// Resolve registry credentials. Required for any source that produces an
-	// image we need to push (i.e. github source). docker_image source skips
-	// the build path entirely a few lines below, so this gate only affects
-	// real builds.
+	// Resolve registry credentials. A registry is OPTIONAL: it's only needed so
+	// that a deploy landing on a different node than the build can pull the
+	// image. When an app has a registry credential we tag with the registry
+	// prefix, push, and the deploy pulls. When it doesn't, we build a LOCAL
+	// image ("<slug>:<sha>", no prefix) — the agent skips the push, and the
+	// deploy reuses the local image on the build node (single-node clusters,
+	// the common case). docker_image source skips this whole branch below.
 	var registryAuth *agentv1.RegistryAuth
 	var imageTag string
-	if app.SourceType == "github" {
-		if !app.RegistryCredentialID.Valid {
-			s.failBuild(ctx, b.ID, "app has no registry credential — set one in app settings before deploying")
-			return
-		}
+	if app.SourceType == "github" && app.RegistryCredentialID.Valid {
 		credID, _ := uuid.FromBytes(app.RegistryCredentialID.Bytes[:])
 		cred, err := s.queries.GetRegistryCredentialByID(ctx, db.GetRegistryCredentialByIDParams{
 			ID:     credID,
@@ -194,7 +193,8 @@ func (s *Service) dispatchBuild(ctx context.Context, b db.Build, app db.App) {
 		}
 		imageTag = fmt.Sprintf("%s%s:%s", auth.TagPrefix, app.Slug, buildID[:8])
 	} else {
-		// Fallback path; not used by the github builder branch.
+		// No registry: local image, built and run on the same node. The agent's
+		// push step is a no-op when Registry is nil.
 		imageTag = fmt.Sprintf("%s:%s", app.Slug, buildID[:8])
 	}
 
