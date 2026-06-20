@@ -24,8 +24,10 @@ import type {
   Project,
   Environment,
   AppEnvVar,
+  GithubApp,
   GithubInstallation,
   GithubRepo,
+  RegistryCredential,
   DockerHubImage,
   DockerHubTag,
   App,
@@ -365,11 +367,59 @@ export const environmentsApi = {
 
 /* ─── GitHub (source picker) ─── */
 
+export interface CreateManifestResponse {
+  manifest: Record<string, unknown>;
+  redirect_url: string;
+}
+
 export const githubApi = {
+  /** The connected GitHub App, or 404 (ApiError.status === 404) when none. */
+  getApp: (teamId: string) =>
+    api.get<GithubApp>(`/teams/${teamId}/github/app`),
+  /** Start the manifest flow; returns GitHub's create-app redirect URL. */
+  createManifest: (teamId: string) =>
+    api.post<CreateManifestResponse>(`/teams/${teamId}/github/manifest`, {}),
+  /** Exchange the manifest code GitHub redirected back with. */
+  callback: (teamId: string, code: string) =>
+    api.post<GithubApp>(`/teams/${teamId}/github/callback`, { code }),
+  deleteApp: (teamId: string) =>
+    api.delete(`/teams/${teamId}/github/app`),
+  /** Listing installations also live-reconciles them — doubles as a health check. */
   installations: (teamId: string) =>
     api.get<GithubInstallation[]>(`/teams/${teamId}/github/installations`),
+  syncInstallations: (teamId: string) =>
+    api.post<{ count: number; installations: GithubInstallation[] }>(
+      `/teams/${teamId}/github/installations/sync`,
+    ),
   repos: (teamId: string, installationId: number) =>
     api.get<GithubRepo[]>(`/teams/${teamId}/github/installations/${installationId}/repos`),
+};
+
+/* ─── Container registries ─── */
+
+export interface CreateRegistryInput {
+  name: string;
+  registry_type: "dockerhub" | "ghcr" | "ecr" | "generic";
+  registry_url?: string;
+  username: string;
+  password: string;
+  region?: string | null;
+  aws_access_key_id?: string | null;
+  aws_secret_access_key?: string;
+}
+
+export const registriesApi = {
+  list: (teamId: string) =>
+    api.get<RegistryCredential[]>(`/teams/${teamId}/registries`),
+  create: (teamId: string, input: CreateRegistryInput) =>
+    api.post<RegistryCredential>(`/teams/${teamId}/registries`, input),
+  update: (teamId: string, id: string, input: CreateRegistryInput) =>
+    api.put<RegistryCredential>(`/teams/${teamId}/registries/${id}`, input),
+  remove: (teamId: string, id: string) =>
+    api.delete(`/teams/${teamId}/registries/${id}`),
+  /** Re-check connectivity; throws ApiError (422) with the reason on failure. */
+  validate: (teamId: string, id: string) =>
+    api.post(`/teams/${teamId}/registries/${id}/validate`),
 };
 
 /* ─── Docker Hub (image picker) ─── */

@@ -13,6 +13,7 @@ import {
   Settings,
   Users,
   Activity,
+  Plug,
 } from "lucide-react";
 import { Logo } from "./Logo";
 import { TeamSwitcher } from "./TeamSwitcher";
@@ -33,9 +34,10 @@ const NAV: NavItem[] = [
   { section: "Workloads",      href: "/databases",  label: "Databases", icon: Database },
   { section: "Workloads",      href: "/volumes",    label: "Volumes",   icon: HardDrive },
 
-  { section: "Access",         href: "/ssh-keys",   label: "SSH Keys",  icon: KeyRound },
-  { section: "Access",         href: "/teams",      label: "Teams",     icon: Users },
-  { section: "Access",         href: "/settings",   label: "Settings",  icon: Settings },
+  { section: "Access",         href: "/ssh-keys",     label: "SSH Keys",     icon: KeyRound },
+  { section: "Access",         href: "/integrations", label: "Integrations", icon: Plug },
+  { section: "Access",         href: "/teams",        label: "Teams",        icon: Users },
+  { section: "Access",         href: "/settings",     label: "Settings",     icon: Settings },
 ];
 
 interface SidebarProps {

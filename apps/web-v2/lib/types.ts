@@ -335,6 +335,30 @@ export interface GithubRepo {
   clone_url: string;
 }
 
+/** The GitHub App connected to a team (registered via the manifest flow). */
+export interface GithubApp {
+  id: string;
+  app_id: number;
+  app_name: string;
+  app_slug: string;
+  html_url: string;
+  created_at: string;
+}
+
+/** A stored container-registry credential. Secrets are never returned. */
+export interface RegistryCredential {
+  id: string;
+  team_id: string;
+  name: string;
+  registry_type: "dockerhub" | "ghcr" | "ecr" | "generic";
+  registry_url: string;
+  username: string;
+  region?: string | null;
+  validated_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /** A public Docker Hub image (search result). */
 export interface DockerHubImage {
   name: string;          // "nginx" or "owner/repo"
