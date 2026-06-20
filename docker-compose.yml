@@ -11,6 +11,10 @@ services:
       - "--accesslog=${NIXWAY_TRAEFIK_ACCESS_LOG:-false}"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.metrics.address=:8082"
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.entrypoint=metrics"
+      - "--metrics.prometheus.addrouterslabels=true"
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--certificatesresolvers.letsencrypt.acme.email=${NIXWAY_TRAEFIK_ACME_EMAIL:-admin@example.com}"
@@ -24,7 +28,10 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - traefik_letsencrypt:/letsencrypt
     networks:
+      # public for routing; internal so Alloy can scrape the :8082 metrics
+      # endpoint. Per-service routing still uses traefik.docker.network labels.
       - public
+      - internal
 
   postgres:
     image: postgres:16-alpine
@@ -280,12 +287,143 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── Control-plane observability (logs + telemetry) ──
+  # Loki stores logs; Alloy ships container logs into it and scrapes metrics
+  # into the existing VictoriaMetrics; Grafana visualises both. Exporters give
+  # container/host/datastore telemetry. This is additive — the tenant vmagent
+  # path is untouched.
+  loki:
+    image: grafana/loki:3.1.1
+    profiles:
+      - observability
+    restart: unless-stopped
+    command:
+      - "-config.file=/etc/loki/loki.yml"
+    volumes:
+      - ./configs/loki.yml:/etc/loki/loki.yml:ro
+      - lokidata:/loki
+    networks:
+      - internal
+
+  alloy:
+    image: grafana/alloy:v1.4.2
+    profiles:
+      - observability
+    restart: unless-stopped
+    command:
+      - "run"
+      - "--server.http.listen-addr=0.0.0.0:12345"
+      - "--storage.path=/var/lib/alloy/data"
+      - "/etc/alloy/config.alloy"
+    volumes:
+      - ./configs/alloy.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloydata:/var/lib/alloy/data
+    depends_on:
+      - loki
+      - victoria-metrics
+    networks:
+      - internal
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    profiles:
+      - observability
+    restart: unless-stopped
+    command:
+      - "-housekeeping_interval=15s"
+      - "-docker_only=true"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    devices:
+      - /dev/kmsg
+    privileged: true
+    networks:
+      - internal
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    profiles:
+      - observability
+    restart: unless-stopped
+    command:
+      - "--path.rootfs=/host"
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - internal
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    profiles:
+      - observability
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: ${NIXWAY_DATABASE_URL:-postgres://nixway:nixway-dev-secret-change-me@postgres:5432/nixway_core?sslmode=disable}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.62.0
+    profiles:
+      - observability
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: ${NIXWAY_REDIS_URL:-redis://redis:6379/0}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - internal
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    profiles:
+      - observability
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${NIXWAY_GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_SERVER_ROOT_URL: https://${NIXWAY_GRAFANA_DOMAIN:-localhost}
+      GF_SERVER_DOMAIN: ${NIXWAY_GRAFANA_DOMAIN:-localhost}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - grafanadata:/var/lib/grafana
+      - ./configs/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./configs/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - victoria-metrics
+      - loki
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nixway-grafana.rule=Host(`${NIXWAY_GRAFANA_DOMAIN:-grafana.localhost}`)"
+      - "traefik.http.routers.nixway-grafana.entrypoints=websecure"
+      - "traefik.http.routers.nixway-grafana.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.nixway-grafana.priority=20"
+      - "traefik.http.services.nixway-grafana.loadbalancer.server.port=3000"
+      - "traefik.docker.network=${NIXWAY_DOCKER_PUBLIC_NETWORK:-nixway-public}"
+    networks:
+      - public
+      - internal
+
 volumes:
   pgdata:
   redisdata:
   vmdata:
   miniodata:
   traefik_letsencrypt:
+  lokidata:
+  alloydata:
+  grafanadata:
 
 networks:
   public:
