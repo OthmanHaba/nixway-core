@@ -247,7 +247,8 @@ services:
     command:
       - "-storageDataPath=/victoria-metrics-data"
       - "-retentionPeriod=12"
-      - "-downsampling.period=30d:5m"
+      # NOTE: -downsampling.period is VictoriaMetrics Enterprise-only. The
+      # open-source image rejects it and crash-loops on boot, so it's removed.
     volumes:
       - vmdata:/victoria-metrics-data
     networks:
