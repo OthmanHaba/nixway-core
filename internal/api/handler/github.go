@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -281,6 +282,15 @@ func (h *GitHubHandler) ListInstallations(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Reconcile live from GitHub so callers (e.g. the create-app picker) always
+	// see current installations without a manual sync. Best-effort: on failure
+	// we still return whatever is already persisted.
+	if privateKey, derr := crypto.Decrypt(app.PrivateKey, h.masterKey, "github:"+teamID.String()); derr != nil {
+		h.logger.Error("failed to decrypt private key for installation sync", "error", derr)
+	} else if _, serr := h.reconcileInstallations(r.Context(), app, privateKey); serr != nil {
+		h.logger.Warn("live installation sync failed, returning persisted installations", "error", serr, "team_id", teamID)
+	}
+
 	installations, err := h.queries.ListGitHubInstallations(r.Context(), app.ID)
 	if err != nil {
 		h.logger.Error("failed to list github installations", "error", err)
@@ -290,6 +300,71 @@ func (h *GitHubHandler) ListInstallations(w http.ResponseWriter, r *http.Request
 
 	_ = authCtx
 	respond.JSON(w, http.StatusOK, installations)
+}
+
+// reconcileInstallations pulls the GitHub App's installations from the GitHub
+// API and makes the github_installations table match: it creates ones that are
+// missing, refreshes ones whose account login changed, and deletes ones that no
+// longer exist (app uninstalled). Returns the number of newly created rows.
+// Uses only existing queries so it never requires sqlc regeneration.
+func (h *GitHubHandler) reconcileInstallations(ctx context.Context, app db.GithubApp, privateKey []byte) (int, error) {
+	ghInstallations, err := h.githubSvc.ListInstallations(ctx, app.AppID, privateKey)
+	if err != nil {
+		return 0, err
+	}
+
+	live := make(map[int64]struct{}, len(ghInstallations))
+	created := 0
+	for _, inst := range ghInstallations {
+		live[inst.ID] = struct{}{}
+
+		targetType := inst.RepositorySelection
+		if targetType != "all" && targetType != "selected" {
+			targetType = "selected"
+		}
+
+		existing, gerr := h.queries.GetGitHubInstallation(ctx, db.GetGitHubInstallationParams{
+			GithubAppID:    app.ID,
+			InstallationID: inst.ID,
+		})
+		if gerr == nil {
+			// Already known. Refresh if the account login drifted (e.g. org rename).
+			if existing.AccountLogin != inst.Account.Login || existing.TargetType != targetType {
+				_ = h.queries.DeleteGitHubInstallation(ctx, db.DeleteGitHubInstallationParams{
+					GithubAppID:    app.ID,
+					InstallationID: inst.ID,
+				})
+			} else {
+				continue
+			}
+		}
+
+		if _, cerr := h.queries.CreateGitHubInstallation(ctx, db.CreateGitHubInstallationParams{
+			GithubAppID:    app.ID,
+			InstallationID: inst.ID,
+			AccountLogin:   inst.Account.Login,
+			AccountType:    inst.Account.Type,
+			TargetType:     targetType,
+		}); cerr != nil {
+			h.logger.Error("failed to create installation", "error", cerr, "installation_id", inst.ID)
+			continue
+		}
+		created++
+	}
+
+	// Drop installations that GitHub no longer reports (app was uninstalled).
+	if persisted, lerr := h.queries.ListGitHubInstallations(ctx, app.ID); lerr == nil {
+		for _, p := range persisted {
+			if _, ok := live[p.InstallationID]; !ok {
+				_ = h.queries.DeleteGitHubInstallation(ctx, db.DeleteGitHubInstallationParams{
+					GithubAppID:    app.ID,
+					InstallationID: p.InstallationID,
+				})
+			}
+		}
+	}
+
+	return created, nil
 }
 
 // SyncInstallations polls GitHub API for installations and upserts them into the database.
@@ -320,45 +395,12 @@ func (h *GitHubHandler) SyncInstallations(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Fetch installations from GitHub API
 	h.logger.Info("syncing installations from GitHub", "app_id", app.AppID, "team_id", teamID)
-	ghInstallations, err := h.githubSvc.ListInstallations(r.Context(), app.AppID, privateKey)
+	synced, err := h.reconcileInstallations(r.Context(), app, privateKey)
 	if err != nil {
 		h.logger.Error("failed to list installations from GitHub", "error", err, "app_id", app.AppID)
 		respond.Error(w, http.StatusInternalServerError, "failed to fetch installations from GitHub: "+err.Error())
 		return
-	}
-	h.logger.Info("installations fetched from GitHub", "count", len(ghInstallations), "app_id", app.AppID)
-
-	// Upsert each installation
-	synced := 0
-	for _, inst := range ghInstallations {
-		// GitHub API returns repository_selection as "all" or "selected"
-		targetType := inst.RepositorySelection
-		if targetType != "all" && targetType != "selected" {
-			targetType = "selected"
-		}
-
-		// Check if already exists
-		_, err := h.queries.GetGitHubInstallation(r.Context(), db.GetGitHubInstallationParams{
-			GithubAppID:    app.ID,
-			InstallationID: inst.ID,
-		})
-		if err != nil {
-			// Doesn't exist — create
-			_, err = h.queries.CreateGitHubInstallation(r.Context(), db.CreateGitHubInstallationParams{
-				GithubAppID:    app.ID,
-				InstallationID: inst.ID,
-				AccountLogin:   inst.Account.Login,
-				AccountType:    inst.Account.Type,
-				TargetType:     targetType,
-			})
-			if err != nil {
-				h.logger.Error("failed to create installation", "error", err, "installation_id", inst.ID)
-				continue
-			}
-			synced++
-		}
 	}
 
 	// Re-fetch from DB to return

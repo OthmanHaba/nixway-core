@@ -75,6 +75,7 @@ func NewRouter(
 	agentDlH := handler.NewAgentDownloadHandler(cfg.Server.AgentBinaryDir, logger)
 	terminalH := handler.NewTerminalHandler(queries, logger, masterKey)
 	githubH := handler.NewGitHubHandler(queries, auditWriter, githubService, masterKey, logger)
+	dockerHubH := handler.NewDockerHubHandler(logger)
 	webhookH := handler.NewWebhookHandler(queries, buildSvc, masterKey, logger)
 	registryH := handler.NewRegistryHandler(queries, auditWriter, registry.NewValidator(), masterKey, logger)
 	secretH := handler.NewSecretHandler(queries, auditWriter, secretSvc, logger)
@@ -197,6 +198,10 @@ func NewRouter(
 	protected.HandleFunc("GET /api/v1/teams/{id}/github/installations", githubH.ListInstallations)
 	protected.HandleFunc("POST /api/v1/teams/{id}/github/installations/sync", githubH.SyncInstallations)
 	protected.HandleFunc("GET /api/v1/teams/{id}/github/installations/{installationId}/repos", githubH.ListRepos)
+
+	// Docker Hub (public image search + tags, used by the create-app picker)
+	protected.HandleFunc("GET /api/v1/docker-hub/search", dockerHubH.SearchImages)
+	protected.HandleFunc("GET /api/v1/docker-hub/tags", dockerHubH.ListTags)
 
 	// Container registries
 	protected.HandleFunc("POST /api/v1/teams/{id}/registries", registryH.Create)

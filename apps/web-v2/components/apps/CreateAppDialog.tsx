@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Github, Box } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowRight, Github, Box, Star } from "lucide-react";
 import {
   Dialog,
   DialogTrigger,
@@ -20,16 +20,26 @@ import { Button } from "@/components/primitives/Button";
 import { Input } from "@/components/primitives/Input";
 import { Field } from "@/components/primitives/Field";
 import { Alert } from "@/components/primitives/Alert";
-import { appsApi, ApiError } from "@/lib/api";
+import { Combobox, type ComboboxItem } from "@/components/primitives/Combobox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/primitives/Select";
+import { appsApi, githubApi, dockerHubApi, ApiError } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
 type Source = "github" | "docker_image";
 
 export function CreateAppDialog({
   projectId,
+  teamId,
   trigger,
 }: {
   projectId: string;
+  teamId?: string;
   trigger: ReactNode;
 }) {
   const router = useRouter();
@@ -48,11 +58,104 @@ export function CreateAppDialog({
   // GitHub
   const [repo, setRepo] = useState("");
   const [branch, setBranch] = useState("main");
+  const [installationId, setInstallationId] = useState(""); // installation row UUID
+  const [repoManual, setRepoManual] = useState(false);
 
   // Docker
-  const [image, setImage] = useState("");
+  const [image, setImage] = useState(""); // image name (picker) or full ref (manual)
+  const [tag, setTag] = useState("latest");
+  const [imageManual, setImageManual] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
+
+  // ─── GitHub installations + repos ───
+  const installationsQ = useQuery({
+    queryKey: ["github-installations", teamId],
+    queryFn: () => githubApi.installations(teamId!),
+    enabled: open && source === "github" && !!teamId,
+    staleTime: 60_000,
+  });
+  const installations = installationsQ.data ?? [];
+
+  // Auto-select the only installation, or keep prior selection if still valid.
+  useEffect(() => {
+    if (installations.length === 0) return;
+    if (!installations.some((i) => i.id === installationId)) {
+      setInstallationId(installations[0].id);
+    }
+  }, [installations, installationId]);
+
+  const selectedInstallation = installations.find((i) => i.id === installationId) ?? null;
+  const githubUnavailable =
+    !teamId || (installationsQ.isFetched && installations.length === 0);
+
+  const reposQ = useQuery({
+    queryKey: ["github-repos", teamId, selectedInstallation?.installation_id],
+    queryFn: () => githubApi.repos(teamId!, selectedInstallation!.installation_id),
+    enabled:
+      open &&
+      source === "github" &&
+      !repoManual &&
+      !!teamId &&
+      !!selectedInstallation,
+    staleTime: 60_000,
+  });
+  const repoItems: ComboboxItem[] = useMemo(
+    () =>
+      (reposQ.data ?? []).map((r) => ({
+        value: r.full_name,
+        label: r.full_name,
+        hint: `${r.private ? "private" : "public"} · ${r.default_branch}`,
+      })),
+    [reposQ.data],
+  );
+
+  // ─── Docker Hub search (remote, debounced) + tags ───
+  const [dockerResults, setDockerResults] = useState<ComboboxItem[]>([]);
+  const [dockerLoading, setDockerLoading] = useState(false);
+  const debounceRef = useRef<number | null>(null);
+
+  function searchDocker(q: string) {
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    if (!q.trim()) {
+      setDockerResults([]);
+      setDockerLoading(false);
+      return;
+    }
+    setDockerLoading(true);
+    debounceRef.current = window.setTimeout(async () => {
+      try {
+        const res = await dockerHubApi.search(q.trim());
+        setDockerResults(
+          res.map((img) => ({
+            value: img.name,
+            label: img.name,
+            hint: img.is_official
+              ? `official${img.description ? " · " + img.description : ""}`
+              : img.description || undefined,
+            icon: img.is_official ? (
+              <Star className="h-3 w-3 text-signal shrink-0" />
+            ) : undefined,
+          })),
+        );
+      } catch {
+        setDockerResults([]);
+      } finally {
+        setDockerLoading(false);
+      }
+    }, 300);
+  }
+
+  const tagsQ = useQuery({
+    queryKey: ["docker-tags", image],
+    queryFn: () => dockerHubApi.tags(image),
+    enabled: open && source === "docker_image" && !imageManual && !!image,
+    staleTime: 60_000,
+  });
+  const tagItems: ComboboxItem[] = useMemo(
+    () => (tagsQ.data ?? []).map((t) => ({ value: t.name, label: t.name })),
+    [tagsQ.data],
+  );
 
   function reset() {
     setSource("github");
@@ -62,25 +165,39 @@ export function CreateAppDialog({
     setHealthCheckPath("/");
     setRepo("");
     setBranch("main");
+    setInstallationId("");
+    setRepoManual(false);
     setImage("");
+    setTag("latest");
+    setImageManual(false);
+    setDockerResults([]);
+    setDockerLoading(false);
     setError(null);
   }
 
   const create = useMutation({
-    mutationFn: () =>
-      appsApi.create(projectId, {
+    mutationFn: () => {
+      const dockerImage = imageManual
+        ? image.trim()
+        : image.trim()
+          ? `${image.trim()}:${(tag || "latest").trim()}`
+          : "";
+      return appsApi.create(projectId, {
         name: name.trim(),
         source_type: source,
+        github_installation_id:
+          source === "github" && !repoManual && installationId ? installationId : undefined,
         repo_full_name: source === "github" ? repo.trim() : undefined,
-        branch: source === "github" ? (branch.trim() || undefined) : undefined,
-        docker_image: source === "docker_image" ? image.trim() : undefined,
+        branch: source === "github" ? branch.trim() || undefined : undefined,
+        docker_image: source === "docker_image" ? dockerImage : undefined,
         port: Number(port) || 3000,
         replicas: Number(replicas) || 1,
         health_check_path: healthCheckPath.trim() || "/",
         builder: "auto",
         root_path: "/",
         auto_deploy: source === "github",
-      }),
+      });
+    },
     onSuccess: (app) => {
       queryClient.invalidateQueries({ queryKey: ["project-apps", projectId] });
       setOpen(false);
@@ -101,7 +218,7 @@ export function CreateAppDialog({
       return setError("GitHub repository is required (e.g. owner/name).");
     }
     if (source === "docker_image" && !image.trim()) {
-      return setError("Docker image reference is required.");
+      return setError("Docker image is required.");
     }
     create.mutate();
   }
@@ -180,43 +297,163 @@ export function CreateAppDialog({
 
             {/* source-specific */}
             {source === "github" ? (
-              <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr] gap-5">
-                <Field
-                  id="app-repo"
-                  label="Repository"
-                  hint="Format: owner/repo. We use the team's GitHub installation."
-                >
-                  <Input
-                    value={repo}
-                    onChange={(e) => setRepo(e.target.value)}
-                    required
-                    autoComplete="off"
-                    placeholder="acme/api"
-                  />
-                </Field>
-                <Field id="app-branch" label="Branch">
-                  <Input
-                    value={branch}
-                    onChange={(e) => setBranch(e.target.value)}
-                    autoComplete="off"
-                    placeholder="main"
-                  />
-                </Field>
+              <div className="space-y-5">
+                {/* installation picker (only when more than one) */}
+                {!repoManual && !githubUnavailable && installations.length > 1 && (
+                  <Field id="app-gh-account" label="GitHub account">
+                    <Select
+                      value={installationId}
+                      onValueChange={(v) => {
+                        setInstallationId(v);
+                        setRepo("");
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select an account" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {installations.map((inst) => (
+                          <SelectItem key={inst.id} value={inst.id}>
+                            {inst.account_login}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr] gap-5">
+                  <Field
+                    id="app-repo"
+                    label="Repository"
+                    hint={
+                      repoManual
+                        ? "Format: owner/repo."
+                        : "Pick a repo from your GitHub installation."
+                    }
+                  >
+                    {repoManual || githubUnavailable ? (
+                      <Input
+                        value={repo}
+                        onChange={(e) => setRepo(e.target.value)}
+                        required
+                        autoComplete="off"
+                        placeholder="acme/api"
+                      />
+                    ) : (
+                      <Combobox
+                        value={repo || null}
+                        onChange={(v) => {
+                          setRepo(v);
+                          const r = (reposQ.data ?? []).find((x) => x.full_name === v);
+                          if (r?.default_branch) setBranch(r.default_branch);
+                        }}
+                        items={repoItems}
+                        loading={reposQ.isFetching}
+                        placeholder="Select a repository"
+                        searchPlaceholder="Filter repositories…"
+                        emptyText={
+                          reposQ.isError ? "Couldn't load repositories." : "No repositories found."
+                        }
+                      />
+                    )}
+                  </Field>
+                  <Field id="app-branch" label="Branch">
+                    <Input
+                      value={branch}
+                      onChange={(e) => setBranch(e.target.value)}
+                      autoComplete="off"
+                      placeholder="main"
+                    />
+                  </Field>
+                </div>
+
+                {/* manual toggle / availability note */}
+                <div className="text-[11px] text-ink-3">
+                  {githubUnavailable ? (
+                    <span>
+                      {teamId
+                        ? "No GitHub App installation found for this team. Enter the repository manually, or install the app from Integrations."
+                        : "Enter the repository manually."}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRepoManual((m) => !m);
+                        setRepo("");
+                      }}
+                      className="text-ink-3 hover:text-signal transition-colors underline underline-offset-2"
+                    >
+                      {repoManual ? "Pick from GitHub instead" : "Enter repository manually"}
+                    </button>
+                  )}
+                </div>
               </div>
             ) : (
-              <Field
-                id="app-image"
-                label="Docker image"
-                hint="Full reference, e.g. ghcr.io/acme/api:latest. Use the Registries page for private images."
-              >
-                <Input
-                  value={image}
-                  onChange={(e) => setImage(e.target.value)}
-                  required
-                  autoComplete="off"
-                  placeholder="ghcr.io/acme/api:latest"
-                />
-              </Field>
+              <div className="space-y-5">
+                {imageManual ? (
+                  <Field
+                    id="app-image"
+                    label="Docker image"
+                    hint="Full reference, e.g. ghcr.io/acme/api:latest."
+                  >
+                    <Input
+                      value={image}
+                      onChange={(e) => setImage(e.target.value)}
+                      required
+                      autoComplete="off"
+                      placeholder="ghcr.io/acme/api:latest"
+                    />
+                  </Field>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr] gap-5">
+                    <Field id="app-image" label="Docker Hub image" hint="Search public images.">
+                      <Combobox
+                        value={image || null}
+                        onChange={(v) => {
+                          setImage(v);
+                          setTag("latest");
+                        }}
+                        items={dockerResults}
+                        onSearch={searchDocker}
+                        loading={dockerLoading}
+                        placeholder="Search Docker Hub…"
+                        searchPlaceholder="e.g. nginx, postgres…"
+                        emptyText="Type to search Docker Hub."
+                      />
+                    </Field>
+                    <Field id="app-tag" label="Tag">
+                      <Combobox
+                        value={tag || null}
+                        onChange={(v) => setTag(v)}
+                        items={tagItems}
+                        loading={tagsQ.isFetching}
+                        disabled={!image}
+                        placeholder="latest"
+                        searchPlaceholder="Filter tags…"
+                        emptyText={image ? "No tags found." : "Pick an image first."}
+                      />
+                    </Field>
+                  </div>
+                )}
+
+                <div className="text-[11px] text-ink-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImageManual((m) => !m);
+                      setImage("");
+                      setTag("latest");
+                    }}
+                    className="text-ink-3 hover:text-signal transition-colors underline underline-offset-2"
+                  >
+                    {imageManual
+                      ? "Search Docker Hub instead"
+                      : "Enter image manually (private / other registry)"}
+                  </button>
+                </div>
+              </div>
             )}
 
             <div className="grid grid-cols-3 gap-5">

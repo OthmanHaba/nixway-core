@@ -312,6 +312,45 @@ export interface AppEnvVar {
   updated_at: string;
 }
 
+/** A GitHub App installation available to a team (account = org or user). */
+export interface GithubInstallation {
+  id: string;              // installation row UUID — stored on the app
+  github_app_id: string;
+  installation_id: number; // numeric GitHub installation id
+  account_login: string;
+  account_type: string;    // "Organization" | "User"
+  target_type: string;
+  suspended_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** A repository reachable through a GitHub App installation. */
+export interface GithubRepo {
+  id: number;
+  name: string;
+  full_name: string;
+  private: boolean;
+  default_branch: string;
+  clone_url: string;
+}
+
+/** A public Docker Hub image (search result). */
+export interface DockerHubImage {
+  name: string;          // "nginx" or "owner/repo"
+  description: string;
+  is_official: boolean;
+  star_count: number;
+  pull_count?: number;
+}
+
+/** A published tag for a Docker Hub image. */
+export interface DockerHubTag {
+  name: string;
+  size?: number;
+  last_updated?: string;
+}
+
 export type AppSourceType = "github" | "docker_image" | string;
 export type AppStatus = "active" | "paused" | "error" | "building" | "deploying" | string;
 

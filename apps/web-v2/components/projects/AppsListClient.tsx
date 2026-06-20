@@ -13,9 +13,11 @@ import type { App } from "@/lib/types";
 
 export function AppsListClient({
   projectId,
+  teamId,
   initialApps,
 }: {
   projectId: string;
+  teamId?: string;
   initialApps: App[];
 }) {
   const apps = useQuery({
@@ -35,6 +37,7 @@ export function AppsListClient({
         action={
           <CreateAppDialog
             projectId={projectId}
+            teamId={teamId}
             trigger={
               <Button>
                 <Plus className="h-3.5 w-3.5" /> Create app
